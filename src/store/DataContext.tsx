@@ -17,13 +17,7 @@ import type {
 } from '@/types'
 import * as mock from '@/mocks'
 import { currentUser } from '@/mocks/users'
-
-let idCounter = 100000
-
-function nextId(prefix: string) {
-  idCounter += 1
-  return `${prefix}_${idCounter}`
-}
+import { nextInternalId, createSequence } from '@/lib/idGenerator'
 
 /**
  * Business-rule validation lives here, in the action functions, not just in
@@ -37,6 +31,27 @@ class BusinessRuleError extends Error {}
 
 function pad(n: number, width: number) {
   return String(n).padStart(width, '0')
+}
+
+// Human-readable sequence numbers (PO/loan/sale numbers, patient codes, Case
+// IDs) — independent of live array length, seeded once from the mock seed
+// counts (see src/lib/idGenerator.ts and ARCHITECTURE.md §6.3).
+const nextProductSeq = createSequence(mock.products.length + 1)
+const nextPoSeq = createSequence(mock.purchaseOrders.length + 1)
+const nextLoanSeq = createSequence(mock.loans.length + 1)
+const nextSaleSeq = createSequence(mock.sales.length + 1)
+const nextPatientSeq = createSequence(mock.patients.length + 1)
+
+// Case IDs reset per calendar year (IDC-YYYY-00001), so each year gets its
+// own counter, lazily created and seeded from how many seeded cases already
+// exist for that year.
+const caseSeqByYear = new Map<number, () => number>()
+function nextCaseSeq(year: number): number {
+  if (!caseSeqByYear.has(year)) {
+    const existing = mock.cases.filter((c) => c.caseId.includes(`-${year}-`)).length
+    caseSeqByYear.set(year, createSequence(existing + 1))
+  }
+  return caseSeqByYear.get(year)!()
 }
 
 interface DataContextValue {
@@ -93,7 +108,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const addMovement = useCallback(
     (productId: string, type: MovementType, quantity: number, reason: string, reference?: string, note?: string) => {
       const movement: InventoryMovement = {
-        id: nextId('mv'),
+        id: nextInternalId('mv'),
         productId,
         type,
         quantity,
@@ -122,9 +137,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   )
 
   const addProduct = useCallback<DataContextValue['addProduct']>((input) => {
-    const id = nextId('prd')
+    const id = nextInternalId('prd')
     const now = new Date().toISOString()
-    const seq = products.length + 1
+    const seq = nextProductSeq()
     const product: Product = {
       ...input,
       id,
@@ -139,15 +154,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addMovement(id, 'inbound', product.quantityOnHand, 'Initial stock on product creation')
     }
     return product
-  }, [products.length, addMovement])
+  }, [addMovement])
 
   const updateProduct = useCallback((id: string, patch: Partial<Product>) => {
     setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch, updatedAt: new Date().toISOString() } : p)))
   }, [])
 
   const createPurchaseOrder = useCallback<DataContextValue['createPurchaseOrder']>((vendorId, lines, eta, notes) => {
-    const id = nextId('po')
-    const seq = purchaseOrders.length + 1
+    const id = nextInternalId('po')
+    const seq = nextPoSeq()
     const year = new Date().getFullYear()
     const po: PurchaseOrder = {
       id,
@@ -161,7 +176,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
     setPurchaseOrders((prev) => [po, ...prev])
     return po
-  }, [purchaseOrders.length])
+  }, [])
 
   const submitPurchaseOrder = useCallback((poId: string) => {
     setPurchaseOrders((prev) =>
@@ -204,8 +219,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const createLoan = useCallback<DataContextValue['createLoan']>((labId, lines, dueDate, notes) => {
     if (!labs.some((l) => l.id === labId)) throw new BusinessRuleError('Loans can only be issued to a lab.')
     if (lines.length === 0) throw new BusinessRuleError('A loan must include at least one product line.')
-    const id = nextId('ln')
-    const seq = loans.length + 1
+    const id = nextInternalId('ln')
+    const seq = nextLoanSeq()
     const year = new Date().getFullYear()
     const loan: Loan = {
       id,
@@ -224,7 +239,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addMovement(l.productId, 'loan-out', -l.quantityLoaned, 'Loan issued to lab', loan.loanNumber)
     })
     return loan
-  }, [loans.length, labs, applyQtyDelta, addMovement])
+  }, [labs, applyQtyDelta, addMovement])
 
   const returnLoanLines = useCallback<DataContextValue['returnLoanLines']>((loanId, returns) => {
     if (!returns.some((r) => r.quantityReturned > 0 || r.quantityLost > 0)) {
@@ -268,8 +283,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const createSale = useCallback<DataContextValue['createSale']>((lines, patientId, caseId) => {
     if (lines.length === 0) throw new BusinessRuleError('A sale must include at least one product line.')
-    const id = nextId('sal')
-    const seq = sales.length + 1
+    const id = nextInternalId('sal')
+    const seq = nextSaleSeq()
     const year = new Date().getFullYear()
     const sale: Sale = {
       id,
@@ -287,40 +302,39 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addMovement(l.productId, 'sale', -l.quantity, caseId ? 'Used in patient case' : 'Direct sale', sale.saleNumber)
     })
     return sale
-  }, [sales.length, applyQtyDelta, addMovement])
+  }, [applyQtyDelta, addMovement])
 
   const addPatient = useCallback<DataContextValue['addPatient']>((input) => {
-    const id = nextId('pat')
-    const patient: Patient = { ...input, id, patientCode: `PT-${pad(1000 + patients.length + 1, 5)}`, createdAt: new Date().toISOString() }
+    const id = nextInternalId('pat')
+    const patient: Patient = { ...input, id, patientCode: `PT-${pad(1000 + nextPatientSeq(), 5)}`, createdAt: new Date().toISOString() }
     setPatients((prev) => [patient, ...prev])
     return patient
-  }, [patients.length])
+  }, [])
 
   const addCase = useCallback<DataContextValue['addCase']>((input) => {
-    const id = nextId('cse')
+    const id = nextInternalId('cse')
     const year = new Date().getFullYear()
-    const yearCases = cases.filter((c) => c.caseId.includes(`-${year}-`)).length
-    const caseRecord: Case = { ...input, id, caseId: `IDC-${year}-${pad(yearCases + 1, 5)}`, createdAt: new Date().toISOString(), implants: input.implants ?? [] }
+    const caseRecord: Case = { ...input, id, caseId: `IDC-${year}-${pad(nextCaseSeq(year), 5)}`, createdAt: new Date().toISOString(), implants: input.implants ?? [] }
     setCases((prev) => [caseRecord, ...prev])
     return caseRecord
-  }, [cases])
+  }, [])
 
   const addLab = useCallback<DataContextValue['addLab']>((input) => {
-    const id = nextId('lab')
+    const id = nextInternalId('lab')
     const lab: Lab = { ...input, id, createdAt: new Date().toISOString() }
     setLabs((prev) => [lab, ...prev])
     return lab
   }, [])
 
   const addVendor = useCallback<DataContextValue['addVendor']>((input) => {
-    const id = nextId('vnd')
+    const id = nextInternalId('vnd')
     const vendor: Vendor = { ...input, id, totalOrders: 0, onTimeRate: 1, createdAt: new Date().toISOString() }
     setVendors((prev) => [vendor, ...prev])
     return vendor
   }, [])
 
   const addUser = useCallback<DataContextValue['addUser']>((input) => {
-    const id = nextId('usr')
+    const id = nextInternalId('usr')
     const user: AppUser = { ...input, id, createdAt: new Date().toISOString() }
     setUsers((prev) => [user, ...prev])
     return user
