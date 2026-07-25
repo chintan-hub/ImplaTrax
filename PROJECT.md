@@ -1,0 +1,426 @@
+# PROJECT.md — ImplantDesk 2.0
+
+> This document is the single source of truth for anyone (human or AI) picking up this project cold. Read this before reading any code. If something in the code contradicts this document, treat that as a bug to fix — either the code drifted, or this document is stale and needs updating in the same change.
+
+---
+
+## 1. Project Overview
+
+**ImplantDesk 2.0** is a high-fidelity, click-through **prototype** of a Dental Implant Inventory Management System.
+
+- **What it is not**: a Practice Management System, an eCommerce platform, or a generic warehouse inventory tool.
+- **What it is**: a purpose-built inventory and case-tracking system for **dental implant clinics and dental laboratories**, covering the full lifecycle of an implant component — purchase, storage, loan to a lab, use in a patient case, or sale.
+
+**Who it's built for:**
+- Dental implant clinics that stock physical implant components (fixtures, abutments, screws, graft material, etc.) and need to track exactly where every unit is.
+- Dental laboratories that receive components on loan from clinics (for try-in, custom work, fabrication) and are expected to return or account for them.
+- Non-technical staff — dentists, dental assistants, front-desk staff — who have no formal software training.
+
+**Primary goals:**
+1. Demonstrate a complete, realistic UI/UX for every core workflow (see [Business Rules](#3-business-rules)) using believable mock data — no backend required to evaluate the product.
+2. Prove out a design system and interaction language (Linear/Notion/Stripe-inspired: fast, minimal, professional) that a future production build can adopt directly.
+3. Prove out a **self-teaching UI** — see [Core Philosophy](#2-core-philosophy) — so the product needs minimal onboarding/training.
+
+**Current project status:** Feature-complete interactive prototype, no backend. All 14 modules exist, are routed, and are wired to a shared in-memory data store so actions in one place (e.g. receiving a Purchase Order) are reflected everywhere else live (Dashboard stats, Inventory history, Product stock). A UX polish pass (tooltips, empty states, microcopy, terminology consistency, accessibility) has been applied on top of the functional build. See [§12 Session Handoff](#12-session-handoff-where-we-currently-are) for exact state.
+
+---
+
+## 2. Core Philosophy
+
+These are the non-negotiable principles behind every design and implementation decision in this codebase. When two approaches are both technically valid, pick the one that best serves these:
+
+1. **Inventory accuracy is more important than speed.** Every action that changes stock (purchase receipt, sale, loan, loan return, manual adjustment) must go through a code path that also writes a Stock Movement record. There is no "fast path" that mutates `quantityOnHand` without a paired movement — see `src/store/DataContext.tsx`, where every mutating action pairs a state update with `addMovement(...)`.
+2. **Every stock movement must be traceable.** A movement always has a `reason` and a `performedBy`, and usually a `reference` (PO number, Loan number, Sale number, Case ID). Nothing silently changes stock.
+3. **The software should teach itself through the interface.** A first-time dental assistant should understand a page, button, or term without reading a manual. This is why the centralized help-text system (`src/content/helpText.ts`) exists — see [§6 Component Library](#6-component-library) and [§8 Terminology](#8-terminology).
+4. **Keep workflows simple for dentists and assistants.** Prefer one obvious primary action per screen. Avoid nested/modal-in-modal flows. Prefer inline forms and single-purpose dialogs over wizards.
+5. **Business rules should never be bypassed**, except by a Super Admin role for destructive actions (e.g. deleting a record) — this permission boundary is documented in the Users → Role Permissions matrix (`src/pages/users/UsersPage.tsx`) and should be respected by any new feature.
+6. **No hardcoded explanatory copy.** Every tooltip, term definition, microcopy hint, empty-state message, and page introduction lives in `src/content/helpText.ts`. A component never inlines this kind of text — it looks it up by key. This means the entire product's "voice" can be edited by changing one file.
+7. **Terminology is fixed and consistent.** See [§8 Terminology](#8-terminology) for the canonical word list. A synonym for an existing term is a bug, not a stylistic choice.
+
+---
+
+## 3. Business Rules
+
+These rules are currently implemented in code (mock data generators, `DataContext` actions, and page components) and must not be silently changed. If a rule needs to change, update it here first, then in code, in the same change.
+
+### Inventory
+- Every product has a `quantityOnHand` and a `quantityReserved`. Reserved stock is allocated to a patient case but not yet used/sold.
+- Every product has a `lowStockThreshold` (a.k.a. "Minimum Stock" in the UI). When `quantityOnHand <= lowStockThreshold`, the product is flagged Low Stock everywhere it appears (Dashboard, Products, the Topbar notification bell).
+- Manual stock adjustments **require a reason**. This is enforced in the UI (`AdjustmentDialog`, `ProductDetailSheet`) — the save action is blocked client-side if the reason field is empty, and the same validation exists in intent even though the mock `DataContext.adjustStock` itself does not re-validate (a real backend must validate server-side too).
+- Batch/lot tracking is **optional per product** (`Product.batchTracked: boolean`). When enabled, the product supports a lot number on usage (`CaseImplantUsage.batchLot`, `SaleLine.batchLot`).
+- Barcodes and QR codes are **always auto-generated** on product creation — the user never types or edits them (`DataContext.addProduct` generates `barcode` and `qrPayload` from a sequence).
+
+### Stock Movements (Audit History)
+- Every action that changes stock produces one `InventoryMovement` record. Types: `inbound`, `outbound`, `adjustment`, `loan-out`, `loan-return`, `sale`, `lost`.
+- Movements are **append-only** — the mock store never edits or deletes a movement, it only ever adds new ones (see every action in `DataContext.tsx`).
+- A movement's `quantity` is signed (positive = stock increase, negative = decrease), always has a `reason`, always has `performedBy` (the acting user), and has an optional `reference` pointing back to the PO/Loan/Sale/Case that caused it.
+- The Inventory page (`/inventory`) is the canonical, filterable view of this history. The Product Detail sheet shows a per-product slice of the same history.
+
+### Purchasing
+- A Purchase Order (PO) is a record of components ordered from a **Vendor** before they arrive. Lifecycle: `draft → submitted → confirmed → partially-received / received`, or `cancelled` at any point before receipt.
+- Receiving is **line-by-line and supports partial receipt** — a PO can be `partially-received` indefinitely; each receipt creates one `inbound` Stock Movement per line received and increases `quantityOnHand` immediately.
+- A PO's status is derived from its lines' `quantityReceived` vs `quantityOrdered` — fully received lines across the board flips status to `received`.
+
+### Loans (Labs only)
+- **Loans can only be issued to Labs**, never to patients, vendors, or other clinics. This is a hard business rule enforced in the `LoanFormDialog` UI and should be enforced in any backend implementation too.
+- A loan can contain **multiple products** (`Loan.lines: LoanLine[]`), each with its own loaned/returned/lost quantities.
+- Loans **can stay open indefinitely** (months) — there is no auto-expiry. A `dueDate` is advisory only.
+- Loan status is derived: `open` (nothing returned yet) → `partially-returned` (some but not all lines fully accounted for) → `closed` (every line's `quantityReturned + quantityLost >= quantityLoaned`).
+- Issuing a loan immediately decreases stock (`loan-out` movement, negative quantity) — the component is treated as "out of the building" the moment it's issued, not when it's later confirmed lost or returned.
+
+### Returns
+- A Return records that a loaned component has been received back into inventory, **in full or in part**, against a specific loan line.
+- Returning increases stock (`loan-return` movement, positive quantity).
+- **Lost components reduce stock permanently** and require a reason (`lostReason`). A `lost` movement is negative and is never reversed — there is no "undo" on a loss, only a new adjustment if the item is later found (which would itself require its own reason).
+- The Loan Returns page (`/loan-returns`) is a derived, read-only log — it is built by filtering the shared Stock Movement history for `loan-return` and `lost` types, not from a separate mutable table. This guarantees it can never drift from the movement history.
+
+### Sales
+- A Sale means a product has been **permanently used or sold** — it is not reversible from the Sales page (no "undo sale").
+- A sale is usually, but not always, attached to a Patient Case (`Sale.caseId` is optional — direct/retail-style sales without a case are allowed).
+- Recording a sale decreases stock (`sale` movement, negative quantity) and computes `total` from its line items.
+
+### Patients
+- One patient can have **multiple cases** (`Case.patientId` — one-to-many, no artificial cap).
+- Patient records carry demographic + contact info and a `primaryDoctor` (the referring/treating clinician's name — a free-text field, distinct from the system's `AppUser` role of `clinician`, which is a login/permission role, not a patient-facing doctor identity).
+
+### Cases
+- Every case has a **human-readable Case ID** in the fixed format `IDC-YYYY-00001` — year of creation + a 5-digit sequence number that **resets at the start of each calendar year** (see `nextCaseId()` in `src/mocks/cases.ts` and the equivalent logic in `DataContext.addCase`). This ID is always auto-generated, never user-entered.
+- A case has a `status` lifecycle: `planning → surgery-scheduled → in-progress → restoration → completed`, or `cancelled` at any point. Each status transition is reflected as a Timeline event on the Case Detail page.
+- A case optionally references a **Lab** (`Case.labId`) — not every case involves outside lab work.
+- A case tracks the specific implants used (`CaseImplantUsage[]`: product, tooth (FDI notation), quantity, optional batch lot).
+
+### Labs
+- A Lab is a **dental laboratory** — an external partner, not a clinic staff member or a vendor.
+- Labs are the only valid recipient of a Loan (see Loans above).
+- The Lab Detail page shows outstanding loan value, average turnaround, and every case that involved this lab.
+
+### Vendors
+- A Vendor is the **company a clinic buys implant components from** — never called "Supplier" anywhere in the UI (canonical term is "Vendor" — see [§8 Terminology](#8-terminology)).
+- A Vendor is associated with one or more `Manufacturer` brands it distributes (Straumann, Nobel Biocare, Osstem, NeoBiotech, Dentium, MIS).
+- Every Purchase Order belongs to exactly one Vendor.
+
+### Permissions
+- Four roles exist: `admin`, `clinician`, `inventory-manager`, `front-desk` (`UserRole` type). The Users page (`/users`) documents a permission matrix (view inventory, adjust stock/receive POs, issue/return loans, view pricing, manage patients/cases, manage users/settings) mapped against these four roles.
+- **Destructive actions (e.g. permanent delete) are Super Admin only** — this is documented in the centralized icon-help registry (`ICON_HELP.delete`) even though no delete feature is currently wired into the UI (nothing in the prototype currently supports hard-deleting a record — this is an intentional scope boundary, see [§9 Current Limitations](#9-current-limitations)).
+- There is no authentication in this prototype — `currentUser` is a hardcoded mock (`src/mocks/users.ts`) standing in for "whoever is logged in."
+
+### Search
+- **Global search** (⌘K / Ctrl+K, or the Topbar search bar) searches across Products (by name, SKU, or barcode), Patients (by name or patient code), Cases (by Case ID), and Labs (by name) simultaneously, grouped by type, and navigates directly to the matching record.
+- **Advanced/contextual search**: each list page (Cases, Loans, Purchase Orders, etc.) additionally supports its own filter set — status, doctor, lab, date-relevant fields — as dedicated dropdown filters on that page, not folded into global search.
+
+### Dashboard
+- The Dashboard is the landing page (`/`) and surfaces, at a glance: Inventory Value, Low Stock Items count, Open Loans count, Pending Purchase Orders count, Cases This Month, and 30-day Revenue — each a clickable stat card that deep-links to the relevant page.
+- It also charts Stock Movements (inbound vs. outbound, last 14 days) and Inventory Value by Manufacturer, and lists Recent Activity, Low Stock products, and Outstanding Loans.
+
+### Barcode / QR
+- Every product's barcode (CODE128, rendered via `jsbarcode`) and QR code (rendered via `qrcode`, payload format `IMPD:PRD:<id>`) are generated automatically at creation time and displayed together under "Identifiers" on the Product Detail sheet. There is no manual barcode entry anywhere in the UI.
+- Barcode format (CODE128 / CODE39 / EAN-13) is a clinic-wide setting (`ClinicSettings.barcodeFormat`, configured on the Settings page) — in the current prototype this setting is stored but not yet wired to actually change the rendering format (see [§9 Current Limitations](#9-current-limitations)).
+
+### Batch Tracking
+- Optional per product (`Product.batchTracked`). Intended for products where lot-level traceability matters (implant fixtures, bone graft material, membranes are batch-tracked more often than not in the mock generator).
+- When a batch-tracked product is used in a Case or a Sale, the line item can carry a `batchLot` string. There is no dedicated Batch/Lot management screen yet — lots are free-text captured at point of use (see [§10 Future Roadmap](#10-future-roadmap)).
+
+### Audit History
+- The Stock Movement log (`/inventory`) is the audit trail for inventory. It is append-only and every entry is attributable to a user and a reason.
+- Case Detail pages have their own Timeline (`CaseTimelineEvent[]`) — a separate, clinical audit trail of what happened to a treatment over time (case opened, consultation, surgery, healing checks, restoration delivered), independent of the inventory movement log.
+
+---
+
+## 4. Data Model
+
+All types are defined in `src/types/index.ts`. This is the authoritative schema — read it directly for exact field names/optionality; this section explains relationships and intent.
+
+| Entity | Key fields | Relates to |
+|---|---|---|
+| **Product** | `sku`, `barcode`, `qrPayload`, `manufacturer`, `category`, `quantityOnHand`, `quantityReserved`, `lowStockThreshold`, `batchTracked`, `vendorId` | belongs to one `Vendor`; referenced by `InventoryMovement`, `PurchaseOrderLine`, `LoanLine`, `SaleLine`, `CaseImplantUsage` |
+| **InventoryMovement** | `productId`, `type`, `quantity` (signed), `reason`, `reference`, `performedBy` | references one `Product`; `performedBy` references an `AppUser`; `reference` is a loosely-typed pointer to a PO/Loan/Sale/Case number (string, not a real FK) |
+| **Vendor** | `manufacturers[]`, `onTimeRate`, `totalOrders` | has many `PurchaseOrder`s; supplies `Product`s (via `Product.vendorId`) |
+| **PurchaseOrder** | `poNumber`, `vendorId`, `status`, `lines[]` (`PurchaseOrderLine`: `productId`, `quantityOrdered`, `quantityReceived`, `unitCost`) | belongs to one `Vendor`; each line references a `Product` |
+| **Patient** | `patientCode`, `firstName`/`lastName`, `primaryDoctor` | has many `Case`s (`Case.patientId`); has many `Sale`s (`Sale.patientId`, optional) |
+| **Case** | `caseId` (human-readable `IDC-YYYY-00001`), `patientId`, `labId?`, `status`, `implants[]` (`CaseImplantUsage`: `productId`, `tooth`, `quantity`, `batchLot?`) | belongs to one `Patient`; optionally references one `Lab`; each implant usage references a `Product`; has a separate `CaseTimelineEvent[]` history keyed by case id (`src/mocks/cases.ts` → `caseTimelines`) |
+| **Lab** | `specialties[]`, `rating`, `turnaroundDays` | referenced by `Case.labId` (optional) and `Loan.labId` (required) |
+| **Sale** | `saleNumber`, `patientId?`, `caseId?`, `lines[]` (`SaleLine`: `productId`, `quantity`, `unitPrice`, `batchLot?`), `total` | optionally belongs to a `Patient` and/or `Case`; each line references a `Product` |
+| **Loan** | `loanNumber`, `labId` (required — labs only), `status`, `lines[]` (`LoanLine`: `productId`, `quantityLoaned`, `quantityReturned`, `quantityLost`, `lostReason?`) | belongs to one `Lab`; each line references a `Product`; `issuedBy` references an `AppUser` |
+| **LoanReturnRecord** | `loanId`, `productId`, `quantityReturned`, `quantityLost`, `lostReason?` | *(type exists in `types/index.ts` but the running app derives the Loan Returns page from `InventoryMovement` instead of a separate mutable table of this type — see §3 Returns)* |
+| **AppUser** | `role` (`admin`/`clinician`/`inventory-manager`/`front-desk`), `avatarColor` | referenced by `performedBy`/`issuedBy`/`soldBy`/`receivedBy` fields across other entities |
+| **ClinicSettings** | `clinicName`, `priceVisibilityDefault`, `barcodeFormat`, `lowStockGlobalDefault`, `theme` | singleton — one per clinic, edited on the Settings page |
+
+**Relationship summary (textual ER):**
+```
+Vendor 1─* PurchaseOrder *─* Product
+Product 1─* InventoryMovement
+Patient 1─* Case *─1 Lab (optional)
+Case 1─* CaseImplantUsage *─1 Product
+Patient 1─* Sale *─1 Case (optional)
+Sale 1─* SaleLine *─1 Product
+Lab 1─* Loan
+Loan 1─* LoanLine *─1 Product
+AppUser 1─* (performs) InventoryMovement / Loan / Sale / PurchaseOrder actions
+```
+
+All mock data is generated in `src/mocks/*.ts` with a seeded PRNG (`src/mocks/rng.ts`, `mulberry32`) so the dataset is deterministic across reloads during development, then loaded into React state by `src/store/DataContext.tsx` at app start. From that point on, **all reads and writes in the running app go through `DataContext`**, not directly through the `mocks` module — the mock files only seed the initial state.
+
+---
+
+## 5. Folder Structure
+
+```
+src/
+├── types/index.ts        # Single source of truth for every domain type (Product, Case, Loan, ...)
+├── content/
+│   └── helpText.ts        # Centralized copy registry — TERMS, ICON_HELP, MICROCOPY, PAGE_INTROS, EMPTY_STATES
+├── mocks/                 # Deterministic mock data generators, one file per entity, seeded PRNG
+│   ├── rng.ts              # mulberry32 PRNG + helpers (pick, chance, dates...)
+│   ├── names.ts             # Name pools, doctor list, lab name parts, vendor names
+│   ├── products.ts, patients.ts, labs.ts, users.ts, cases.ts,
+│   │ sales.ts, loans.ts, purchaseOrders.ts, inventory.ts,
+│   │ vendors.ts, settings.ts
+│   └── index.ts              # Re-exports everything for convenient import
+├── store/
+│   └── DataContext.tsx     # THE runtime source of truth — React context holding all entity arrays
+│                             plus every mutating action (adjustStock, createLoan, receivePurchaseOrder, ...)
+├── components/
+│   ├── ui/                 # Hand-built shadcn-pattern primitives on Radix + Tailwind
+│   │                         (button, dialog, sheet, table, select, tabs, dropdown-menu, command,
+│   │                          tooltip, help-tooltip, avatar, badge, card, checkbox, switch, ...)
+│   ├── shared/               # Cross-page building blocks: PageHeader, StatCard, StatusBadge, EmptyState, Barcode/QR
+│   ├── layout/                # Sidebar, Topbar, GlobalSearch (⌘K palette), nav.ts config
+│   ├── theme/                 # ThemeProvider (light/dark/system)
+│   └── <module>/              # One folder per module holding its form dialogs, e.g. products/ProductFormDialog.tsx,
+│                                 loans/LoanReturnDialog.tsx, purchase-orders/POReceiveDialog.tsx
+├── layouts/
+│   └── AppLayout.tsx        # Shell: Sidebar + Topbar + <Outlet/> + GlobalSearch + Toaster, wrapped in TooltipProvider
+├── pages/
+│   └── <module>/             # One folder per of the 14 modules; list pages + detail pages
+│                                (e.g. cases/CasesPage.tsx + cases/CaseDetailPage.tsx)
+├── lib/
+│   ├── utils.ts              # cn(), formatCurrency, formatDate, formatDateTime, initials, daysBetween
+│   └── chartColors.ts        # Light/dark categorical + sequential chart palette, theme-aware
+├── App.tsx                  # Route table
+└── main.tsx                  # Entry point — mounts <App/> inside <BrowserRouter/>
+```
+
+Root-level:
+```
+.claude/launch.json   # Dev server launch config for this environment (points node.exe directly at vite.js
+                       # to sidestep a PATH issue in the sandboxed shell — see §12 for context)
+PROJECT.md             # This file
+```
+
+---
+
+## 6. Component Library
+
+### `src/components/ui/` — base primitives (Radix + Tailwind, shadcn pattern)
+| Component | Where to use it |
+|---|---|
+| `Button` | Any clickable action. Variants: `default`, `destructive`, `outline`, `secondary`, `ghost`, `link`. Sizes: `default`, `sm`, `lg`, `icon`. |
+| `Dialog` | Centered modal for focused create/edit forms (Quick Add Product, New Loan, etc.) |
+| `Sheet` | Side-panel drawer for detail views that need more room / persistent context (Product Detail) |
+| `Table` (+`TableHeader/Body/Row/Head/Cell`) | Any tabular list. Pair with TanStack Table for sortable columns (see `ProductsPage`'s table view). |
+| `Select` | Any single-choice dropdown (filters, form fields) |
+| `Tabs` | View toggles (card/table) or in-page sections (Reports' Inventory/Sales/Loans/Purchases tabs) |
+| `DropdownMenu` | Overflow actions / menus (Topbar quick-create, theme switcher, avatar menu) |
+| `Command` / `CommandDialog` | The global search palette only — not a general-purpose combobox |
+| `Tooltip` / `TooltipTrigger` / `TooltipContent` | Low-level Radix wrapper. **Prefer `HelpTooltip`/`IconHelp`/`TermHint` from `help-tooltip.tsx` instead of using this directly** — those pull copy from the central registry. |
+| `Badge` | Status pills, counts, tags. Variants map to the 5-color system (see §7). |
+| `Card` (+`Header/Title/Description/Content/Footer`) | The base surface for every panel, stat, and list card |
+| `Avatar`, `Progress`, `Switch`, `Checkbox`, `Separator`, `ScrollArea`, `Popover`, `Label`, `Input`, `Textarea`, `Sonner` (toast) | Standard form/feedback primitives, used as you'd expect |
+
+### `src/components/ui/help-tooltip.tsx` — the app's teaching layer
+| Component | Purpose | Example |
+|---|---|---|
+| `HelpTooltip` | The one reusable tooltip primitive. Hover (desktop) + tap/long-press (touch, via an explicit click-toggle since Radix hover events don't fire on touch) + keyboard focus. Takes `title`/`description`/`shortcut` directly. | Rarely used directly — prefer the two wrappers below, which pull from the registry. |
+| `IconHelp` | Wraps an existing icon/button element (`asChild` pattern) with a tooltip looked up from `ICON_HELP` by key. | `<IconHelp helpKey="search"><button>...</button></IconHelp>` in the Topbar |
+| `TermHint` | Inline term explainer: dotted-underline label (or icon-only) + tooltip looked up from `TERMS` by key. Keyboard-focusable. | `<TermHint term="sku" iconOnly />` next to a SKU value |
+
+**Rule: never hardcode a tooltip's title/description in a component.** Add the entry to `src/content/helpText.ts` first, then reference it by key.
+
+### `src/components/shared/` — cross-page building blocks
+| Component | Purpose |
+|---|---|
+| `PageHeader` | Every page's title + one-line purpose description + right-aligned actions slot. Title/description should come from `PAGE_INTROS` in the registry. |
+| `StatCard` | Dashboard/list-page KPI tile: label, big value, icon, optional trend, optional `helpTerm` (renders a `TermHint` next to the label), optional `onClick` to deep-link. |
+| `StatusBadge` | Renders the correct colored `Badge` for any of the app's status enums (Case, Loan, PO, Product) from one shared color map — never hand-roll a status color elsewhere. |
+| `EmptyState` | Every "nothing here yet" screen. Always pass `icon` + `title` + `description` (what/why) + an `action` button (what to do next) where a create action makes sense — copy should come from `EMPTY_STATES` in the registry. |
+| `Barcode.tsx` (`BarcodeDisplay`, `QRDisplay`) | Canvas-rendered CODE128 barcode / QR code from a product's `barcode`/`qrPayload`. Always render on a white background container — the codes assume light backgrounds regardless of app theme. |
+
+### `src/components/layout/`
+| Component | Purpose |
+|---|---|
+| `Sidebar` | Persistent left nav, grouped (Overview/Inventory/Care/Operations/System) per `nav.ts`. Only wrap a nav item in `IconHelp` if it's ambiguous without more context — most items are self-explanatory via their label and don't need one (avoid tooltip overuse). |
+| `Topbar` | Search trigger, quick-create menu, Notifications bell (derived live from low-stock + pending-PO counts, no separate notifications data model), theme switcher, avatar/account menu. |
+| `GlobalSearch` | The ⌘K command palette. Searches Products/Patients/Cases/Labs client-side against `DataContext` state. |
+
+### Form dialogs (one per module, colocated under `components/<module>/`)
+Each entity that supports "create" has a dedicated `*FormDialog.tsx` (`ProductFormDialog`, `PatientFormDialog`, `CaseFormDialog`, `VendorFormDialog`, `LabFormDialog`, `LoanFormDialog`, `SaleFormDialog`, `POFormDialog`, `UserFormDialog`) plus, where the workflow needs it, a dedicated action dialog (`AdjustmentDialog`, `LoanReturnDialog`, `POReceiveDialog`, `ProductDetailSheet`'s inline adjuster). Follow this pattern for any new entity rather than inventing a new modal shape.
+
+---
+
+## 7. Design System
+
+Defined in `tailwind.config.ts` and `src/index.css` (CSS custom properties, light + dark values).
+
+- **Spacing**: Tailwind's default scale (based on 4px steps, i.e. an 8px rhythm at the values actually used — `p-2`/`gap-2` = 8px, `p-4` = 16px, etc.). No arbitrary pixel values in components.
+- **Radius**: `rounded-xl`/`rounded-2xl` for cards and dialogs, `rounded-lg` for buttons/inputs — controlled centrally via the `--radius` CSS variable so it can be retuned in one place.
+- **Shadows**: `shadow-soft` (subtle, resting), `shadow-card` (default card elevation), `shadow-popover`, `shadow-elevated` (dialogs, hover-lift) — never an ad-hoc `box-shadow`.
+- **Typography**: System sans (`Inter var` stack) for everything, `JetBrains Mono`-style stack only for `font-mono` (Case IDs, SKUs). Numeric values that need to align (prices, quantities) use `tabular-nums`.
+- **Colors** (see `tailwind.config.ts` `theme.extend.colors`, each with a light/dark HSL pair via CSS var):
+  - `primary` — Blue. Default action color, active nav state, links.
+  - `accent` — Teal. Secondary emphasis (e.g. "in progress"/"confirmed" states).
+  - `success` — Green. Positive/completed states, stock increases.
+  - `warning` — Amber. Low stock, pending, partially-received/returned states.
+  - `danger` — Red. Destructive actions, stock decreases, lost components, out-of-stock.
+  - `background`/`surface`/`card`/`popover`/`muted`/`border` — neutral scale, off-white in light mode, near-black in dark mode. **No gradients** except the two subtle area-chart fill gradients on the Dashboard.
+- **Icons**: `lucide-react` exclusively, `h-4 w-4` in most inline contexts, `aria-hidden="true"` on every icon that sits next to a text label or already has an `aria-label` on its parent button.
+- **Cards**: `Card` + `CardHeader/Title/Description/Content/Footer` — every panel on every page is built from this, never a raw `<div>` with manual border/shadow classes.
+- **Buttons**: see `buttonVariants` in `ui/button.tsx` — 6 variants × 4 sizes, one definition, used everywhere. Icon-only buttons **must** have an `aria-label`.
+- **Tables**: `ui/table.tsx` primitives; sortable tables use TanStack Table's `useReactTable` (see `ProductsPage`).
+- **Forms**: `react-hook-form` + `zod` for validated forms (`ProductFormDialog` is the reference example); simpler dialogs (loan/PO/sale line-item builders) use plain `useState` where a full RHF schema would be overkill — both patterns are acceptable, pick based on form complexity.
+- **Status badges**: always via `StatusBadge`, never inline `<Badge variant="...">` for a status enum — the color mapping lives in exactly one place (`components/shared/StatusBadge.tsx`).
+- **Tooltip behavior**: hover (desktop, 300ms delay), tap/long-press (touch), keyboard focus — all via `HelpTooltip`/`IconHelp`/`TermHint`. Subtle fade/zoom only (150ms), no elaborate motion. Never the only way to access critical information — tooltips supplement visible microcopy, they don't replace it.
+- **Empty states**: always `icon` + `title` + `description` (what this page is / why it's empty) + an `action` (what to do next) — see `EmptyState` component and `EMPTY_STATES` registry.
+- **Page introductions**: every page's `PageHeader` carries a one-line description of the page's purpose, sourced from `PAGE_INTROS` — see `helpText.ts`.
+- **Accessibility**: icon-only buttons carry `aria-label`; interactive elements are real `<button>`/`<a>` tags (never a `<div onClick>`); focus rings are the Tailwind `focus-visible:ring-2 focus-visible:ring-ring` pattern baked into every primitive; tooltips are reachable and dismissible via keyboard (Radix Tooltip's native focus/Escape handling); color is never the only signal for status (badges/icons pair a color with a label, never color alone).
+
+---
+
+## 8. Terminology
+
+This is the **single source of truth** for product vocabulary — duplicated intentionally from `src/content/helpText.ts` (`TERMS`) so it's readable without opening the code, but that file is the one actually consumed by the UI. If you change a definition, change it there and mirror it here in the same change.
+
+| Term | Definition |
+|---|---|
+| **SKU** | Unique code used to identify this component. |
+| **Barcode** | Scan instead of typing to instantly identify a component. |
+| **QR Code** | Alternative scannable code that opens the component details. |
+| **Batch Number** | Manufacturer's production batch used for traceability. |
+| **Low Stock** | Quantity has reached its reorder level. |
+| **Reserved Stock** | Components already allocated to a patient case but not yet used. |
+| **Stock Movement** | Any action that changes inventory such as purchase, sale, loan, return or adjustment. |
+| **Adjustment** | Manual correction made when physical stock does not match the system. |
+| **Patient** | Person receiving implant treatment. |
+| **Case** | One implant treatment linked to a patient. |
+| **Case ID** | Automatically generated unique identifier for this treatment (format `IDC-YYYY-00001`). |
+| **Vendor** | Company from whom components are purchased. *(Never "Supplier" — see below.)* |
+| **Lab** | Dental laboratory working on the implant case. *(Never "Laboratory" in UI copy — "Lab" is the short form used consistently; "laboratory" is fine only as a plain English word inside a longer descriptive sentence, not as the entity name.)* |
+| **Purchase Order** | Record of components ordered from a vendor before they arrive. *(Never bare "Order" in UI copy.)* |
+| **Loan** | Component temporarily sent to a dental laboratory and expected to be returned. |
+| **Return** (a.k.a. "Loan Return") | Records that a loaned component has been received back into inventory. |
+
+**Words that must never appear as a synonym for the above** (this list exists because these exact substitutions were found and fixed during the UX polish pass — do not reintroduce them):
+- "Supplier" → always **Vendor**
+- "Correction" / "Stock Correction" → always **Adjustment**
+- bare "Order" → always **Purchase Order**
+- bare "Movement" (as a page/section label) → always **Stock Movement**
+- "Component" used as the entity-type label where "Product" is meant (e.g. table/column headers, stat labels) → use **Product**. ("Component" remains fine as generic descriptive language in free-text reasons/notes — that's natural English, not a mislabeled entity.)
+
+**Adjacent-but-distinct terms** (not synonyms, don't conflate them):
+- **Doctor** (`Patient.primaryDoctor`, `Case.doctor`) — a free-text clinician name associated with a patient/case. Not the same as...
+- **Clinician** (`AppUser.role`) — a system login/permission role for staff. A "Doctor" on a case is clinical data; a "Clinician" is an account type.
+
+---
+
+## 9. Current Limitations
+
+Everything below is **intentional** for this stage of the project — do not "fix" these without an explicit decision to move toward MVP (see §10):
+
+- **No backend, no database, no API.** Everything lives in `src/store/DataContext.tsx` React state, seeded once from `src/mocks/*`. A hard page reload resets all data to the deterministic seed.
+- **No authentication.** `currentUser` is a hardcoded mock; there is no login screen, no session, no per-request permission enforcement. The Role Permissions matrix on the Users page is documentation of *intended* behavior, not enforced behavior.
+- **No persistence.** Nothing is written to `localStorage`, IndexedDB, or any storage layer except the chosen theme (`localStorage` key `implantdesk-theme`) — that is the one deliberate exception, used only for UI preference, not business data.
+- **Barcodes/QR codes are fake payloads**, not scannable against any real product registry or GS1 standard — they are deterministic strings generated for visual realism only.
+- **`ClinicSettings.barcodeFormat`** is stored and editable on the Settings page but does not yet change how `BarcodeDisplay`/`QRDisplay` actually render (always CODE128/QR regardless of the setting).
+- **No delete/edit flows.** Products, patients, cases, etc. can be created but not edited or deleted from the UI. The `ICON_HELP` registry documents copy for an "Edit" and a "Delete" icon (Delete explicitly scoped to Super Admin) for when these are built, but no button currently triggers them anywhere.
+- **No real financial rules.** Currency formatting is illustrative (`Intl.NumberFormat`), there's no tax handling, multi-currency is a cosmetic Settings field only.
+- **`LoanReturnRecord` type is unused by the running app.** The Loan Returns page is derived live from `InventoryMovement` records instead (see §3 Returns) — this was a deliberate simplification to avoid two sources of truth for the same data; the type stays in `types/index.ts` for schema completeness but nothing constructs it at runtime.
+- **No batch/lot inventory management screen.** Batch/lot numbers are captured as free text at the point of use (on a Case implant usage or a Sale line) — there's no dedicated place to see "all lots of Product X and their remaining quantities."
+- **Large single JS chunk on production build** (`npm run build` warns about a ~1.27MB bundle). Acceptable for a demo; would need route-level code-splitting (`React.lazy`) before shipping to real users on slow connections.
+
+---
+
+## 10. Future Roadmap
+
+Suggested only — **nothing below is implemented**, and nothing here should be treated as promised or scheduled.
+
+### Prototype (this stage → hardening)
+- Edit/Delete flows for every entity, with the Super Admin gate actually enforced in the UI (even without real auth, gate it behind the mock `currentUser.role`).
+- Wire `ClinicSettings.barcodeFormat` through to `BarcodeDisplay`.
+- A dedicated Batch/Lot inventory view (all lots per product, remaining quantity, expiry if applicable).
+- Route-level code-splitting to shrink the initial bundle.
+
+### MVP (first real backend)
+- Real backend + database behind the exact same `DataContext` action surface (`adjustStock`, `createLoan`, `receivePurchaseOrder`, etc.) — those functions are already the correct integration seam; swap their bodies for API calls / a mutation library (e.g. TanStack Query) without touching page components.
+- Authentication (even a simple email/password or magic-link flow) and real session-based permission enforcement matching the existing Role Permissions matrix.
+- Persistence — every mutation survives a reload.
+- Real, scannable barcodes (GS1/CODE128 compliant) tied to an actual product master.
+- Basic audit export (CSV/PDF) of the Stock Movement log for compliance.
+
+### Production
+- Multi-location/multi-clinic support (currently the data model assumes a single clinic).
+- Expiry-date tracking and alerts for batch-tracked graft material/membranes.
+- Real notification delivery (email/SMS/push) for low stock and overdue loans, not just the in-app bell.
+- Reconciliation tooling: a guided "cycle count" flow that turns a physical count into a batch of reason-required adjustments.
+- Reporting exports and scheduled report emails.
+
+### Enterprise
+- Role-based access control beyond the current 4 fixed roles (custom roles/permission sets).
+- Multi-vendor price comparison and automated reorder-point purchase order generation.
+- Integration with lab management systems (structured loan/case handoff instead of free-text).
+- Full audit/compliance mode (immutable event log, e-signature on high-risk actions like write-offs).
+- Multi-currency, multi-tax-jurisdiction financials.
+
+---
+
+## 11. Development Guidelines
+
+- **Prefer reusable components.** Before writing a new UI pattern, check `components/ui/` and `components/shared/` — almost everything needed already exists (see §6).
+- **Avoid duplicated logic.** Status color mapping, currency/date formatting, ID-sequence generation, and stock-mutation logic each live in exactly one place (`StatusBadge`, `lib/utils.ts`, `DataContext`'s `nextId`/entity-specific number generators, `DataContext`'s action functions respectively). Don't reimplement any of them inline in a page.
+- **Never hardcode business rules.** Loan-labs-only, reason-required-for-adjustments, Case ID format, etc. belong in `DataContext` action functions and/or form validation — not scattered as inline `if` checks copy-pasted across pages.
+- **Store explanatory text centrally.** Any tooltip, hint, empty state, or page-purpose copy goes in `src/content/helpText.ts`, referenced by key. Do not write a description string directly into a page/component.
+- **Maintain accessibility.** Every icon-only interactive element needs `aria-label`. Every new interactive control must be reachable and operable by keyboard. Don't introduce color-only signals.
+- **Maintain consistent terminology.** Cross-check new copy against §8 before writing it. When in doubt, search `helpText.ts` first — the word you need is probably already defined there.
+- **Keep pages simple.** One clear primary action per page (usually top-right in `PageHeader`'s `actions` slot). Favor a single-purpose `Dialog`/`Sheet` over multi-step wizards.
+- **All state mutation goes through `useData()` (`DataContext`).** Pages and components should never mutate mock data or hold their own duplicate copy of shared entities — read and write through the context so every consumer stays in sync (see the fixed "stale product sheet" bug in §12 for why this matters).
+- **Run `npx tsc -b --noEmit` after any non-trivial change** before considering it done — this codebase has caught real bugs (stale references, union-type narrowing) purely from the type checker; don't skip it.
+
+---
+
+## 12. Session Handoff ("Where we currently are")
+
+### What has already been completed
+1. **Full functional prototype** — all 14 modules built, routed, and interactive: Dashboard, Products, Inventory, Purchase Orders, Vendors, Patients (+ profile), Cases (+ detail/timeline), Labs (+ detail), Sales, Loans, Loan Returns, Reports, Users, Settings.
+2. **Realistic seeded mock data**: 100 products, 40 patients, 25 labs, ~150 stock movements, 40 loans, 30 sales, plus vendors/POs/cases/users, all deterministic and cross-referenced.
+3. **Shared runtime state** (`DataContext`) wired end-to-end so actions in one place reflect live everywhere (verified in-browser: creating a case, adjusting stock, processing a loan return, receiving a PO, and global search all round-trip correctly with no console errors).
+4. **Two real bugs found and fixed during in-browser testing**:
+   - Stale product reference in the Product Detail sheet (fixed by tracking `selectedId` and deriving the live product from `DataContext` state instead of holding a snapshot).
+   - cmdk's built-in fuzzy filter was fighting the app's own manual search filtering in the global search palette, causing "No results" even for valid matches (fixed with `shouldFilter={false}` + a manually-computed empty state).
+5. **UX polish pass** (this most recent phase of work):
+   - Central help-text registry (`src/content/helpText.ts`): `TERMS`, `ICON_HELP`, `MICROCOPY`, `PAGE_INTROS`, `EMPTY_STATES`.
+   - Reusable tooltip system (`src/components/ui/help-tooltip.tsx`): `HelpTooltip`, `IconHelp`, `TermHint` — hover + tap/long-press + keyboard accessible.
+   - Topbar icon tooltips (Search, New, Notifications, Theme, Profile) + a new Notifications bell (derived live from low-stock + pending-PO counts, no new data model).
+   - Page intros applied to all 14 pages via `PAGE_INTROS`.
+   - Educational empty states applied to all 10 list pages via `EMPTY_STATES`, each with a "what/why/what-next" CTA.
+   - Term tooltips wired at the highest-value spots: Product Detail sheet (SKU, Barcode, QR Code, Reserved Stock, Low Stock, Batch Number), Dashboard/Inventory/Loans stat cards, Cases/Loans table headers (Case ID, Loan #).
+   - Form microcopy added: Minimum Stock, Purchase Price, Selling Price, Case ID, Reason (adjustment + lost-component), Batch Number, Due Date, ETA, Price Visible, Batch Tracked.
+   - Terminology consistency fixes applied per an explicit audit: Supplier→Vendor, Correction→Adjustment, bare Order→Purchase Order, bare Movement→Stock Movement, Component→Product where it labeled the entity type.
+   - Accessibility pass: `aria-label` added to every previously-unlabeled icon-only button; verified focus-visible rings exist on all interactive primitives (they were already baked into `ui/button.tsx`, `ui/input.tsx`, etc. from the initial build).
+   - `npx tsc -b --noEmit` passes clean after all of the above (one type error surfaced and was fixed: a union-narrowing issue in `IconHelp` reading `entry.shortcut`).
+
+### What still needs work
+1. **This UX polish pass has not yet been re-verified live in the browser** after the terminology/microcopy edits — the last in-browser verification round happened before this pass started. Before calling this phase done: start the dev server, click through Products (SKU/Barcode/QR/Reserved/Low Stock tooltips + empty state + Quick Add microcopy), Inventory (empty state + Adjustment reason microcopy), Loans (exact "No Active Loans" empty state copy), Purchase Orders (fixed "Create Draft Purchase Order" button + line-item column labels), Vendors ("vendor" not "supplier" everywhere), Settings (Minimum Stock / Barcode Settings tooltips) — in both light and dark mode, and confirm no console errors and no visual regressions (e.g. the `TermHint` icon-only styling next to badges/labels should look tidy, not cramped).
+2. **`npm run build` has not been re-run** after this pass (only `tsc --noEmit` was checked). Run it to catch any bundling issues before considering the polish pass complete.
+3. Sidebar tooltips were deliberately limited to Dashboard and Settings only (the two items explicitly named in the spec's icon examples) — confirm this reads as intentional restraint rather than inconsistency, or extend/remove as needed.
+4. Not yet addressed from the original UX request: a systematic pass confirming *every* instance of the 15 canonical terms in §8 has appropriate tooltip coverage everywhere it appears (the current pass covered the highest-traffic spots — Product Detail, Dashboard, list-page stat cards, Cases/Loans headers — but a few list pages' page-level titles/descriptions rely on `PAGE_INTROS` prose alone without an inline `TermHint`, e.g. Vendors/Labs page titles don't have a `TermHint` next to "Vendors"/"Labs" themselves, only in body copy).
+5. Items 1–3 of the "Development Guidelines" self-check (§11) should be run once more as a final gate: reusability check, duplicated-logic check, and terminology cross-check across the whole diff of this polish pass.
+
+### Recommended next development order
+1. Re-verify the UX polish pass live in-browser (light + dark mode) per item 1 above — fix anything visually cramped or inconsistent before moving on.
+2. Run `npm run build` and resolve any new warnings/errors.
+3. Do a final terminology grep pass (`Supplier`, `Correction`, bare `Order`/`Movement`, mismatched `Component`/`Product`) across the *whole* repo one more time to catch anything the first audit missed, now that new copy has been added.
+4. Decide whether to close the "not yet addressed" gap in item 4 above (extra `TermHint`s on remaining page titles) or explicitly accept the current coverage as sufficient — either is fine, but make the decision explicit rather than leaving it ambiguous.
+5. Only after the above: consider moving into "Prototype hardening" work from §10 (Edit/Delete flows, wiring `barcodeFormat`, code-splitting) — do not start roadmap work while the current polish pass is still unverified.
+
+### Known environment quirks (useful if picking this up in a new session)
+- This machine did not have Node.js on `PATH` in the sandboxed shell even after installation — every `node`/`npm` command needs `export PATH="/c/Program Files/nodejs:$PATH"` prepended (Bash) or the equivalent for PowerShell. The dev-server launch config (`.claude/launch.json`) works around a related issue by pointing `runtimeExecutable` directly at `node.exe` invoking `node_modules/vite/bin/vite.js`, rather than `npm run dev`, because `npm.cmd` itself couldn't resolve `node` on PATH inside the preview-server sandbox.
+- The Browser-pane `navigate` tool in this environment does not reliably honor a path in the URL (it consistently lands on `/` regardless of what path was requested) — use `window.location.href = '/some-path'` via the JS execution tool, or click an in-app `<a>`/`<NavLink>` element, to navigate to a specific route during testing. This is a tooling quirk, not an app bug.
+- A full browser reload resets all in-memory mock state by design (see §9) — don't mistake this for a persistence bug when testing.

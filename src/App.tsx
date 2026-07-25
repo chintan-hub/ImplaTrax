@@ -1,0 +1,55 @@
+import { Routes, Route } from 'react-router-dom'
+import { ThemeProvider } from '@/components/theme/ThemeProvider'
+import { DataProvider } from '@/store/DataContext'
+import { AppLayout } from '@/layouts/AppLayout'
+import { DashboardPage } from '@/pages/dashboard/DashboardPage'
+import { ProductsPage } from '@/pages/products/ProductsPage'
+import { InventoryPage } from '@/pages/inventory/InventoryPage'
+import { PurchaseOrdersPage } from '@/pages/purchase-orders/PurchaseOrdersPage'
+import { VendorsPage } from '@/pages/vendors/VendorsPage'
+import { PatientsPage } from '@/pages/patients/PatientsPage'
+import { PatientProfilePage } from '@/pages/patients/PatientProfilePage'
+import { CasesPage } from '@/pages/cases/CasesPage'
+import { CaseDetailPage } from '@/pages/cases/CaseDetailPage'
+import { LabsPage } from '@/pages/labs/LabsPage'
+import { LabDetailPage } from '@/pages/labs/LabDetailPage'
+import { SalesPage } from '@/pages/sales/SalesPage'
+import { LoansPage } from '@/pages/loans/LoansPage'
+import { LoanReturnsPage } from '@/pages/loan-returns/LoanReturnsPage'
+import { ReportsPage } from '@/pages/reports/ReportsPage'
+import { UsersPage } from '@/pages/users/UsersPage'
+import { SettingsPage } from '@/pages/settings/SettingsPage'
+import { NotFoundPage } from '@/pages/NotFoundPage'
+
+function App() {
+  return (
+    <ThemeProvider>
+      <DataProvider>
+        <Routes>
+          <Route element={<AppLayout />}>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/products" element={<ProductsPage />} />
+            <Route path="/inventory" element={<InventoryPage />} />
+            <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
+            <Route path="/vendors" element={<VendorsPage />} />
+            <Route path="/patients" element={<PatientsPage />} />
+            <Route path="/patients/:patientId" element={<PatientProfilePage />} />
+            <Route path="/cases" element={<CasesPage />} />
+            <Route path="/cases/:caseId" element={<CaseDetailPage />} />
+            <Route path="/labs" element={<LabsPage />} />
+            <Route path="/labs/:labId" element={<LabDetailPage />} />
+            <Route path="/sales" element={<SalesPage />} />
+            <Route path="/loans" element={<LoansPage />} />
+            <Route path="/loan-returns" element={<LoanReturnsPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/users" element={<UsersPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Route>
+        </Routes>
+      </DataProvider>
+    </ThemeProvider>
+  )
+}
+
+export default App

@@ -1,0 +1,106 @@
+import { useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Plus, Search } from 'lucide-react'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { PatientFormDialog } from '@/components/patients/PatientFormDialog'
+import { useData } from '@/store/DataContext'
+import { patientFullName } from '@/mocks/patients'
+import { formatDate, initials } from '@/lib/utils'
+import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
+
+export function PatientsPage() {
+  const { patients, cases } = useData()
+  const [params] = useSearchParams()
+  const [search, setSearch] = useState('')
+  const [formOpen, setFormOpen] = useState(params.get('new') === '1')
+  const navigate = useNavigate()
+
+  const caseCountByPatient = useMemo(() => {
+    const map = new Map<string, number>()
+    cases.forEach((c) => map.set(c.patientId, (map.get(c.patientId) ?? 0) + 1))
+    return map
+  }, [cases])
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return patients.filter((p) => !q || patientFullName(p).toLowerCase().includes(q) || p.patientCode.toLowerCase().includes(q) || p.primaryDoctor.toLowerCase().includes(q))
+  }, [patients, search])
+
+  return (
+    <div>
+      <PageHeader
+        title={PAGE_INTROS.patients.title}
+        helpTerm="patient"
+        description={`${PAGE_INTROS.patients.description} ${patients.length} patients on record.`}
+        actions={
+          <Button onClick={() => setFormOpen(true)}>
+            <Plus className="h-4 w-4" /> Add Patient
+          </Button>
+        }
+      />
+
+      <div className="relative mb-5 max-w-sm">
+        <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input placeholder="Search patients, code, doctor..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
+      </div>
+
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={Search}
+          title={EMPTY_STATES.patients.title}
+          description={EMPTY_STATES.patients.description}
+          action={
+            <Button size="sm" onClick={() => setFormOpen(true)}>
+              <Plus className="h-4 w-4" /> {EMPTY_STATES.patients.actionLabel}
+            </Button>
+          }
+        />
+      ) : (
+        <div className="rounded-xl border border-border bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Patient</TableHead>
+                <TableHead>Code</TableHead>
+                <TableHead>Primary Doctor</TableHead>
+                <TableHead>Cases</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead>Added</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((p) => (
+                <TableRow key={p.id} className="cursor-pointer" onClick={() => navigate(`/patients/${p.id}`)}>
+                  <TableCell>
+                    <div className="flex items-center gap-2.5">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="text-xs">{initials(patientFullName(p))}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium">{patientFullName(p)}</p>
+                        <p className="text-xs text-muted-foreground">{p.sex === 'female' ? 'Female' : 'Male'}</p>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{p.patientCode}</TableCell>
+                  <TableCell>{p.primaryDoctor}</TableCell>
+                  <TableCell><Badge variant="secondary">{caseCountByPatient.get(p.id) ?? 0}</Badge></TableCell>
+                  <TableCell className="text-muted-foreground">{p.phone}</TableCell>
+                  <TableCell className="text-muted-foreground whitespace-nowrap">{formatDate(p.createdAt)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      <PatientFormDialog open={formOpen} onOpenChange={setFormOpen} />
+    </div>
+  )
+}
