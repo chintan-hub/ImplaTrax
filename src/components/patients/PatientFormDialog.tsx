@@ -25,6 +25,10 @@ export function PatientFormDialog({ open, onOpenChange }: { open: boolean; onOpe
       toast.error('First and last name are required.')
       return
     }
+    if (!form.dob) {
+      toast.error('Date of birth is required.')
+      return
+    }
     setSubmitting(true)
     await simulateLatency()
     const patient = addPatient({ ...form, sex, primaryDoctor: doctor })
