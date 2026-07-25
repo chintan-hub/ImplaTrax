@@ -140,10 +140,3 @@ export const caseTimelines: Record<string, CaseTimelineEvent[]> = Object.fromEnt
   cases.map((c) => [c.id, timelineFor(c.id, c.status, new Date(c.createdAt), c.doctor)]),
 )
 
-export function caseById(id: string) {
-  return cases.find((c) => c.id === id)
-}
-
-export function casesForPatient(patientId: string) {
-  return cases.filter((c) => c.patientId === patientId)
-}

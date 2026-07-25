@@ -24,7 +24,3 @@ export const labs: Lab[] = Array.from({ length: 25 }).map((_, i) => ({
   turnaroundDays: ri(5, 21),
   createdAt: iso(daysAgo(ri(60, 1100))),
 }))
-
-export function labById(id: string) {
-  return labs.find((l) => l.id === id)
-}

@@ -57,7 +57,3 @@ export const sales: Sale[] = Array.from({ length: 30 }).map((_, i) => {
     createdAt: iso(createdAt),
   }
 })
-
-export function saleById(id: string) {
-  return sales.find((s) => s.id === id)
-}

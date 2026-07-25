@@ -24,8 +24,4 @@ export const users: AppUser[] = SEED_USERS.map((u, i) => ({
   createdAt: iso(daysAgo(ri(100, 900))),
 }))
 
-export function userById(id: string) {
-  return users.find((u) => u.id === id)
-}
-
 export const currentUser = users[0]

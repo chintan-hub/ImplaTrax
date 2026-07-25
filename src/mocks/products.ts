@@ -156,6 +156,10 @@ export const products: Product[] = Array.from({ length: 100 }).map((_, i) => {
   return product
 })
 
+// Seed-generation-time helper only (used by other mocks/* generators, e.g.
+// sales.ts, to cross-reference the static seed set while building fixtures).
+// Do not import this into pages/components — it will not see products
+// created at runtime. Look up live products via useData() instead.
 export function productById(id: string) {
   return products.find((p) => p.id === id)
 }

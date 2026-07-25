@@ -109,14 +109,6 @@ for (let i = 0; i < 40; i++) {
   })
 }
 
-export function loanById(id: string) {
-  return loans.find((l) => l.id === id)
-}
-
-export function loansForLab(labId: string) {
-  return loans.filter((l) => l.labId === labId)
-}
-
 export function openLoanValue(loan: Loan) {
   return loan.lines.reduce((sum, l) => sum + (l.quantityLoaned - l.quantityReturned - l.quantityLost), 0)
 }

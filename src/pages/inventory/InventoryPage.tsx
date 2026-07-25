@@ -11,7 +11,6 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { AdjustmentDialog } from '@/components/inventory/AdjustmentDialog'
 import { useData } from '@/store/DataContext'
 import { formatDateTime } from '@/lib/utils'
-import { userById } from '@/mocks/users'
 import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
 import type { MovementType } from '@/types'
 
@@ -36,12 +35,13 @@ const TYPE_VARIANT: Record<MovementType, 'success' | 'danger' | 'warning' | 'acc
 }
 
 export function InventoryPage() {
-  const { movements, products } = useData()
+  const { movements, products, users } = useData()
   const [tab, setTab] = useState<'all' | 'inbound' | 'outbound' | 'adjustment'>('all')
   const [search, setSearch] = useState('')
   const [adjustOpen, setAdjustOpen] = useState(false)
 
   const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products])
+  const userById = useMemo(() => new Map(users.map((u) => [u.id, u])), [users])
 
   const stats = useMemo(() => {
     const inbound = movements.filter((m) => m.quantity > 0).reduce((s, m) => s + m.quantity, 0)
@@ -127,7 +127,7 @@ export function InventoryPage() {
             <TableBody>
               {filtered.slice(0, 100).map((m) => {
                 const product = productById.get(m.productId)
-                const user = userById(m.performedBy)
+                const user = userById.get(m.performedBy)
                 return (
                   <TableRow key={m.id}>
                     <TableCell>

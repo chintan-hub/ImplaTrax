@@ -34,10 +34,6 @@ export const patients: Patient[] = Array.from({ length: 40 }).map((_, i) => {
   }
 })
 
-export function patientById(id: string) {
-  return patients.find((p) => p.id === id)
-}
-
 export function patientFullName(p: Patient) {
   return `${p.firstName} ${p.lastName}`
 }

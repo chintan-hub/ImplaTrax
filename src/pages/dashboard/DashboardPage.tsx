@@ -22,14 +22,11 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useData } from '@/store/DataContext'
 import { useChartColors } from '@/lib/chartColors'
 import { formatCurrency, formatDate, initials } from '@/lib/utils'
-import { labById } from '@/mocks/labs'
-import { productById } from '@/mocks/products'
-import { userById } from '@/mocks/users'
 import { openLoanValue } from '@/mocks/loans'
 import { PAGE_INTROS } from '@/content/helpText'
 
 export function DashboardPage() {
-  const { products, movements, purchaseOrders, loans, cases, sales } = useData()
+  const { products, movements, purchaseOrders, loans, cases, sales, labs, users } = useData()
   const colors = useChartColors()
   const navigate = useNavigate()
 
@@ -163,8 +160,8 @@ export function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {recentMovements.map((m) => {
-              const product = productById(m.productId)
-              const user = userById(m.performedBy)
+              const product = products.find((p) => p.id === m.productId)
+              const user = users.find((u) => u.id === m.performedBy)
               return (
                 <div key={m.id} className="flex items-start gap-3 text-sm">
                   <Avatar className="h-7 w-7 mt-0.5">
@@ -219,7 +216,7 @@ export function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {stats.openLoans.slice(0, 8).map((loan) => {
-              const lab = labById(loan.labId)
+              const lab = labs.find((l) => l.id === loan.labId)
               return (
                 <div key={loan.id} className="flex items-center justify-between text-sm">
                   <div className="min-w-0 flex-1">

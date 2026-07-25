@@ -14,10 +14,9 @@ import { useData } from '@/store/DataContext'
 import { formatCurrency, formatDateTime, simulateLatency } from '@/lib/utils'
 import { MICROCOPY } from '@/content/helpText'
 import type { Product } from '@/types'
-import { vendors } from '@/mocks/vendors'
 
 export function ProductDetailSheet({ product, open, onOpenChange }: { product: Product | null; open: boolean; onOpenChange: (v: boolean) => void }) {
-  const { movements, adjustStock } = useData()
+  const { movements, adjustStock, vendors } = useData()
   const [adjustDelta, setAdjustDelta] = useState(1)
   const [reason, setReason] = useState('')
   const [pendingSign, setPendingSign] = useState<1 | -1 | null>(null)

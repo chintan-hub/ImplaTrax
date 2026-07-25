@@ -68,10 +68,6 @@ export const purchaseOrders: PurchaseOrder[] = Array.from({ length: 24 }).map((_
   }
 })
 
-export function poById(id: string) {
-  return purchaseOrders.find((p) => p.id === id)
-}
-
 export function poTotal(po: PurchaseOrder) {
   return po.lines.reduce((sum, l) => sum + l.unitCost * l.quantityOrdered, 0)
 }
