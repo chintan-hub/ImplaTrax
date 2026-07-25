@@ -25,6 +25,16 @@ function nextId(prefix: string) {
   return `${prefix}_${idCounter}`
 }
 
+/**
+ * Business-rule validation lives here, in the action functions, not just in
+ * the calling UI dialogs — this is the integration seam a future backend
+ * will replace (see ARCHITECTURE.md §6.2/§8.2). Convention: a violated rule
+ * throws a plain Error with a user-facing message. Every current UI caller
+ * already prevents these inputs from reaching this layer, so this is a
+ * backstop, not a new user-facing validation path.
+ */
+class BusinessRuleError extends Error {}
+
 function pad(n: number, width: number) {
   return String(n).padStart(width, '0')
 }
@@ -104,6 +114,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const adjustStock = useCallback(
     (productId: string, delta: number, reason: string, note?: string) => {
+      if (!reason.trim()) throw new BusinessRuleError('A reason is required for manual stock adjustments.')
       applyQtyDelta(productId, delta)
       addMovement(productId, 'adjustment', delta, reason, undefined, note)
     },
@@ -159,6 +170,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const receivePurchaseOrder = useCallback<DataContextValue['receivePurchaseOrder']>((poId, receipts) => {
+    if (!receipts.some((r) => r.quantityReceived > 0)) {
+      throw new BusinessRuleError('Enter a quantity to receive for at least one line.')
+    }
     setPurchaseOrders((prev) =>
       prev.map((po) => {
         if (po.id !== poId) return po
@@ -188,6 +202,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const createLoan = useCallback<DataContextValue['createLoan']>((labId, lines, dueDate, notes) => {
+    if (!labs.some((l) => l.id === labId)) throw new BusinessRuleError('Loans can only be issued to a lab.')
+    if (lines.length === 0) throw new BusinessRuleError('A loan must include at least one product line.')
     const id = nextId('ln')
     const seq = loans.length + 1
     const year = new Date().getFullYear()
@@ -208,9 +224,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addMovement(l.productId, 'loan-out', -l.quantityLoaned, 'Loan issued to lab', loan.loanNumber)
     })
     return loan
-  }, [loans.length, applyQtyDelta, addMovement])
+  }, [loans.length, labs, applyQtyDelta, addMovement])
 
   const returnLoanLines = useCallback<DataContextValue['returnLoanLines']>((loanId, returns) => {
+    if (!returns.some((r) => r.quantityReturned > 0 || r.quantityLost > 0)) {
+      throw new BusinessRuleError('Enter a returned or lost quantity for at least one item.')
+    }
+    if (returns.some((r) => r.quantityLost > 0 && !r.lostReason?.trim())) {
+      throw new BusinessRuleError('A reason is required for any lost components.')
+    }
     setLoans((prev) =>
       prev.map((loan) => {
         if (loan.id !== loanId) return loan
@@ -245,6 +267,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [loans, applyQtyDelta, addMovement])
 
   const createSale = useCallback<DataContextValue['createSale']>((lines, patientId, caseId) => {
+    if (lines.length === 0) throw new BusinessRuleError('A sale must include at least one product line.')
     const id = nextId('sal')
     const seq = sales.length + 1
     const year = new Date().getFullYear()

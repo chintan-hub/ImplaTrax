@@ -263,3 +263,92 @@ describe('createSale', () => {
     expect(result.current.movements[0].reason).toBe('Direct sale')
   })
 })
+
+/**
+ * These rules used to be enforced only by the calling UI dialogs
+ * (ARCHITECTURE.md §6.2). They are now also enforced directly in
+ * DataContext's actions, so a violation throws rather than silently
+ * mutating state. Each test asserts both that the throw happens AND that
+ * no partial state change occurred.
+ */
+describe('business-rule validation (M4)', () => {
+  it('adjustStock rejects an empty or whitespace-only reason and does not mutate stock', () => {
+    const { result } = setup()
+    const product = result.current.products[0]
+    const beforeQty = product.quantityOnHand
+    const beforeMovementCount = result.current.movements.length
+
+    expect(() => result.current.adjustStock(product.id, 5, '')).toThrow(/reason is required/i)
+    expect(() => result.current.adjustStock(product.id, 5, '   ')).toThrow(/reason is required/i)
+
+    const unchanged = result.current.products.find((p) => p.id === product.id)!
+    expect(unchanged.quantityOnHand).toBe(beforeQty)
+    expect(result.current.movements.length).toBe(beforeMovementCount)
+  })
+
+  it('createLoan rejects a labId that does not reference a real lab', () => {
+    const { result } = setup()
+    const product = result.current.products[0]
+    const before = result.current.loans.length
+
+    expect(() => result.current.createLoan('not-a-real-lab-id', [{ productId: product.id, quantityLoaned: 1 }])).toThrow(/only.*issued to a lab/i)
+    expect(result.current.loans.length).toBe(before)
+  })
+
+  it('createLoan rejects an empty line list', () => {
+    const { result } = setup()
+    const lab = result.current.labs[0]
+
+    expect(() => result.current.createLoan(lab.id, [])).toThrow(/at least one product line/i)
+  })
+
+  it('receivePurchaseOrder rejects a receipt with no positive quantity on any line', () => {
+    const { result } = setup()
+    const vendor = result.current.vendors[0]
+    const product = result.current.products[0]
+
+    let po: ReturnType<typeof result.current.createPurchaseOrder>
+    act(() => {
+      po = result.current.createPurchaseOrder(vendor.id, [{ productId: product.id, quantityOrdered: 10, unitCost: 5 }], new Date().toISOString())
+    })
+
+    expect(() => result.current.receivePurchaseOrder(po!.id, [{ lineId: po!.lines[0].id, quantityReceived: 0 }])).toThrow(/at least one line/i)
+    const unchangedPo = result.current.purchaseOrders.find((p) => p.id === po!.id)!
+    expect(unchangedPo.status).toBe('draft')
+  })
+
+  it('returnLoanLines rejects an all-zero return', () => {
+    const { result } = setup()
+    const lab = result.current.labs[0]
+    const product = result.current.products.find((p) => p.quantityOnHand >= 1)!
+
+    let loan: ReturnType<typeof result.current.createLoan>
+    act(() => {
+      loan = result.current.createLoan(lab.id, [{ productId: product.id, quantityLoaned: 1 }])
+    })
+
+    expect(() => result.current.returnLoanLines(loan!.id, [{ lineId: loan!.lines[0].id, quantityReturned: 0, quantityLost: 0 }])).toThrow(/at least one item/i)
+  })
+
+  it('returnLoanLines rejects a lost quantity with no reason', () => {
+    const { result } = setup()
+    const lab = result.current.labs[0]
+    const product = result.current.products.find((p) => p.quantityOnHand >= 1)!
+
+    let loan: ReturnType<typeof result.current.createLoan>
+    act(() => {
+      loan = result.current.createLoan(lab.id, [{ productId: product.id, quantityLoaned: 1 }])
+    })
+
+    expect(() =>
+      result.current.returnLoanLines(loan!.id, [{ lineId: loan!.lines[0].id, quantityReturned: 0, quantityLost: 1 }]),
+    ).toThrow(/reason is required/i)
+  })
+
+  it('createSale rejects an empty line list', () => {
+    const { result } = setup()
+    const before = result.current.sales.length
+    expect(() => result.current.createSale([])).toThrow(/at least one product line/i)
+    expect(result.current.sales.length).toBe(before)
+  })
+})
