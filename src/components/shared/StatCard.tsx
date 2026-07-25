@@ -4,6 +4,8 @@ import { TermHint } from '@/components/ui/help-tooltip'
 import type { TermKey } from '@/content/helpText'
 import { cn } from '@/lib/utils'
 
+type StatCardTone = 'default' | 'success' | 'warning' | 'danger' | 'accent'
+
 export function StatCard({
   label,
   value,
@@ -19,12 +21,14 @@ export function StatCard({
   icon: LucideIcon
   trend?: number
   trendLabel?: string
-  tone?: 'default' | 'success' | 'warning' | 'danger' | 'accent'
+  tone?: StatCardTone
   onClick?: () => void
   /** Attaches a term explanation next to the label, looked up from the central registry. */
   helpTerm?: TermKey
 }) {
-  const toneClasses: Record<string, string> = {
+  // Record<StatCardTone, ...> keeps this exhaustive against the `tone` prop's
+  // union (see ARCHITECTURE.md §6.4 / StatusBadge.tsx for the same pattern).
+  const toneClasses: Record<StatCardTone, string> = {
     default: 'bg-primary/10 text-primary-700 dark:text-primary-300',
     success: 'bg-success/15 text-success-700 dark:text-success-500',
     warning: 'bg-warning/15 text-warning-700 dark:text-warning-500',
