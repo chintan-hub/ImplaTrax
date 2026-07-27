@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -30,9 +31,22 @@ export function ConfirmDialog({
   tone = 'default',
   onConfirm,
 }: ConfirmDialogProps) {
+  const confirmRef = useRef<HTMLButtonElement>(null)
+  const cancelRef = useRef<HTMLButtonElement>(null)
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
+      <DialogContent
+        className="max-w-sm"
+        onOpenAutoFocus={(e) => {
+          // Desktop-app convention: default focus to the fast/expected action so
+          // Enter confirms immediately with no mouse click — except for a
+          // destructive action, where focus defaults to the safe Cancel button
+          // instead, so an accidental Enter can't trigger something irreversible.
+          e.preventDefault()
+          ;(tone === 'destructive' ? cancelRef.current : confirmRef.current)?.focus()
+        }}
+      >
         <DialogHeader>
           <div className="flex items-start gap-3">
             {tone === 'destructive' && (
@@ -47,10 +61,11 @@ export function ConfirmDialog({
           </div>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button ref={cancelRef} variant="outline" onClick={() => onOpenChange(false)}>
             {cancelLabel}
           </Button>
           <Button
+            ref={confirmRef}
             variant={tone === 'destructive' ? 'destructive' : 'default'}
             className={cn(tone === 'destructive' && 'focus-visible:ring-danger')}
             onClick={() => {
