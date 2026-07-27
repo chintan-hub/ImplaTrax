@@ -116,8 +116,19 @@ These rules are currently implemented in code (mock data generators, `DataContex
 - It also charts Stock Movements (inbound vs. outbound, last 14 days) and Inventory Value by Manufacturer, and lists Recent Activity, Low Stock products, and Outstanding Loans.
 
 ### Barcode / QR
-- Every product's barcode (CODE128, rendered via `jsbarcode`) and QR code (rendered via `qrcode`, payload format `IMPD:PRD:<id>`) are generated automatically at creation time and displayed together under "Identifiers" on the Product Detail sheet. There is no manual barcode entry anywhere in the UI.
-- Barcode format (CODE128 / CODE39 / EAN-13) is a clinic-wide setting (`ClinicSettings.barcodeFormat`, configured on the Settings page) that controls how `BarcodeDisplay` renders (`src/components/shared/Barcode.tsx`, wired via `ProductDetailSheet`). An invalid value for the selected format (e.g. a value that isn't a valid EAN-13 checksum) renders a blank barcode rather than throwing — `Product.barcode` values are generated for CODE128/EAN13-compatible display but are not guaranteed valid for every possible format switch.
+
+**Current implementation (pre-M25):** Every product's barcode (rendered via `jsbarcode`) and QR code (rendered via `qrcode`, payload format `IMPD:PRD:<id>`) are generated automatically at creation time, stored on the `Product` record (`barcode`, `qrPayload`), and displayed together under "Identifiers" on the Product Detail sheet — always on, no manual entry, no way to disable. Barcode format (CODE128 / CODE39 / EAN-13) is a clinic-wide setting (`ClinicSettings.barcodeFormat`) that controls how `BarcodeDisplay` renders (`src/components/shared/Barcode.tsx`); an invalid value for the selected format renders a blank barcode rather than throwing.
+
+**Permanent product rules (locked in 2026-07-27; planned implementation is `DEVELOPMENT_PLAN.md` Phase 7 / M25 — not yet built, this is the target architecture the current implementation above will be migrated to):**
+1. Every product always receives a permanent internal Product ID at creation, regardless of whether barcode functionality is enabled. This ID exists silently even when barcode support is Disabled.
+2. Barcode functionality is controlled entirely by `ClinicSettings.barcodeMode`, one of three modes:
+   - **Disabled** (the default) — the application behaves as if barcode support does not exist: no barcode/QR shown anywhere, no scan buttons, no print-label option, no barcode-related workflow. The permanent Product ID still exists in the background.
+   - **Display Only** — barcode/QR can be generated from the Product ID whenever required; users can view, print, and export labels; no scanning workflow.
+   - **Full Workflow** — everything in Display Only, plus barcode/QR scanning becomes available throughout relevant inventory workflows (stock receiving, inventory lookup, and future movement workflows).
+3. Barcode **format** is configurable independently of barcode **mode** — `ClinicSettings.barcodeFormat`: QR Code (recommended default), Code 128, or EAN-13. These options are only shown when barcode mode is not Disabled, and stay out of normal users' way (e.g. behind an "Advanced" disclosure) unless needed.
+4. Barcode/QR images are never stored. The permanent Product ID is the only source of truth; the barcode/QR is generated dynamically, every time it needs to be displayed or printed, from the Product ID plus the clinic's current format setting. **This means any clinic can enable barcode functionality at any time without migrating existing products or changing Product IDs** — nothing about a product needs to change when barcode mode is turned on, off, or reformatted.
+
+This is also the reference example for principle 10 (§2) — optional/advanced functionality as a configurable module, not a one-size-fits-all always-on behavior.
 
 ### Batch Tracking
 - Optional per product (`Product.batchTracked`). Intended for products where lot-level traceability matters (implant fixtures, bone graft material, membranes are batch-tracked more often than not in the mock generator).
