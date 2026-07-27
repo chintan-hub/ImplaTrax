@@ -7,13 +7,15 @@
 > - Keep user context whenever navigating (scroll position, filters, selection).
 > - Keep search/filter/action bars sticky on long pages.
 > - Frequently used actions stay accessible — never buried.
-> - Support efficient bulk operations everywhere they make sense, including desktop-style multi-select: drag/rubber-band selection, click-and-drag continuous selection, auto-scroll while dragging, Shift-click range selection, Ctrl/Cmd multi-selection.
+> - Support efficient bulk operations everywhere they make sense, including desktop-style multi-select: drag/rubber-band selection, click-and-drag continuous selection, auto-scroll while dragging, Shift-click range selection, Ctrl/Cmd multi-selection, right-click context menus.
 > - Preserve selections after edits whenever practical.
 > - Avoid unnecessary page transitions — prefer drawers, sheets, or inline editing where appropriate.
 > - Keyboard shortcuts are first-class, not an afterthought.
 > - When an idea needs a larger coordinated change, build the reusable component/infrastructure once, then adopt it gradually — never one-off per screen.
 >
 > **How this backlog works:** an item here needs a **consistent, cross-app pattern** before it's implemented anywhere — that's what makes it backlog material instead of a same-day fix. A friction fix that's local to one screen and low-risk should just be fixed directly when encountered (standing permission granted — business logic/data integrity must be preserved), noted in the relevant commit, not logged here. Items are ranked by impact: how much daily friction they remove, how many screens/workflows they touch, and how well they set up later items.
+>
+> **How this relates to the roadmap (`PROJECT.md` §2 principle 9):** the P0/P1/P2 ranking below is *within* this backlog — it does not mean "do before workflow gaps." Per principle 9, business-workflow completeness (stock receiving, sales, loans, loan returns, traceability) outranks this entire document except where an item here is cheap enough to fold into workflow work opportunistically (e.g. building the sticky-toolbar primitive once, while polishing a workflow screen that needed it anyway). See the roadmap for exact sequencing.
 
 ---
 
@@ -32,7 +34,7 @@
 ### 3. Bulk selection with desktop-style multi-select
 **Why P0:** The most explicitly detailed ask in the principle set (drag/rubber-band selection, click-and-drag continuous selection, auto-scroll while dragging, Shift-click range, Ctrl/Cmd multi-select) — this is the single biggest lever for "processing hundreds of records" and the clearest "Explorer/Office, not CRUD web app" signal. No list page currently supports selecting more than one row.
 
-**Shape of the fix:** build one reusable selection primitive (a hook/behavior, e.g. `useRowSelection` + a rubber-band overlay component) once against a real table (Products or Purchase Orders, both already `TanStack Table`-friendly), including keyboard modifiers (Shift/Ctrl range and toggle) and auto-scroll-on-drag, then roll it out to every list page's table. Needs at least one real bulk *action* to pair with it to be useful (bulk status change, bulk export) — sequence this after Edit/Delete flows (Phase 4, M11) exist, since bulk-editing records you can't yet edit individually is a smaller win. **Preserve selection after edits** (explicit principle) is a property of this same primitive, not a separate feature — design it in from the start, don't bolt it on later.
+**Shape of the fix:** build one reusable selection primitive (a hook/behavior, e.g. `useRowSelection` + a rubber-band overlay component) once against a real table (Products or Purchase Orders, both already `TanStack Table`-friendly), including keyboard modifiers (Shift/Ctrl range and toggle) and auto-scroll-on-drag, then roll it out to every list page's table. Needs at least one real bulk *action* to pair with it to be useful (bulk status change, bulk export, bulk cancel) — sequence this once a workflow exists with a genuine bulk-actionable operation (e.g. cancelling several draft POs, marking several loans returned), not necessarily generic edit/delete. **Preserve selection after edits** (explicit principle) is a property of this same primitive, not a separate feature — design it in from the start, don't bolt it on later.
 
 ---
 
@@ -54,7 +56,7 @@
 ## P2 — Valuable, sequence after the above
 
 ### 7. Efficient bulk operations on top of selection
-Once item 3 (selection) and Edit/Delete flows (Phase 4, M11) both exist: bulk status change, bulk export, bulk assign — the actual payoff of building the selection primitive. Don't build the action layer before the selection primitive it depends on.
+Once item 3 (selection) exists and at least one workflow has a real multi-record action worth batching (bulk PO cancel, bulk loan return, bulk export): bulk status change, bulk export, bulk assign — the actual payoff of building the selection primitive. Don't build the action layer before the selection primitive it depends on.
 
 ### 8. Inline editing where it removes a whole navigation round-trip
 E.g. adjusting a single product's low-stock threshold or a purchase order line's quantity without opening a full dialog. Lower priority than the above because it's genuinely per-screen judgment (some fields are safe to inline-edit, others need the validation a dialog provides) rather than one reusable pattern — tackle opportunistically, screen by screen, as instructed, rather than as a dedicated project.
