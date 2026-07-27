@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Star, Clock } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { StickyToolbar } from '@/components/shared/StickyToolbar'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -42,10 +43,12 @@ export function LabsPage() {
         }
       />
 
-      <div className="relative mb-5 max-w-sm">
-        <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input placeholder="Search labs..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
-      </div>
+      <StickyToolbar>
+        <div className="relative max-w-sm flex-1">
+          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input placeholder="Search labs..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+      </StickyToolbar>
 
       {filtered.length === 0 ? (
         <EmptyState

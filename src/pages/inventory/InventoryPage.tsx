@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { ArrowDownToLine, ArrowUpFromLine, SlidersHorizontal, Plus, Search } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { StickyToolbar } from '@/components/shared/StickyToolbar'
 import { StatCard } from '@/components/shared/StatCard'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Button } from '@/components/ui/button'
@@ -84,7 +85,7 @@ export function InventoryPage() {
         <StatCard label="Manual Adjustments" value={String(stats.adjustments)} icon={SlidersHorizontal} tone="warning" helpTerm="adjustment" />
       </div>
 
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <StickyToolbar className="sm:justify-between">
         <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
           <TabsList>
             <TabsTrigger value="all">All</TabsTrigger>
@@ -97,7 +98,7 @@ export function InventoryPage() {
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="Search product, reason, reference..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-      </div>
+      </StickyToolbar>
 
       {filtered.length === 0 ? (
         <EmptyState

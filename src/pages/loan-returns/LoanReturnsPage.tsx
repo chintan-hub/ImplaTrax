@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Search, Undo2 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { StickyToolbar } from '@/components/shared/StickyToolbar'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { StatCard } from '@/components/shared/StatCard'
 import { Input } from '@/components/ui/input'
@@ -58,7 +59,7 @@ export function LoanReturnsPage() {
         <StatCard label="Units Lost" value={String(stats.lost)} icon={AlertTriangle} tone="danger" />
       </div>
 
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <StickyToolbar>
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="Search product, loan #, lab..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -70,7 +71,7 @@ export function LoanReturnsPage() {
             {labs.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
           </SelectContent>
         </Select>
-      </div>
+      </StickyToolbar>
 
       {filtered.length === 0 ? (
         <EmptyState icon={Search} title={EMPTY_STATES.loanReturns.title} description={EMPTY_STATES.loanReturns.description} />

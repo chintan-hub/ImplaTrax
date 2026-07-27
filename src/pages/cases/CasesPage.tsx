@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Search } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { StickyToolbar } from '@/components/shared/StickyToolbar'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Button } from '@/components/ui/button'
@@ -57,7 +58,7 @@ export function CasesPage() {
         }
       />
 
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+      <StickyToolbar className="sm:flex-wrap">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="Search Case ID or patient..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -83,7 +84,7 @@ export function CasesPage() {
             {labs.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
           </SelectContent>
         </Select>
-      </div>
+      </StickyToolbar>
 
       {filtered.length === 0 ? (
         <EmptyState
