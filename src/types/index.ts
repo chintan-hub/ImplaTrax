@@ -110,17 +110,32 @@ export interface PurchaseOrderLine {
   unitCost: number
 }
 
+/** One entry in a Purchase Order's audit trail — every status change is recorded, append-only. */
+export interface PurchaseOrderEvent {
+  id: ID
+  poId: ID
+  label: string
+  description: string
+  date: string
+  actor: string
+}
+
 export interface PurchaseOrder {
   id: ID
-  poNumber: string
+  poNumber: string // timestamp-based, format YYYYMMDDHHmm — see src/lib/idGenerator.ts
   vendorId: ID
   status: POStatus
   eta: string
   createdAt: string
   submittedAt?: string
+  confirmedAt?: string
   receivedAt?: string
   lines: PurchaseOrderLine[]
   notes?: string
+  /** Append-only audit trail — every status transition adds an entry here, never edited or removed. */
+  history: PurchaseOrderEvent[]
+  /** Optional reference photo (e.g. a photographed paper PO or packing slip), stored as a data URL. */
+  photoDataUrl?: string
 }
 
 // ---------------------------------------------------------------------------

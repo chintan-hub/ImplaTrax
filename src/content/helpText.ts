@@ -146,6 +146,26 @@ export const ICON_HELP = {
     title: 'Process Return',
     description: 'Record components a lab is sending back, in full or in part.',
   },
+  confirmPO: {
+    title: 'Confirm',
+    description: 'Record that the vendor has confirmed this order. Inventory is unaffected until items are received.',
+  },
+  copyWhatsApp: {
+    title: 'Copy WhatsApp Message',
+    description: 'Copies a formatted summary of this purchase order to your clipboard, ready to paste into a WhatsApp chat.',
+  },
+  printPO: {
+    title: 'Print',
+    description: 'Open this purchase order in your browser’s print dialog.',
+  },
+  generatePdfPO: {
+    title: 'Generate PDF',
+    description: 'Download a PDF copy of this purchase order. Coming soon.',
+  },
+  attachPhoto: {
+    title: 'Attach Photo',
+    description: 'Attach a reference photo to this purchase order, such as a photographed packing slip.',
+  },
 } as const satisfies Record<string, HelpEntry>
 
 export type IconHelpKey = keyof typeof ICON_HELP

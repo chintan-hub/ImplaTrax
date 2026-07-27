@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { toast } from 'sonner'
-import { Plus, Search, PackageCheck, Send, XCircle } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Plus, Search } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { StatusBadge } from '@/components/shared/StatusBadge'
@@ -10,25 +9,22 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Progress } from '@/components/ui/progress'
-import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { POFormDialog } from '@/components/purchase-orders/POFormDialog'
-import { POReceiveDialog } from '@/components/purchase-orders/POReceiveDialog'
-import { IconHelp } from '@/components/ui/help-tooltip'
+import { POStatusActions } from '@/components/purchase-orders/POStatusActions'
 import { useData } from '@/store/DataContext'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
-import type { PurchaseOrder, POStatus } from '@/types'
+import type { POStatus } from '@/types'
 
 const STATUSES: POStatus[] = ['draft', 'submitted', 'confirmed', 'partially-received', 'received', 'cancelled']
 
 export function PurchaseOrdersPage() {
-  const { purchaseOrders, vendors, submitPurchaseOrder, cancelPurchaseOrder } = useData()
+  const { purchaseOrders, vendors } = useData()
+  const navigate = useNavigate()
   const [params] = useSearchParams()
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [formOpen, setFormOpen] = useState(params.get('new') === '1')
-  const [receivingPO, setReceivingPO] = useState<PurchaseOrder | null>(null)
-  const [cancelingPO, setCancelingPO] = useState<PurchaseOrder | null>(null)
 
   const vendorById = useMemo(() => new Map(vendors.map((v) => [v.id, v])), [vendors])
 
@@ -103,12 +99,9 @@ export function PurchaseOrdersPage() {
                 const totalReceived = po.lines.reduce((s, l) => s + l.quantityReceived, 0)
                 const totalCost = po.lines.reduce((s, l) => s + l.quantityOrdered * l.unitCost, 0)
                 const progress = totalOrdered > 0 ? Math.round((totalReceived / totalOrdered) * 100) : 0
-                const canReceive = ['submitted', 'confirmed', 'partially-received'].includes(po.status)
-                const canSubmit = po.status === 'draft'
-                const canCancel = ['draft', 'submitted', 'confirmed'].includes(po.status)
                 return (
-                  <TableRow key={po.id}>
-                    <TableCell className="font-medium">{po.poNumber}</TableCell>
+                  <TableRow key={po.id} className="cursor-pointer" onClick={() => navigate(`/purchase-orders/${po.id}`)}>
+                    <TableCell className="font-medium font-mono">{po.poNumber}</TableCell>
                     <TableCell>{vendor?.name}</TableCell>
                     <TableCell><StatusBadge status={po.status} /></TableCell>
                     <TableCell className="w-40">
@@ -119,24 +112,8 @@ export function PurchaseOrdersPage() {
                     </TableCell>
                     <TableCell className="text-muted-foreground whitespace-nowrap">{formatDate(po.eta)}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatCurrency(totalCost)}</TableCell>
-                    <TableCell className="text-right space-x-1.5 whitespace-nowrap">
-                      {canSubmit && (
-                        <Button size="sm" variant="outline" onClick={() => { submitPurchaseOrder(po.id); toast.success(`${po.poNumber} submitted to vendor`, { description: 'Status updated to Submitted.' }) }}>
-                          <Send className="h-3.5 w-3.5" /> Submit
-                        </Button>
-                      )}
-                      {canReceive && (
-                        <IconHelp helpKey="receive">
-                          <Button size="sm" onClick={() => setReceivingPO(po)}>
-                            <PackageCheck className="h-3.5 w-3.5" /> Receive
-                          </Button>
-                        </IconHelp>
-                      )}
-                      {canCancel && (
-                        <Button size="sm" variant="ghost" className="text-danger-600 hover:text-danger-700 hover:bg-danger/10" onClick={() => setCancelingPO(po)} aria-label={`Cancel purchase order ${po.poNumber}`}>
-                          <XCircle className="h-3.5 w-3.5" /> Cancel
-                        </Button>
-                      )}
+                    <TableCell className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <POStatusActions po={po} size="sm" />
                     </TableCell>
                   </TableRow>
                 )
@@ -147,21 +124,6 @@ export function PurchaseOrdersPage() {
       )}
 
       <POFormDialog open={formOpen} onOpenChange={setFormOpen} />
-      <POReceiveDialog po={receivingPO} open={!!receivingPO} onOpenChange={(v) => !v && setReceivingPO(null)} />
-      <ConfirmDialog
-        open={!!cancelingPO}
-        onOpenChange={(v) => !v && setCancelingPO(null)}
-        title={`Cancel ${cancelingPO?.poNumber}?`}
-        description="This purchase order will be marked cancelled and can no longer be submitted or received. This cannot be undone."
-        confirmLabel="Cancel Purchase Order"
-        cancelLabel="Keep Order"
-        tone="destructive"
-        onConfirm={() => {
-          if (!cancelingPO) return
-          cancelPurchaseOrder(cancelingPO.id)
-          toast.success(`${cancelingPO.poNumber} cancelled`)
-        }}
-      />
     </div>
   )
 }

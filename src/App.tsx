@@ -6,6 +6,7 @@ import { DashboardPage } from '@/pages/dashboard/DashboardPage'
 import { ProductsPage } from '@/pages/products/ProductsPage'
 import { InventoryPage } from '@/pages/inventory/InventoryPage'
 import { PurchaseOrdersPage } from '@/pages/purchase-orders/PurchaseOrdersPage'
+import { PODetailPage } from '@/pages/purchase-orders/PODetailPage'
 import { VendorsPage } from '@/pages/vendors/VendorsPage'
 import { PatientsPage } from '@/pages/patients/PatientsPage'
 import { PatientProfilePage } from '@/pages/patients/PatientProfilePage'
@@ -31,6 +32,7 @@ function App() {
             <Route path="/products" element={<ProductsPage />} />
             <Route path="/inventory" element={<InventoryPage />} />
             <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
+            <Route path="/purchase-orders/:poId" element={<PODetailPage />} />
             <Route path="/vendors" element={<VendorsPage />} />
             <Route path="/patients" element={<PatientsPage />} />
             <Route path="/patients/:patientId" element={<PatientProfilePage />} />

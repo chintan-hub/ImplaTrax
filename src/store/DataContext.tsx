@@ -3,6 +3,7 @@ import type {
   Product,
   InventoryMovement,
   PurchaseOrder,
+  PurchaseOrderEvent,
   Vendor,
   Patient,
   Case,
@@ -17,7 +18,8 @@ import type {
 } from '@/types'
 import * as mock from '@/mocks'
 import { currentUser } from '@/mocks/users'
-import { nextInternalId, createSequence } from '@/lib/idGenerator'
+import { nextInternalId, createSequence, createTimestampIdGenerator } from '@/lib/idGenerator'
+import { canSubmitPO, canConfirmPO, canReceivePO, canCancelPO } from '@/lib/poWorkflow'
 
 /**
  * Business-rule validation lives here, in the action functions, not just in
@@ -37,10 +39,13 @@ function pad(n: number, width: number) {
 // IDs) — independent of live array length, seeded once from the mock seed
 // counts (see src/lib/idGenerator.ts and ARCHITECTURE.md §6.3).
 const nextProductSeq = createSequence(mock.products.length + 1)
-const nextPoSeq = createSequence(mock.purchaseOrders.length + 1)
 const nextLoanSeq = createSequence(mock.loans.length + 1)
 const nextSaleSeq = createSequence(mock.sales.length + 1)
 const nextPatientSeq = createSequence(mock.patients.length + 1)
+
+// Purchase Order IDs are timestamp-based (YYYYMMDDHHmm), a business rule
+// specific to this entity — see src/lib/idGenerator.ts.
+const nextPoNumber = createTimestampIdGenerator()
 
 // Case IDs reset per calendar year (IDC-YYYY-00001), so each year gets its
 // own counter, lazily created and seeded from how many seeded cases already
@@ -74,8 +79,10 @@ interface DataContextValue {
 
   createPurchaseOrder: (vendorId: string, lines: { productId: string; quantityOrdered: number; unitCost: number }[], eta: string, notes?: string) => PurchaseOrder
   submitPurchaseOrder: (poId: string) => void
+  confirmPurchaseOrder: (poId: string) => void
   receivePurchaseOrder: (poId: string, receipts: { lineId: string; quantityReceived: number }[]) => void
   cancelPurchaseOrder: (poId: string) => void
+  attachPhotoToOrder: (poId: string, photoDataUrl: string | undefined) => void
 
   createLoan: (labId: string, lines: { productId: string; quantityLoaned: number }[], dueDate?: string, notes?: string) => Loan
   returnLoanLines: (loanId: string, returns: { lineId: string; quantityReturned: number; quantityLost: number; lostReason?: string }[]) => void
@@ -160,61 +167,130 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch, updatedAt: new Date().toISOString() } : p)))
   }, [])
 
+  const poEvent = useCallback((poId: string, label: string, description: string, date: string): PurchaseOrderEvent => {
+    return { id: nextInternalId('poevt'), poId, label, description, date, actor: currentUser.name }
+  }, [])
+
+  // A Purchase Order never changes inventory itself — only receivePurchaseOrder
+  // does, via applyQtyDelta below. createPurchaseOrder/submitPurchaseOrder/
+  // confirmPurchaseOrder/cancelPurchaseOrder only ever touch PO status/history.
   const createPurchaseOrder = useCallback<DataContextValue['createPurchaseOrder']>((vendorId, lines, eta, notes) => {
     const id = nextInternalId('po')
-    const seq = nextPoSeq()
-    const year = new Date().getFullYear()
+    const now = new Date()
+    const nowIso = now.toISOString()
     const po: PurchaseOrder = {
       id,
-      poNumber: `PO-${year}-${pad(seq, 4)}`,
+      poNumber: nextPoNumber(now),
       vendorId,
       status: 'draft',
       eta,
-      createdAt: new Date().toISOString(),
+      createdAt: nowIso,
       lines: lines.map((l, i) => ({ id: `${id}_line_${i + 1}`, productId: l.productId, quantityOrdered: l.quantityOrdered, quantityReceived: 0, unitCost: l.unitCost })),
       notes,
+      history: [poEvent(id, 'Purchase Order Created', `Draft created with ${lines.length} line item(s). Inventory is not affected until items are received.`, nowIso)],
     }
     setPurchaseOrders((prev) => [po, ...prev])
     return po
-  }, [])
+  }, [poEvent])
 
   const submitPurchaseOrder = useCallback((poId: string) => {
+    const po = purchaseOrders.find((p) => p.id === poId)
+    if (!po || !canSubmitPO(po)) throw new BusinessRuleError('Only a draft purchase order can be submitted.')
+    const now = new Date().toISOString()
     setPurchaseOrders((prev) =>
-      prev.map((po) => (po.id === poId ? { ...po, status: 'submitted' as POStatus, submittedAt: new Date().toISOString() } : po)),
+      prev.map((p) =>
+        p.id === poId
+          ? { ...p, status: 'submitted' as POStatus, submittedAt: now, history: [...p.history, poEvent(poId, 'Submitted to Vendor', 'Purchase order sent to the vendor.', now)] }
+          : p,
+      ),
     )
-  }, [])
+  }, [purchaseOrders, poEvent])
+
+  const confirmPurchaseOrder = useCallback((poId: string) => {
+    const po = purchaseOrders.find((p) => p.id === poId)
+    if (!po || !canConfirmPO(po)) throw new BusinessRuleError('Only a submitted purchase order can be confirmed.')
+    const now = new Date().toISOString()
+    setPurchaseOrders((prev) =>
+      prev.map((p) =>
+        p.id === poId
+          ? {
+              ...p,
+              status: 'confirmed' as POStatus,
+              confirmedAt: now,
+              history: [...p.history, poEvent(poId, 'Confirmed by Vendor', 'Vendor confirmed the order. Inventory is still unaffected until items are received.', now)],
+            }
+          : p,
+      ),
+    )
+  }, [purchaseOrders, poEvent])
 
   const receivePurchaseOrder = useCallback<DataContextValue['receivePurchaseOrder']>((poId, receipts) => {
     if (!receipts.some((r) => r.quantityReceived > 0)) {
       throw new BusinessRuleError('Enter a quantity to receive for at least one line.')
     }
-    setPurchaseOrders((prev) =>
-      prev.map((po) => {
-        if (po.id !== poId) return po
-        const lines = po.lines.map((line) => {
-          const receipt = receipts.find((r) => r.lineId === line.id)
-          if (!receipt) return line
-          return { ...line, quantityReceived: Math.min(line.quantityOrdered, line.quantityReceived + receipt.quantityReceived) }
-        })
-        const fullyReceived = lines.every((l) => l.quantityReceived >= l.quantityOrdered)
-        const anyReceived = lines.some((l) => l.quantityReceived > 0)
-        const status: POStatus = fullyReceived ? 'received' : anyReceived ? 'partially-received' : po.status
-        return { ...po, lines, status, receivedAt: fullyReceived ? new Date().toISOString() : po.receivedAt }
-      }),
-    )
     const po = purchaseOrders.find((p) => p.id === poId)
+    if (!po || !canReceivePO(po)) throw new BusinessRuleError('This purchase order cannot be received in its current status.')
+
+    const now = new Date().toISOString()
+    const updatedLines = po.lines.map((line) => {
+      const receipt = receipts.find((r) => r.lineId === line.id)
+      if (!receipt) return line
+      return { ...line, quantityReceived: Math.min(line.quantityOrdered, line.quantityReceived + receipt.quantityReceived) }
+    })
+    const fullyReceived = updatedLines.every((l) => l.quantityReceived >= l.quantityOrdered)
+    const anyReceived = updatedLines.some((l) => l.quantityReceived > 0)
+    const status: POStatus = fullyReceived ? 'received' : anyReceived ? 'partially-received' : po.status
+    const receivedThisTime = receipts.reduce((s, r) => s + Math.max(0, r.quantityReceived), 0)
+    const event = fullyReceived
+      ? poEvent(poId, 'Stock Fully Received', 'All ordered quantities have now been received; inventory updated.', now)
+      : poEvent(poId, 'Stock Partially Received', `${receivedThisTime} unit(s) received in this receipt; inventory updated. Order remains open for the rest.`, now)
+
+    setPurchaseOrders((prev) =>
+      prev.map((p) =>
+        p.id === poId
+          ? { ...p, lines: updatedLines, status, receivedAt: fullyReceived ? now : p.receivedAt, history: [...p.history, event] }
+          : p,
+      ),
+    )
     receipts.forEach((r) => {
       if (r.quantityReceived <= 0) return
-      const line = po?.lines.find((l) => l.id === r.lineId)
+      const line = po.lines.find((l) => l.id === r.lineId)
       if (!line) return
       applyQtyDelta(line.productId, r.quantityReceived)
-      addMovement(line.productId, 'inbound', r.quantityReceived, 'Purchase order received', po?.poNumber)
+      addMovement(line.productId, 'inbound', r.quantityReceived, 'Purchase order received', po.poNumber)
     })
-  }, [purchaseOrders, applyQtyDelta, addMovement])
+  }, [purchaseOrders, poEvent, applyQtyDelta, addMovement])
 
   const cancelPurchaseOrder = useCallback((poId: string) => {
-    setPurchaseOrders((prev) => prev.map((po) => (po.id === poId ? { ...po, status: 'cancelled' as POStatus } : po)))
-  }, [])
+    const po = purchaseOrders.find((p) => p.id === poId)
+    if (!po || !canCancelPO(po)) throw new BusinessRuleError('This purchase order can no longer be cancelled.')
+    const now = new Date().toISOString()
+    setPurchaseOrders((prev) =>
+      prev.map((p) =>
+        p.id === poId
+          ? { ...p, status: 'cancelled' as POStatus, history: [...p.history, poEvent(poId, 'Purchase Order Cancelled', 'This purchase order was cancelled and will not be received.', now)] }
+          : p,
+      ),
+    )
+  }, [purchaseOrders, poEvent])
+
+  const attachPhotoToOrder = useCallback((poId: string, photoDataUrl: string | undefined) => {
+    const now = new Date().toISOString()
+    setPurchaseOrders((prev) =>
+      prev.map((p) =>
+        p.id === poId
+          ? {
+              ...p,
+              photoDataUrl,
+              history: [
+                ...p.history,
+                poEvent(poId, photoDataUrl ? 'Photo Attached' : 'Photo Removed', photoDataUrl ? 'A reference photo was attached to this purchase order.' : 'The attached photo was removed.', now),
+              ],
+            }
+          : p,
+      ),
+    )
+  }, [poEvent])
 
   const createLoan = useCallback<DataContextValue['createLoan']>((labId, lines, dueDate, notes) => {
     if (!labs.some((l) => l.id === labId)) throw new BusinessRuleError('Loans can only be issued to a lab.')
@@ -363,8 +439,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       updateProduct,
       createPurchaseOrder,
       submitPurchaseOrder,
+      confirmPurchaseOrder,
       receivePurchaseOrder,
       cancelPurchaseOrder,
+      attachPhotoToOrder,
       createLoan,
       returnLoanLines,
       createSale,
@@ -393,8 +471,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       updateProduct,
       createPurchaseOrder,
       submitPurchaseOrder,
+      confirmPurchaseOrder,
       receivePurchaseOrder,
       cancelPurchaseOrder,
+      attachPhotoToOrder,
       createLoan,
       returnLoanLines,
       createSale,

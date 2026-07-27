@@ -88,6 +88,9 @@ describe('purchase order lifecycle', () => {
       po = result.current.createPurchaseOrder(vendor.id, [{ productId: product.id, quantityOrdered: 10, unitCost: 5 }], new Date().toISOString())
     })
     act(() => {
+      result.current.submitPurchaseOrder(po!.id)
+    })
+    act(() => {
       result.current.receivePurchaseOrder(po!.id, [{ lineId: po!.lines[0].id, quantityReceived: 4 }])
     })
 
@@ -115,6 +118,9 @@ describe('purchase order lifecycle', () => {
       po = result.current.createPurchaseOrder(vendor.id, [{ productId: product.id, quantityOrdered: 10, unitCost: 5 }], new Date().toISOString())
     })
     act(() => {
+      result.current.submitPurchaseOrder(po!.id)
+    })
+    act(() => {
       result.current.receivePurchaseOrder(po!.id, [{ lineId: po!.lines[0].id, quantityReceived: 4 }])
     })
     act(() => {
@@ -137,6 +143,9 @@ describe('purchase order lifecycle', () => {
     let po: ReturnType<typeof result.current.createPurchaseOrder>
     act(() => {
       po = result.current.createPurchaseOrder(vendor.id, [{ productId: product.id, quantityOrdered: 5, unitCost: 5 }], new Date().toISOString())
+    })
+    act(() => {
+      result.current.submitPurchaseOrder(po!.id)
     })
     act(() => {
       result.current.receivePurchaseOrder(po!.id, [{ lineId: po!.lines[0].id, quantityReceived: 999 }])
@@ -350,5 +359,151 @@ describe('business-rule validation (M4)', () => {
     const before = result.current.sales.length
     expect(() => result.current.createSale([])).toThrow(/at least one product line/i)
     expect(result.current.sales.length).toBe(before)
+  })
+})
+
+/**
+ * Phase 3: the production Purchase Order workflow — status gates, the
+ * append-only audit history, the timestamp-based ID, and the rule that a
+ * Purchase Order never changes inventory itself (only receiving does).
+ */
+describe('Purchase Order workflow (Phase 3)', () => {
+  function createDraftPO(result: { current: ReturnType<typeof useData> }) {
+    const vendor = result.current.vendors[0]
+    const product = result.current.products[0]
+    let po: ReturnType<typeof result.current.createPurchaseOrder>
+    act(() => {
+      po = result.current.createPurchaseOrder(vendor.id, [{ productId: product.id, quantityOrdered: 10, unitCost: 5 }], new Date().toISOString())
+    })
+    return po!
+  }
+
+  it('creates a draft PO with a timestamp-based ID (YYYYMMDDHHmm) and does not change inventory', () => {
+    const { result } = setup()
+    const product = result.current.products[0]
+    const before = product.quantityOnHand
+    const beforeMovementCount = result.current.movements.length
+
+    const po = createDraftPO(result)
+
+    expect(po.poNumber).toMatch(/^\d{12}(-\d+)?$/)
+    expect(po.status).toBe('draft')
+
+    const unchangedProduct = result.current.products.find((p) => p.id === product.id)!
+    expect(unchangedProduct.quantityOnHand).toBe(before)
+    expect(result.current.movements.length).toBe(beforeMovementCount)
+  })
+
+  it('seeds a one-entry audit history on creation, and every transition appends to it (never replaces it)', () => {
+    const { result } = setup()
+    const po = createDraftPO(result)
+    expect(po.history).toHaveLength(1)
+    expect(po.history[0].label).toBe('Purchase Order Created')
+
+    act(() => {
+      result.current.submitPurchaseOrder(po.id)
+    })
+    let updated = result.current.purchaseOrders.find((p) => p.id === po.id)!
+    expect(updated.history).toHaveLength(2)
+    expect(updated.history[0].label).toBe('Purchase Order Created') // original entry preserved, not overwritten
+    expect(updated.history[1].label).toBe('Submitted to Vendor')
+
+    act(() => {
+      result.current.confirmPurchaseOrder(po.id)
+    })
+    updated = result.current.purchaseOrders.find((p) => p.id === po.id)!
+    expect(updated.history).toHaveLength(3)
+    expect(updated.history[2].label).toBe('Confirmed by Vendor')
+    expect(updated.confirmedAt).toBeTruthy()
+  })
+
+  it('confirmPurchaseOrder only allows the submitted -> confirmed transition', () => {
+    const { result } = setup()
+    const po = createDraftPO(result)
+
+    // Still draft — confirming before submitting is rejected.
+    expect(() => result.current.confirmPurchaseOrder(po.id)).toThrow(/only a submitted purchase order/i)
+
+    act(() => {
+      result.current.submitPurchaseOrder(po.id)
+    })
+    act(() => {
+      result.current.confirmPurchaseOrder(po.id)
+    })
+    const confirmed = result.current.purchaseOrders.find((p) => p.id === po.id)!
+    expect(confirmed.status).toBe('confirmed')
+
+    // Already confirmed — confirming again is rejected.
+    expect(() => result.current.confirmPurchaseOrder(po.id)).toThrow(/only a submitted purchase order/i)
+  })
+
+  it('submitPurchaseOrder only allows the draft -> submitted transition', () => {
+    const { result } = setup()
+    const po = createDraftPO(result)
+    act(() => {
+      result.current.submitPurchaseOrder(po.id)
+    })
+    // Already submitted — submitting again is rejected.
+    expect(() => result.current.submitPurchaseOrder(po.id)).toThrow(/only a draft purchase order/i)
+  })
+
+  it('receivePurchaseOrder rejects a draft PO (must be submitted/confirmed/partially-received first)', () => {
+    const { result } = setup()
+    const po = createDraftPO(result)
+    expect(() => result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 1 }])).toThrow(/cannot be received in its current status/i)
+  })
+
+  it('cancelPurchaseOrder is rejected once a PO has been received, and appends a history entry when it succeeds', () => {
+    const { result } = setup()
+    const po = createDraftPO(result)
+    act(() => {
+      result.current.submitPurchaseOrder(po.id)
+    })
+    act(() => {
+      result.current.cancelPurchaseOrder(po.id)
+    })
+    const cancelled = result.current.purchaseOrders.find((p) => p.id === po.id)!
+    expect(cancelled.status).toBe('cancelled')
+    expect(cancelled.history.at(-1)!.label).toBe('Purchase Order Cancelled')
+
+    expect(() => result.current.cancelPurchaseOrder(po.id)).toThrow(/no longer be cancelled/i)
+  })
+
+  it('a full receipt records a "Stock Fully Received" event; a partial receipt records "Stock Partially Received"', () => {
+    const { result } = setup()
+    const po = createDraftPO(result)
+    act(() => {
+      result.current.submitPurchaseOrder(po.id)
+    })
+    act(() => {
+      result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 4 }])
+    })
+    let updated = result.current.purchaseOrders.find((p) => p.id === po.id)!
+    expect(updated.history.at(-1)!.label).toBe('Stock Partially Received')
+
+    act(() => {
+      result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 6 }])
+    })
+    updated = result.current.purchaseOrders.find((p) => p.id === po.id)!
+    expect(updated.history.at(-1)!.label).toBe('Stock Fully Received')
+  })
+
+  it('attachPhotoToOrder sets photoDataUrl and records a history entry, and can clear it again', () => {
+    const { result } = setup()
+    const po = createDraftPO(result)
+
+    act(() => {
+      result.current.attachPhotoToOrder(po.id, 'data:image/png;base64,abc123')
+    })
+    let updated = result.current.purchaseOrders.find((p) => p.id === po.id)!
+    expect(updated.photoDataUrl).toBe('data:image/png;base64,abc123')
+    expect(updated.history.at(-1)!.label).toBe('Photo Attached')
+
+    act(() => {
+      result.current.attachPhotoToOrder(po.id, undefined)
+    })
+    updated = result.current.purchaseOrders.find((p) => p.id === po.id)!
+    expect(updated.photoDataUrl).toBeUndefined()
+    expect(updated.history.at(-1)!.label).toBe('Photo Removed')
   })
 })
