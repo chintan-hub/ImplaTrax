@@ -110,7 +110,7 @@
 - **Dependencies:** M7 (build against services, not raw context), M11 is not a hard dependency but sequencing after it means edit/delete patterns are already established to reuse.
 - **Estimated complexity:** Large (4–6 days), driven mainly by undecided product/UX questions, not raw engineering effort.
 
-### M13 — Wire `ClinicSettings.barcodeFormat` Through to Rendering
+### M13 — Wire `ClinicSettings.barcodeFormat` Through to Rendering ✅ Done
 - **Objective:** Close the gap `PROJECT.md` §9 documents: the Settings page already lets a user choose CODE128/CODE39/EAN13, but `BarcodeDisplay` always renders CODE128 regardless. Make the setting actually control rendering.
 - **Files affected:** `src/components/shared/Barcode.tsx`, `src/pages/settings/SettingsPage.tsx` (no change needed if the setting UI already exists — verify), any component consuming `BarcodeDisplay`.
 - **Risks:** Low — small, well-bounded, `jsbarcode` already supports the other formats natively.

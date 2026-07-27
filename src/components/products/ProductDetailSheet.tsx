@@ -16,7 +16,7 @@ import { MICROCOPY } from '@/content/helpText'
 import type { Product } from '@/types'
 
 export function ProductDetailSheet({ product, open, onOpenChange }: { product: Product | null; open: boolean; onOpenChange: (v: boolean) => void }) {
-  const { movements, adjustStock, vendors } = useData()
+  const { movements, adjustStock, vendors, clinicSettings } = useData()
   const [adjustDelta, setAdjustDelta] = useState(1)
   const [reason, setReason] = useState('')
   const [pendingSign, setPendingSign] = useState<1 | -1 | null>(null)
@@ -113,7 +113,7 @@ export function ProductDetailSheet({ product, open, onOpenChange }: { product: P
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <div className="rounded-lg border border-border bg-white p-3">
-                  <BarcodeDisplay value={product.barcode} className="w-full" />
+                  <BarcodeDisplay value={product.barcode} format={clinicSettings.barcodeFormat} className="w-full" />
                 </div>
                 <p className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
                   Barcode <TermHint term="barcode" iconOnly />

@@ -115,7 +115,7 @@ These rules are currently implemented in code (mock data generators, `DataContex
 
 ### Barcode / QR
 - Every product's barcode (CODE128, rendered via `jsbarcode`) and QR code (rendered via `qrcode`, payload format `IMPD:PRD:<id>`) are generated automatically at creation time and displayed together under "Identifiers" on the Product Detail sheet. There is no manual barcode entry anywhere in the UI.
-- Barcode format (CODE128 / CODE39 / EAN-13) is a clinic-wide setting (`ClinicSettings.barcodeFormat`, configured on the Settings page) — in the current prototype this setting is stored but not yet wired to actually change the rendering format (see [§9 Current Limitations](#9-current-limitations)).
+- Barcode format (CODE128 / CODE39 / EAN-13) is a clinic-wide setting (`ClinicSettings.barcodeFormat`, configured on the Settings page) that controls how `BarcodeDisplay` renders (`src/components/shared/Barcode.tsx`, wired via `ProductDetailSheet`). An invalid value for the selected format (e.g. a value that isn't a valid EAN-13 checksum) renders a blank barcode rather than throwing — `Product.barcode` values are generated for CODE128/EAN13-compatible display but are not guaranteed valid for every possible format switch.
 
 ### Batch Tracking
 - Optional per product (`Product.batchTracked`). Intended for products where lot-level traceability matters (implant fixtures, bone graft material, membranes are batch-tracked more often than not in the mock generator).
@@ -330,7 +330,6 @@ Everything below is **intentional** for this stage of the project — do not "fi
 - **No authentication.** `currentUser` is a hardcoded mock; there is no login screen, no session, no per-request permission enforcement. The Role Permissions matrix on the Users page is documentation of *intended* behavior, not enforced behavior.
 - **No persistence.** Nothing is written to `localStorage`, IndexedDB, or any storage layer except the chosen theme (`localStorage` key `implantdesk-theme`) — that is the one deliberate exception, used only for UI preference, not business data.
 - **Barcodes/QR codes are fake payloads**, not scannable against any real product registry or GS1 standard — they are deterministic strings generated for visual realism only.
-- **`ClinicSettings.barcodeFormat`** is stored and editable on the Settings page but does not yet change how `BarcodeDisplay`/`QRDisplay` actually render (always CODE128/QR regardless of the setting).
 - **No delete/edit flows.** Products, patients, cases, etc. can be created but not edited or deleted from the UI. The `ICON_HELP` registry documents copy for an "Edit" and a "Delete" icon (Delete explicitly scoped to Super Admin) for when these are built, but no button currently triggers them anywhere.
 - **No real financial rules.** Currency formatting is illustrative (`Intl.NumberFormat`), there's no tax handling, multi-currency is a cosmetic Settings field only.
 - **`LoanReturnRecord` type is unused by the running app.** The Loan Returns page is derived live from `InventoryMovement` records instead (see §3 Returns) — this was a deliberate simplification to avoid two sources of truth for the same data; the type stays in `types/index.ts` for schema completeness but nothing constructs it at runtime.
@@ -345,7 +344,6 @@ Suggested only — **nothing below is implemented**, and nothing here should be 
 
 ### Prototype (this stage → hardening)
 - Edit/Delete flows for every entity, with the Super Admin gate actually enforced in the UI (even without real auth, gate it behind the mock `currentUser.role`).
-- Wire `ClinicSettings.barcodeFormat` through to `BarcodeDisplay`.
 - A dedicated Batch/Lot inventory view (all lots per product, remaining quantity, expiry if applicable).
 - Route-level code-splitting to shrink the initial bundle.
 

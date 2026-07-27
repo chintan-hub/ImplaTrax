@@ -1,15 +1,25 @@
 import { useEffect, useRef } from 'react'
 import JsBarcode from 'jsbarcode'
 import QRCode from 'qrcode'
+import type { ClinicSettings } from '@/types'
 
-export function BarcodeDisplay({ value, className }: { value: string; className?: string }) {
+export function BarcodeDisplay({
+  value,
+  format = 'CODE128',
+  className,
+}: {
+  value: string
+  /** Clinic-wide setting (ClinicSettings.barcodeFormat) — defaults to CODE128 to match prior behavior when omitted. */
+  format?: ClinicSettings['barcodeFormat']
+  className?: string
+}) {
   const ref = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
     if (!ref.current) return
     try {
       JsBarcode(ref.current, value, {
-        format: 'CODE128',
+        format,
         width: 1.6,
         height: 40,
         fontSize: 11,
@@ -17,9 +27,10 @@ export function BarcodeDisplay({ value, className }: { value: string; className?
         background: 'transparent',
       })
     } catch {
-      // ignore invalid barcode values
+      // Invalid value for the selected format (e.g. a non-EAN13-checksum value
+      // under the EAN13 setting) — leave the canvas blank rather than crash.
     }
-  }, [value])
+  }, [value, format])
 
   return <canvas ref={ref} className={className} />
 }
