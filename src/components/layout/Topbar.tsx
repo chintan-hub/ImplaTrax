@@ -38,7 +38,7 @@ export function Topbar({ onOpenSearch }: { onOpenSearch: () => void }) {
   const alertCount = lowStock.length + pendingPOs.length
 
   return (
-    <header className="flex h-14 items-center gap-2 border-b border-border bg-background/80 backdrop-blur px-3 sm:gap-3 sm:px-4 md:px-6">
+    <header className="flex h-14 items-center gap-2 border-b border-border bg-background/80 backdrop-blur px-3 sm:gap-3 sm:px-4 md:px-6 print:hidden">
       <Button
         variant="ghost"
         size="icon"

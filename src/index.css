@@ -98,6 +98,35 @@
   }
 }
 
+/*
+ * Print stylesheet — forces the light palette regardless of the app's
+ * current theme (a printed/PDF document should never render in dark
+ * colors) and gives the page real print margins. Chrome (sidebar/topbar)
+ * is hidden per-component via the `print:hidden` utility class.
+ */
+@media print {
+  :root,
+  .dark {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --surface: 0 0% 100%;
+    --border: 214 20% 90%;
+    --muted: 210 20% 95%;
+    --muted-foreground: 215 16% 47%;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  @page {
+    margin: 1.5cm;
+  }
+}
+
 @layer utilities {
   .scrollbar-thin {
     scrollbar-width: thin;

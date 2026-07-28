@@ -22,12 +22,12 @@ export function AppLayout() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
+      <div className="flex h-screen w-full overflow-hidden bg-background text-foreground print:h-auto print:overflow-visible">
         <Sidebar />
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex flex-1 flex-col overflow-hidden print:overflow-visible">
           <Topbar onOpenSearch={() => setSearchOpen(true)} />
-          <main className="flex-1 overflow-y-auto scrollbar-thin">
-            <div className="mx-auto max-w-[1600px] px-4 py-6 md:px-8 md:py-8">
+          <main className="flex-1 overflow-y-auto scrollbar-thin print:overflow-visible">
+            <div className="mx-auto max-w-[1600px] px-4 py-6 md:px-8 md:py-8 print:max-w-none print:p-0">
               <Outlet />
             </div>
           </main>
