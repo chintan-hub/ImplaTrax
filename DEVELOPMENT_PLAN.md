@@ -287,6 +287,14 @@
 - **Services layer, DataContext split, code-splitting** — no user-facing value until a real backend is in scope.
 - **Authentication & session-enforced permissions, real backend integration, GS1-compliant barcodes tied to a real product master** — needs real infrastructure decisions outside a roadmap-reordering exercise.
 
+### P-DATA — Remove Seeded Mock Data & Empty-State Production Bootstrap *(placeholder — not yet scoped)*
+- **Objective:** Enforce `PROJECT.md` §2b (Production Data Policy): production builds start with zero business data — Products, Doctors, Patients, Labs, Inventory, Sales, Loans, Purchase Orders, and Batch/Lot records all empty — with the sole exception of minimum system configuration (e.g. a Super Admin account or a first-time setup wizard). `src/mocks/*` stays available for development and automated testing but must never load into a production build.
+- **Files affected:** Not yet determined — likely `src/store/DataContext.tsx`'s initial-state source, `src/mocks/*` (establishing a hard dev/test-only boundary), build/environment configuration, and a new first-run/setup-wizard flow.
+- **Risks:** High relative to effort — touches the seam every other feature reads its initial state from, and needs a real bootstrap mechanism (Super Admin/setup wizard) in an app that currently has no authentication or persistence at all (`PROJECT.md` §9).
+- **Dependencies:** None blocking other work directly — but every future milestone (dashboards, reports, P1-E Batch/Lot, search, analytics, and beyond) is a standing dependent: each must be built and verified against a genuinely empty dataset from the start, not patched for it later.
+- **Estimated complexity:** Not yet estimated — needs its own scoping session before implementation begins.
+- **Note:** This is a placeholder only, added so the Production Data Policy (`PROJECT.md` §2b) isn't silently forgotten while other milestones proceed. It is not yet prioritized into the Priority 1–4 sequencing above — that's a decision for a future session.
+
 ---
 
 ## Summary Table
@@ -319,6 +327,7 @@
 | 4 | P4-B Multi-Selection System | L | P4-A, your decision (click-select-vs-open) |
 | 4 | P4-C Roll Out Selection + Bulk Actions | L | P4-B, relevant P1 milestones |
 | 4 | P4-D Keyboard Shortcuts + Palette Actions | M | — |
+| Unprioritized | P-DATA Remove Seeded Data & Empty-State Bootstrap *(placeholder)* | TBD | `PROJECT.md` §2b |
 
 **Open decisions needed before/during implementation** (full detail in `AUDIT.md`): case-transition scope, oversell hard-block vs. warning, Proforma modeling, Payment Receipt data fields, `quantityReserved`/`expiryDate` fate, click-select-vs-open for multi-select.
 

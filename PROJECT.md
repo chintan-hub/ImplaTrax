@@ -52,6 +52,15 @@ This elaborates principles 8 and 11 into concrete, binding requirements — the 
 
 See `DEVELOPMENT_PLAN.md`'s Phase 5 for the concrete implementation strategy and milestone breakdown for this standard.
 
+### 2b. Production Data Policy (permanent, locked 2026-07-28)
+
+- ImplantDesk must ship with **no preloaded business data**. On first launch, Products, Doctors, Patients, Labs, Inventory (Stock Movements), Sales, Loans, Purchase Orders, and Batch/Lot records must all be empty — a new clinic starts with a genuinely blank system, not a demo dataset.
+- **The only exception is minimum required system configuration** — e.g. a Super Admin account, or a first-time setup wizard that creates one. This is configuration, not business data.
+- **Production builds must always start with an empty business database.** Mock/demo data exists solely to support development and automated testing and must never be loaded into production under any circumstance.
+- **An empty system is the expected first-day experience for every new clinic, not an edge case.**
+- Every future feature — including dashboards, reports, batch/lot management, search, and analytics — must gracefully handle an empty dataset without errors, placeholders that assume data exists, or dependence on seeded records. Developers may use mock/demo data during development, but production functionality must never depend on its existence. **Build every feature as if the system might be completely empty.**
+- This principle doesn't dictate *how* mock data gets stripped or gated (dev-only build flag, environment check, separate seed script, etc.) — that's an implementation decision for whichever milestone does the work. It only locks the outcome.
+
 ---
 
 ## 3. Business Rules
@@ -359,6 +368,7 @@ Everything below is **intentional** for this stage of the project — do not "fi
 - **No real financial rules.** Currency formatting is illustrative (`Intl.NumberFormat`), there's no tax handling, multi-currency is a cosmetic Settings field only.
 - **`LoanReturnRecord` type is unused by the running app.** The Loan Returns page is derived live from `InventoryMovement` records instead (see §3 Returns) — this was a deliberate simplification to avoid two sources of truth for the same data; the type stays in `types/index.ts` for schema completeness but nothing constructs it at runtime.
 - **No batch/lot inventory management screen.** Batch/lot numbers are captured as free text at the point of use (on a Case implant usage or a Sale line) — there's no dedicated place to see "all lots of Product X and their remaining quantities."
+- **Mock/demo data is a development-only scaffold, not production content** (see §2b, Production Data Policy). `src/mocks/*` currently seeds every entity for ease of development and testing; production builds must always start with an empty business database. This is not yet implemented — tracked as a placeholder milestone in `DEVELOPMENT_PLAN.md` (Deferred Infrastructure & Backend Work) so it isn't silently forgotten.
 - **Large single JS chunk on production build** (`npm run build` warns about a ~1.27MB bundle). Acceptable for a demo; would need route-level code-splitting (`React.lazy`) before shipping to real users on slow connections.
 
 ---
