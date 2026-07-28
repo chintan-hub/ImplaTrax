@@ -507,3 +507,111 @@ describe('Purchase Order workflow (Phase 3)', () => {
     expect(updated.history.at(-1)!.label).toBe('Photo Removed')
   })
 })
+
+/**
+ * P1-A: Case Lifecycle Completion — status transitions and post-creation
+ * implant attachment, both backed by a real, append-only Case.history
+ * (replacing the static mock timeline for any case touched through
+ * DataContext), mirroring the Purchase Order workflow above.
+ */
+describe('Case lifecycle (P1-A)', () => {
+  function createCase(result: { current: ReturnType<typeof useData> }) {
+    const patient = result.current.patients[0]
+    let caseRecord: ReturnType<typeof result.current.addCase>
+    act(() => {
+      caseRecord = result.current.addCase({
+        patientId: patient.id,
+        doctor: 'Dr. Test',
+        status: 'planning',
+        procedure: 'Single Tooth Implant',
+      })
+    })
+    return caseRecord!
+  }
+
+  it('seeds a one-entry audit history on creation, and every advance appends to it (never replaces it)', () => {
+    const { result } = setup()
+    const caseRecord = createCase(result)
+    expect(caseRecord.history).toHaveLength(1)
+    expect(caseRecord.history[0].label).toBe('Case Opened')
+
+    act(() => {
+      result.current.advanceCaseStatus(caseRecord.id, 'surgery-scheduled')
+    })
+    const updated = result.current.cases.find((c) => c.id === caseRecord.id)!
+    expect(updated.status).toBe('surgery-scheduled')
+    expect(updated.history).toHaveLength(2)
+    expect(updated.history[0].label).toBe('Case Opened') // original entry preserved, not overwritten
+    expect(updated.history[1].label).toBe('Surgery Scheduled')
+  })
+
+  it('advances a case through every documented status one step at a time', () => {
+    const { result } = setup()
+    const caseRecord = createCase(result)
+
+    const sequence: Array<'surgery-scheduled' | 'in-progress' | 'restoration' | 'completed'> = [
+      'surgery-scheduled',
+      'in-progress',
+      'restoration',
+      'completed',
+    ]
+    for (const status of sequence) {
+      act(() => {
+        result.current.advanceCaseStatus(caseRecord.id, status)
+      })
+      const updated = result.current.cases.find((c) => c.id === caseRecord.id)!
+      expect(updated.status).toBe(status)
+    }
+    const finalCase = result.current.cases.find((c) => c.id === caseRecord.id)!
+    expect(finalCase.history).toHaveLength(5) // Opened + 4 advances
+    expect(finalCase.completedDate).toBeTruthy()
+  })
+
+  it('rejects an illegal transition (skipping a status) via the guard function, not just the UI', () => {
+    const { result } = setup()
+    const caseRecord = createCase(result)
+
+    expect(() => result.current.advanceCaseStatus(caseRecord.id, 'in-progress')).toThrow(/cannot move to that status/i)
+    expect(() => result.current.advanceCaseStatus(caseRecord.id, 'completed')).toThrow(/cannot move to that status/i)
+
+    const unchanged = result.current.cases.find((c) => c.id === caseRecord.id)!
+    expect(unchanged.status).toBe('planning')
+    expect(unchanged.history).toHaveLength(1)
+  })
+
+  it('rejects any transition once a case is completed or cancelled', () => {
+    const { result } = setup()
+    const caseRecord = createCase(result)
+    act(() => {
+      result.current.advanceCaseStatus(caseRecord.id, 'cancelled')
+    })
+    expect(() => result.current.advanceCaseStatus(caseRecord.id, 'planning')).toThrow(/cannot move to that status/i)
+  })
+
+  it('addImplantToCase appends to implants and records a history entry, capturing a lot number for a batch-tracked product', () => {
+    const { result } = setup()
+    const caseRecord = createCase(result)
+    const batchTracked = result.current.products.find((p) => p.batchTracked)!
+
+    act(() => {
+      result.current.addImplantToCase(caseRecord.id, { productId: batchTracked.id, tooth: '36', quantity: 1, batchLot: 'LOT-99999' })
+    })
+
+    const updated = result.current.cases.find((c) => c.id === caseRecord.id)!
+    expect(updated.implants).toHaveLength(1)
+    expect(updated.implants[0]).toMatchObject({ productId: batchTracked.id, tooth: '36', batchLot: 'LOT-99999' })
+    expect(updated.history.at(-1)!.label).toBe('Implant Added')
+  })
+
+  it('addImplantToCase rejects a missing tooth number or non-positive quantity, without mutating the case', () => {
+    const { result } = setup()
+    const caseRecord = createCase(result)
+    const product = result.current.products[0]
+
+    expect(() => result.current.addImplantToCase(caseRecord.id, { productId: product.id, tooth: '', quantity: 1 })).toThrow(/tooth number is required/i)
+    expect(() => result.current.addImplantToCase(caseRecord.id, { productId: product.id, tooth: '36', quantity: 0 })).toThrow(/quantity must be greater than zero/i)
+
+    const unchanged = result.current.cases.find((c) => c.id === caseRecord.id)!
+    expect(unchanged.implants).toHaveLength(0)
+  })
+})

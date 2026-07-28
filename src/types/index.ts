@@ -187,6 +187,8 @@ export interface Case {
   completedDate?: string
   implants: CaseImplantUsage[]
   notes?: string
+  /** Append-only audit trail — every status transition and implant addition adds an entry here, never edited or removed. */
+  history: CaseTimelineEvent[]
 }
 
 // ---------------------------------------------------------------------------

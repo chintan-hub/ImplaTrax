@@ -130,13 +130,10 @@ patients.forEach((patient) => {
         'Provisional restoration placed pending final impression.',
         'Coordinated with lab for custom shade matching.',
       ]) : undefined,
+      history: timelineFor(internalId, status, createdAt, doctor),
     }
     cases.push(caseRecord)
     implants.forEach((usage) => caseImplantUsageIndex.push({ caseId: internalId, usage }))
   }
 })
-
-export const caseTimelines: Record<string, CaseTimelineEvent[]> = Object.fromEntries(
-  cases.map((c) => [c.id, timelineFor(c.id, c.status, new Date(c.createdAt), c.doctor)]),
-)
 

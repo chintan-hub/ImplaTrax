@@ -7,6 +7,9 @@ import type {
   Vendor,
   Patient,
   Case,
+  CaseStatus,
+  CaseImplantUsage,
+  CaseTimelineEvent,
   Lab,
   Sale,
   SaleLine,
@@ -20,6 +23,7 @@ import * as mock from '@/mocks'
 import { currentUser } from '@/mocks/users'
 import { nextInternalId, createSequence, createTimestampIdGenerator } from '@/lib/idGenerator'
 import { canSubmitPO, canConfirmPO, canReceivePO, canCancelPO } from '@/lib/poWorkflow'
+import { canAdvanceCaseStatus } from '@/lib/caseWorkflow'
 
 /**
  * Business-rule validation lives here, in the action functions, not just in
@@ -59,6 +63,15 @@ function nextCaseSeq(year: number): number {
   return caseSeqByYear.get(year)!()
 }
 
+const CASE_STATUS_EVENT_LABEL: Record<CaseStatus, string> = {
+  planning: 'Case Opened',
+  'surgery-scheduled': 'Surgery Scheduled',
+  'in-progress': 'Case In Progress',
+  restoration: 'Restoration Phase',
+  completed: 'Case Completed',
+  cancelled: 'Case Cancelled',
+}
+
 interface DataContextValue {
   products: Product[]
   movements: InventoryMovement[]
@@ -90,7 +103,9 @@ interface DataContextValue {
   createSale: (lines: SaleLine[], patientId?: string, caseId?: string) => Sale
 
   addPatient: (input: Omit<Patient, 'id' | 'patientCode' | 'createdAt'>) => Patient
-  addCase: (input: Omit<Case, 'id' | 'caseId' | 'createdAt' | 'implants'> & { implants?: Case['implants'] }) => Case
+  addCase: (input: Omit<Case, 'id' | 'caseId' | 'createdAt' | 'implants' | 'history'> & { implants?: Case['implants'] }) => Case
+  advanceCaseStatus: (caseId: string, status: CaseStatus) => void
+  addImplantToCase: (caseId: string, usage: CaseImplantUsage) => void
   addLab: (input: Omit<Lab, 'id' | 'createdAt'>) => Lab
   addVendor: (input: Omit<Vendor, 'id' | 'createdAt' | 'totalOrders' | 'onTimeRate'>) => Vendor
   addUser: (input: Omit<AppUser, 'id' | 'createdAt'>) => AppUser
@@ -387,13 +402,73 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return patient
   }, [])
 
+  const caseEvent = useCallback((caseId: string, label: string, description: string, date: string): CaseTimelineEvent => {
+    return { id: nextInternalId('cseevt'), caseId, label, description, date, actor: currentUser.name }
+  }, [])
+
   const addCase = useCallback<DataContextValue['addCase']>((input) => {
     const id = nextInternalId('cse')
     const year = new Date().getFullYear()
-    const caseRecord: Case = { ...input, id, caseId: `IDC-${year}-${pad(nextCaseSeq(year), 5)}`, createdAt: new Date().toISOString(), implants: input.implants ?? [] }
+    const now = new Date().toISOString()
+    const caseRecord: Case = {
+      ...input,
+      id,
+      caseId: `IDC-${year}-${pad(nextCaseSeq(year), 5)}`,
+      createdAt: now,
+      implants: input.implants ?? [],
+      history: [caseEvent(id, 'Case Opened', 'Treatment plan created and case opened for patient.', now)],
+    }
     setCases((prev) => [caseRecord, ...prev])
     return caseRecord
-  }, [])
+  }, [caseEvent])
+
+  const advanceCaseStatus = useCallback<DataContextValue['advanceCaseStatus']>((caseId, status) => {
+    const caseRecord = cases.find((c) => c.id === caseId)
+    if (!caseRecord || !canAdvanceCaseStatus(caseRecord, status)) {
+      throw new BusinessRuleError('This case cannot move to that status from its current status.')
+    }
+    const now = new Date().toISOString()
+    const label = CASE_STATUS_EVENT_LABEL[status]
+    setCases((prev) =>
+      prev.map((c) =>
+        c.id === caseId
+          ? {
+              ...c,
+              status,
+              completedDate: status === 'completed' ? now : c.completedDate,
+              history: [...c.history, caseEvent(caseId, label, `Case status changed to ${label}.`, now)],
+            }
+          : c,
+      ),
+    )
+  }, [cases, caseEvent])
+
+  // Recording that an implant was used in a case is independent of stock
+  // movement — createSale (with a caseId) is the code path that actually
+  // decrements inventory for a case-linked component; this action only
+  // maintains the case's own implant/timeline record.
+  const addImplantToCase = useCallback<DataContextValue['addImplantToCase']>((caseId, usage) => {
+    if (!usage.tooth.trim()) throw new BusinessRuleError('A tooth number is required.')
+    if (usage.quantity <= 0) throw new BusinessRuleError('Quantity must be greater than zero.')
+    const caseRecord = cases.find((c) => c.id === caseId)
+    if (!caseRecord) throw new BusinessRuleError('Case not found.')
+    const product = products.find((p) => p.id === usage.productId)
+    const now = new Date().toISOString()
+    setCases((prev) =>
+      prev.map((c) =>
+        c.id === caseId
+          ? {
+              ...c,
+              implants: [...c.implants, usage],
+              history: [
+                ...c.history,
+                caseEvent(caseId, 'Implant Added', `${product?.name ?? 'Implant'} added to case (tooth #${usage.tooth}).`, now),
+              ],
+            }
+          : c,
+      ),
+    )
+  }, [cases, products, caseEvent])
 
   const addLab = useCallback<DataContextValue['addLab']>((input) => {
     const id = nextInternalId('lab')
@@ -448,6 +523,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       createSale,
       addPatient,
       addCase,
+      advanceCaseStatus,
+      addImplantToCase,
       addLab,
       addVendor,
       addUser,
@@ -480,6 +557,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       createSale,
       addPatient,
       addCase,
+      advanceCaseStatus,
+      addImplantToCase,
       addLab,
       addVendor,
       addUser,
