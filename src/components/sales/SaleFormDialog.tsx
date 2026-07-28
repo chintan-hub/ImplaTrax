@@ -108,12 +108,13 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
           <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-thin">
             {lines.map((line, i) => {
               const issue = stockIssue(line.productId)
+              const product = products.find((p) => p.id === line.productId)
               return (
                 <div key={i} className="rounded-lg border border-border p-2">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <Select
                       value={line.productId}
-                      onValueChange={(v) => updateLine(i, { productId: v, unitPrice: products.find((p) => p.id === v)?.unitPrice ?? line.unitPrice })}
+                      onValueChange={(v) => updateLine(i, { productId: v, unitPrice: products.find((p) => p.id === v)?.unitPrice ?? line.unitPrice, batchLot: undefined })}
                     >
                       <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
                       <SelectContent className="max-h-72">
@@ -128,6 +129,15 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                       </Button>
                     </div>
                   </div>
+                  {product?.batchTracked && (
+                    <Input
+                      className="mt-2"
+                      placeholder="Batch / Lot number (e.g. LOT-12345)"
+                      aria-label="Batch / Lot number"
+                      value={line.batchLot ?? ''}
+                      onChange={(e) => updateLine(i, { batchLot: e.target.value || undefined })}
+                    />
+                  )}
                   {issue && (
                     <p className="mt-1.5 text-xs text-danger-600">Only {issue.available} in stock — {issue.requested} requested.</p>
                   )}

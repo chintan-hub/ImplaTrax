@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Search, Receipt } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StickyToolbar } from '@/components/shared/StickyToolbar'
@@ -18,6 +18,7 @@ import { DollarSign, TrendingUp, Package } from 'lucide-react'
 
 export function SalesPage() {
   const { sales, patients, cases, products } = useData()
+  const navigate = useNavigate()
   const [params] = useSearchParams()
   const [search, setSearch] = useState('')
   const [formOpen, setFormOpen] = useState(params.get('new') === '1')
@@ -101,7 +102,7 @@ export function SalesPage() {
                 const patient = s.patientId ? patientById.get(s.patientId) : undefined
                 const caseRecord = s.caseId ? caseById.get(s.caseId) : undefined
                 return (
-                  <TableRow key={s.id}>
+                  <TableRow key={s.id} className="cursor-pointer" onClick={() => navigate(`/sales/${s.id}`)}>
                     <TableCell className="font-medium">{s.saleNumber}</TableCell>
                     <TableCell>{patient ? patientFullName(patient) : <span className="text-muted-foreground">Direct sale</span>}</TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">{caseRecord?.caseId ?? '—'}</TableCell>

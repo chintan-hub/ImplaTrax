@@ -271,6 +271,26 @@ describe('createSale', () => {
     })
     expect(result.current.movements[0].reason).toBe('Direct sale')
   })
+
+  it('preserves an optional batchLot per line (P1-D: captured on the form, must survive unchanged into the stored Sale)', () => {
+    const { result } = setup()
+    const batchTracked = result.current.products.find((p) => p.batchTracked && p.quantityOnHand >= 1)!
+    const untracked = result.current.products.find((p) => !p.batchTracked && p.quantityOnHand >= 1)!
+
+    let sale: ReturnType<typeof result.current.createSale>
+    act(() => {
+      sale = result.current.createSale([
+        { productId: batchTracked.id, quantity: 1, unitPrice: 100, batchLot: 'LOT-77321' },
+        { productId: untracked.id, quantity: 1, unitPrice: 50 },
+      ])
+    })
+
+    expect(sale!.lines[0].batchLot).toBe('LOT-77321')
+    expect(sale!.lines[1].batchLot).toBeUndefined()
+
+    const stored = result.current.sales.find((s) => s.id === sale!.id)!
+    expect(stored.lines[0].batchLot).toBe('LOT-77321')
+  })
 })
 
 /**
