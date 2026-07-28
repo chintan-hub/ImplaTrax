@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowDownToLine, ArrowUpFromLine, SlidersHorizontal, Plus, Search } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, SlidersHorizontal, Plus, Search, Download } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StickyToolbar } from '@/components/shared/StickyToolbar'
 import { StatCard } from '@/components/shared/StatCard'
@@ -12,6 +12,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { AdjustmentDialog } from '@/components/inventory/AdjustmentDialog'
 import { useData } from '@/store/DataContext'
 import { formatDateTime } from '@/lib/utils'
+import { exportToCsv } from '@/lib/documents/csv'
 import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
 import type { MovementType } from '@/types'
 
@@ -66,15 +67,38 @@ export function InventoryPage() {
     })
   }, [movements, tab, search, productById])
 
+  const handleExportCsv = () => {
+    const rows = filtered.map((m) => {
+      const product = productById.get(m.productId)
+      const user = userById.get(m.performedBy)
+      return {
+        Product: product?.name ?? '',
+        SKU: product?.sku ?? '',
+        Type: TYPE_LABEL[m.type],
+        Quantity: m.quantity,
+        Reason: m.reason,
+        Reference: m.reference ?? '',
+        'Performed By': user?.name ?? '',
+        Date: formatDateTime(m.createdAt),
+      }
+    })
+    exportToCsv(rows, `inventory-movements-${new Date().toISOString().slice(0, 10)}.csv`)
+  }
+
   return (
     <div>
       <PageHeader
         title={PAGE_INTROS.inventory.title}
         description={PAGE_INTROS.inventory.description}
         actions={
-          <Button onClick={() => setAdjustOpen(true)}>
-            <Plus className="h-4 w-4" /> New Adjustment
-          </Button>
+          <>
+            <Button variant="outline" onClick={handleExportCsv} disabled={filtered.length === 0}>
+              <Download className="h-4 w-4" /> Export CSV
+            </Button>
+            <Button onClick={() => setAdjustOpen(true)}>
+              <Plus className="h-4 w-4" /> New Adjustment
+            </Button>
+          </>
         }
       />
 

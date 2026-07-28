@@ -13,7 +13,8 @@ import { IconHelp } from '@/components/ui/help-tooltip'
 import { POStatusActions } from '@/components/purchase-orders/POStatusActions'
 import { useData } from '@/store/DataContext'
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
-import { buildPOSummaryText } from '@/lib/poShare'
+import { buildPOSummaryText, buildPurchaseOrderDocumentData } from '@/lib/documents/purchaseOrder'
+import { PurchaseOrderDocument } from '@/lib/documents/PurchaseOrderDocument'
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024 // 5MB — a defensive cap for a client-only, in-memory data URL
 
@@ -44,7 +45,16 @@ export function PODetailPage() {
     }
   }
 
-  const handlePrint = () => window.print()
+  const handlePrint = () => {
+    const previousTitle = document.title
+    document.title = po.poNumber
+    const restoreTitle = () => {
+      document.title = previousTitle
+      window.removeEventListener('afterprint', restoreTitle)
+    }
+    window.addEventListener('afterprint', restoreTitle)
+    window.print()
+  }
 
   const handlePhotoSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -69,6 +79,7 @@ export function PODetailPage() {
 
   return (
     <div>
+      <div className="print:hidden">
       <button onClick={() => navigate('/purchase-orders')} className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-3.5 w-3.5" /> Back to Purchase Orders
       </button>
@@ -198,7 +209,7 @@ export function PODetailPage() {
             </CardContent>
           </Card>
 
-          <Card className="print:hidden">
+          <Card>
             <CardHeader>
               <CardTitle>Share & Export</CardTitle>
               <CardDescription>Send or save this purchase order</CardDescription>
@@ -216,8 +227,8 @@ export function PODetailPage() {
                   </Button>
                 </IconHelp>
                 <IconHelp helpKey="generatePdfPO">
-                  <Button variant="outline" size="sm" disabled className="col-span-2">
-                    <FileText className="h-3.5 w-3.5" /> Generate PDF — coming soon
+                  <Button variant="outline" size="sm" className="col-span-2" onClick={handlePrint}>
+                    <FileText className="h-3.5 w-3.5" /> Generate PDF
                   </Button>
                 </IconHelp>
               </div>
@@ -251,6 +262,11 @@ export function PODetailPage() {
             </CardContent>
           </Card>
         </div>
+      </div>
+      </div>
+
+      <div className="hidden print:block">
+        <PurchaseOrderDocument data={buildPurchaseOrderDocumentData(po, vendor, productById)} />
       </div>
     </div>
   )

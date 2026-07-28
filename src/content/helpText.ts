@@ -164,11 +164,11 @@ export const ICON_HELP = {
   },
   printPO: {
     title: 'Print',
-    description: 'Open this purchase order in your browser’s print dialog.',
+    description: 'Open a clean, print-ready version of this purchase order in your browser’s print dialog.',
   },
   generatePdfPO: {
     title: 'Generate PDF',
-    description: 'Download a PDF copy of this purchase order. Coming soon.',
+    description: 'Open a clean, print-ready version of this purchase order — choose "Save as PDF" in your browser’s print dialog.',
   },
   attachPhoto: {
     title: 'Attach Photo',
@@ -195,6 +195,7 @@ export const MICROCOPY = {
   eta: 'The date you expect this order to arrive from the vendor.',
   receivingLot: 'Required for batch-tracked components — the number printed on the box or packing slip. This is what lets you trace exactly where a component came from and everywhere it went.',
   loanLot: 'Required for batch-tracked components — the same lot automatically follows this item when it comes back from the lab.',
+  documentFooter: 'This is a computer-generated document from ImplantDesk.',
 } as const
 
 export type MicrocopyKey = keyof typeof MICROCOPY
