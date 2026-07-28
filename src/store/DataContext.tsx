@@ -14,6 +14,7 @@ import type {
   Sale,
   SaleLine,
   Loan,
+  LoanEvent,
   AppUser,
   ClinicSettings,
   MovementType,
@@ -24,6 +25,7 @@ import { currentUser } from '@/mocks/users'
 import { nextInternalId, createSequence, createTimestampIdGenerator } from '@/lib/idGenerator'
 import { canSubmitPO, canConfirmPO, canReceivePO, canCancelPO } from '@/lib/poWorkflow'
 import { canAdvanceCaseStatus } from '@/lib/caseWorkflow'
+import { canReturnLoan } from '@/lib/loanWorkflow'
 
 /**
  * Business-rule validation lives here, in the action functions, not just in
@@ -326,6 +328,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     )
   }, [poEvent])
 
+  const loanEvent = useCallback((loanId: string, label: string, description: string, date: string): LoanEvent => {
+    return { id: nextInternalId('lnevt'), loanId, label, description, date, actor: currentUser.name }
+  }, [])
+
   const createLoan = useCallback<DataContextValue['createLoan']>((labId, lines, dueDate, notes) => {
     if (!labs.some((l) => l.id === labId)) throw new BusinessRuleError('Loans can only be issued to a lab.')
     if (lines.length === 0) throw new BusinessRuleError('A loan must include at least one product line.')
@@ -333,6 +339,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const id = nextInternalId('ln')
     const seq = nextLoanSeq()
     const year = new Date().getFullYear()
+    const now = new Date().toISOString()
     const loan: Loan = {
       id,
       loanNumber: `LN-${year}-${pad(seq, 5)}`,
@@ -340,9 +347,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       status: 'open',
       lines: lines.map((l, i) => ({ id: `${id}_line_${i + 1}`, productId: l.productId, quantityLoaned: l.quantityLoaned, quantityReturned: 0, quantityLost: 0 })),
       issuedBy: currentUser.id,
-      issuedAt: new Date().toISOString(),
+      issuedAt: now,
       dueDate,
       notes,
+      history: [loanEvent(id, 'Loan Issued', `Loan issued with ${lines.length} product line(s).`, now)],
     }
     setLoans((prev) => [loan, ...prev])
     lines.forEach((l) => {
@@ -350,7 +358,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addMovement(l.productId, 'loan-out', -l.quantityLoaned, 'Loan issued to lab', loan.loanNumber)
     })
     return loan
-  }, [labs, products, applyQtyDelta, addMovement])
+  }, [labs, products, applyQtyDelta, addMovement, loanEvent])
 
   const returnLoanLines = useCallback<DataContextValue['returnLoanLines']>((loanId, returns) => {
     if (!returns.some((r) => r.quantityReturned > 0 || r.quantityLost > 0)) {
@@ -359,10 +367,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (returns.some((r) => r.quantityLost > 0 && !r.lostReason?.trim())) {
       throw new BusinessRuleError('A reason is required for any lost components.')
     }
+    const loan = loans.find((l) => l.id === loanId)
+    if (!loan || !canReturnLoan(loan)) throw new BusinessRuleError('This loan has already been closed and can no longer be returned against.')
+
+    const now = new Date().toISOString()
+    const returnedThisTime = returns.reduce((s, r) => s + Math.max(0, r.quantityReturned), 0)
+    const lostThisTime = returns.reduce((s, r) => s + Math.max(0, r.quantityLost), 0)
+
     setLoans((prev) =>
-      prev.map((loan) => {
-        if (loan.id !== loanId) return loan
-        const lines = loan.lines.map((line) => {
+      prev.map((l) => {
+        if (l.id !== loanId) return l
+        const lines = l.lines.map((line) => {
           const r = returns.find((x) => x.lineId === line.id)
           if (!r) return line
           return {
@@ -372,25 +387,27 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             lostReason: r.lostReason ?? line.lostReason,
           }
         })
-        const fullyClosed = lines.every((l) => l.quantityReturned + l.quantityLost >= l.quantityLoaned)
-        const anyReturned = lines.some((l) => l.quantityReturned + l.quantityLost > 0)
-        const status: Loan['status'] = fullyClosed ? 'closed' : anyReturned ? 'partially-returned' : loan.status
-        return { ...loan, lines, status, closedAt: fullyClosed ? new Date().toISOString() : loan.closedAt }
+        const fullyClosed = lines.every((ln) => ln.quantityReturned + ln.quantityLost >= ln.quantityLoaned)
+        const anyReturned = lines.some((ln) => ln.quantityReturned + ln.quantityLost > 0)
+        const status: Loan['status'] = fullyClosed ? 'closed' : anyReturned ? 'partially-returned' : l.status
+        const event = fullyClosed
+          ? loanEvent(loanId, 'Loan Closed', `${returnedThisTime} returned, ${lostThisTime} lost in this return; all outstanding items are now accounted for.`, now)
+          : loanEvent(loanId, 'Partial Return Recorded', `${returnedThisTime} returned, ${lostThisTime} lost in this return; some items remain outstanding.`, now)
+        return { ...l, lines, status, closedAt: fullyClosed ? now : l.closedAt, history: [...l.history, event] }
       }),
     )
-    const loan = loans.find((l) => l.id === loanId)
     returns.forEach((r) => {
-      const line = loan?.lines.find((l) => l.id === r.lineId)
+      const line = loan.lines.find((l) => l.id === r.lineId)
       if (!line) return
       if (r.quantityReturned > 0) {
         applyQtyDelta(line.productId, r.quantityReturned)
-        addMovement(line.productId, 'loan-return', r.quantityReturned, 'Loan components returned by lab', loan?.loanNumber)
+        addMovement(line.productId, 'loan-return', r.quantityReturned, 'Loan components returned by lab', loan.loanNumber)
       }
       if (r.quantityLost > 0) {
-        addMovement(line.productId, 'lost', -r.quantityLost, r.lostReason || 'Component lost while on loan', loan?.loanNumber)
+        addMovement(line.productId, 'lost', -r.quantityLost, r.lostReason || 'Component lost while on loan', loan.loanNumber)
       }
     })
-  }, [loans, applyQtyDelta, addMovement])
+  }, [loans, applyQtyDelta, addMovement, loanEvent])
 
   const createSale = useCallback<DataContextValue['createSale']>((lines, patientId, caseId) => {
     if (lines.length === 0) throw new BusinessRuleError('A sale must include at least one product line.')

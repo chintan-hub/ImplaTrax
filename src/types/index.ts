@@ -245,6 +245,16 @@ export interface LoanLine {
   lostReason?: string
 }
 
+/** One entry in a Loan's audit trail — every issue/return event is recorded, append-only. */
+export interface LoanEvent {
+  id: ID
+  loanId: ID
+  label: string
+  description: string
+  date: string
+  actor: string
+}
+
 export interface Loan {
   id: ID
   loanNumber: string // LN-2026-00001
@@ -256,6 +266,8 @@ export interface Loan {
   dueDate?: string
   closedAt?: string
   notes?: string
+  /** Append-only audit trail — every issue/return event adds an entry here, never edited or removed. */
+  history: LoanEvent[]
 }
 
 export interface LoanReturnRecord {

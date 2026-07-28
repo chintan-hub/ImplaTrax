@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Search, HandCoins, Undo2 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StickyToolbar } from '@/components/shared/StickyToolbar'
@@ -11,25 +11,25 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { LoanFormDialog } from '@/components/loans/LoanFormDialog'
-import { LoanReturnDialog } from '@/components/loans/LoanReturnDialog'
-import { IconHelp, TermHint } from '@/components/ui/help-tooltip'
+import { LoanStatusActions } from '@/components/loans/LoanStatusActions'
+import { TermHint } from '@/components/ui/help-tooltip'
 import { useData } from '@/store/DataContext'
 import { formatDate } from '@/lib/utils'
 import { openLoanValue } from '@/mocks/loans'
 import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
-import type { Loan, LoanStatus } from '@/types'
+import type { LoanStatus } from '@/types'
 import { AlertTriangle } from 'lucide-react'
 
 const STATUSES: LoanStatus[] = ['open', 'partially-returned', 'closed']
 
 export function LoansPage() {
   const { loans, labs } = useData()
+  const navigate = useNavigate()
   const [params] = useSearchParams()
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [labFilter, setLabFilter] = useState('all')
   const [formOpen, setFormOpen] = useState(params.get('new') === '1')
-  const [returningLoan, setReturningLoan] = useState<Loan | null>(null)
 
   const labById = useMemo(() => new Map(labs.map((l) => [l.id, l])), [labs])
 
@@ -130,7 +130,7 @@ export function LoansPage() {
                 const lab = labById.get(loan.labId)
                 const outstanding = openLoanValue(loan)
                 return (
-                  <TableRow key={loan.id}>
+                  <TableRow key={loan.id} className="cursor-pointer" onClick={() => navigate(`/loans/${loan.id}`)}>
                     <TableCell className="font-medium">{loan.loanNumber}</TableCell>
                     <TableCell>{lab?.name}</TableCell>
                     <TableCell className="text-muted-foreground">{loan.lines.length} product(s)</TableCell>
@@ -138,14 +138,8 @@ export function LoansPage() {
                     <TableCell><StatusBadge status={loan.status} /></TableCell>
                     <TableCell className="text-muted-foreground whitespace-nowrap">{formatDate(loan.issuedAt)}</TableCell>
                     <TableCell className="text-muted-foreground whitespace-nowrap">{loan.dueDate ? formatDate(loan.dueDate) : '—'}</TableCell>
-                    <TableCell className="text-right">
-                      {loan.status !== 'closed' && (
-                        <IconHelp helpKey="processReturn">
-                          <Button size="sm" variant="outline" onClick={() => setReturningLoan(loan)}>
-                            <Undo2 className="h-3.5 w-3.5" /> Process Return
-                          </Button>
-                        </IconHelp>
-                      )}
+                    <TableCell className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <LoanStatusActions loan={loan} size="sm" />
                     </TableCell>
                   </TableRow>
                 )
@@ -156,7 +150,6 @@ export function LoansPage() {
       )}
 
       <LoanFormDialog open={formOpen} onOpenChange={setFormOpen} />
-      <LoanReturnDialog loan={returningLoan} open={!!returningLoan} onOpenChange={(v) => !v && setReturningLoan(null)} />
     </div>
   )
 }

@@ -589,6 +589,78 @@ describe('Purchase Order workflow (Phase 3)', () => {
 })
 
 /**
+ * P1-C: Loans brought to Purchase-Orders-level maturity — an append-only
+ * audit history and a real canReturnLoan() guard, mirroring the Purchase
+ * Order workflow tests above.
+ */
+describe('Loan workflow (P1-C)', () => {
+  function createOpenLoan(result: { current: ReturnType<typeof useData> }, quantityLoaned = 5) {
+    const lab = result.current.labs[0]
+    const product = result.current.products.find((p) => p.quantityOnHand >= quantityLoaned)!
+    let loan: ReturnType<typeof result.current.createLoan>
+    act(() => {
+      loan = result.current.createLoan(lab.id, [{ productId: product.id, quantityLoaned }])
+    })
+    return loan!
+  }
+
+  it('seeds a one-entry audit history on issue, and every return appends to it (never replaces it)', () => {
+    const { result } = setup()
+    const loan = createOpenLoan(result)
+    expect(loan.history).toHaveLength(1)
+    expect(loan.history[0].label).toBe('Loan Issued')
+
+    act(() => {
+      result.current.returnLoanLines(loan.id, [{ lineId: loan.lines[0].id, quantityReturned: 3, quantityLost: 0 }])
+    })
+    const updated = result.current.loans.find((l) => l.id === loan.id)!
+    expect(updated.history).toHaveLength(2)
+    expect(updated.history[0].label).toBe('Loan Issued') // original entry preserved, not overwritten
+    expect(updated.history[1].label).toBe('Partial Return Recorded')
+  })
+
+  it('records "Loan Closed" once a return accounts for the full loaned quantity, "Partial Return Recorded" otherwise', () => {
+    const { result } = setup()
+    const loan = createOpenLoan(result)
+
+    act(() => {
+      result.current.returnLoanLines(loan.id, [{ lineId: loan.lines[0].id, quantityReturned: 2, quantityLost: 0 }])
+    })
+    let updated = result.current.loans.find((l) => l.id === loan.id)!
+    expect(updated.status).toBe('partially-returned')
+    expect(updated.history.at(-1)!.label).toBe('Partial Return Recorded')
+
+    act(() => {
+      result.current.returnLoanLines(loan.id, [{ lineId: loan.lines[0].id, quantityReturned: 3, quantityLost: 0 }])
+    })
+    updated = result.current.loans.find((l) => l.id === loan.id)!
+    expect(updated.status).toBe('closed')
+    expect(updated.history.at(-1)!.label).toBe('Loan Closed')
+    expect(updated.closedAt).toBeTruthy()
+    expect(updated.history).toHaveLength(3) // Issued + 2 returns
+  })
+
+  it('returnLoanLines rejects a loan that has already been closed, via the guard function, not just the UI', () => {
+    const { result } = setup()
+    const loan = createOpenLoan(result)
+    act(() => {
+      result.current.returnLoanLines(loan.id, [{ lineId: loan.lines[0].id, quantityReturned: 5, quantityLost: 0 }])
+    })
+    const closed = result.current.loans.find((l) => l.id === loan.id)!
+    expect(closed.status).toBe('closed')
+
+    expect(() =>
+      result.current.returnLoanLines(loan.id, [{ lineId: loan.lines[0].id, quantityReturned: 1, quantityLost: 0 }]),
+    ).toThrow(/already been closed/i)
+
+    // Rejected attempt did not append a spurious history entry or change status.
+    const unchanged = result.current.loans.find((l) => l.id === loan.id)!
+    expect(unchanged.history).toHaveLength(2) // Issued + the one successful full return
+    expect(unchanged.status).toBe('closed')
+  })
+})
+
+/**
  * P1-A: Case Lifecycle Completion — status transitions and post-creation
  * implant attachment, both backed by a real, append-only Case.history
  * (replacing the static mock timeline for any case touched through

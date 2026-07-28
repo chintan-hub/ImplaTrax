@@ -1,4 +1,4 @@
-import type { Loan, LoanLine, LoanStatus, LoanReturnRecord } from '@/types'
+import type { Loan, LoanLine, LoanStatus, LoanEvent, LoanReturnRecord } from '@/types'
 import { labs } from './labs'
 import { products } from './products'
 import { users } from './users'
@@ -45,6 +45,7 @@ for (let i = 0; i < 40; i++) {
   const issuedAt = daysAgo(ri(2, 500))
   const year = issuedAt.getFullYear()
   const status = weightedStatus()
+  const lab = pick(labs)
   const lineCount = ri(1, 4)
   const chosenProducts = pickMany(LOANABLE, Math.min(lineCount, LOANABLE.length))
 
@@ -79,10 +80,27 @@ for (let i = 0; i < 40; i++) {
   const closedAt = status === 'closed' ? iso(daysAgo(ri(0, 200))) : undefined
   const dueDate = chance(0.7) ? iso(new Date(issuedAt.getTime() + ri(14, 90) * 86400000)) : undefined
 
+  // Append-only history, mirroring the Purchase Order mock generator: one
+  // "Loan Issued" event always, plus one summary event if the seeded status
+  // implies a return has already happened.
+  const actor = () => pick(users).name
+  const totalReturned = lines.reduce((s, l) => s + l.quantityReturned, 0)
+  const totalLost = lines.reduce((s, l) => s + l.quantityLost, 0)
+  const returnEventAt = status === 'closed' ? closedAt! : status === 'partially-returned' ? iso(daysAgo(ri(0, 120))) : undefined
+
+  const history: LoanEvent[] = [
+    { id: `ln_${i + 1}_evt_issued`, loanId: `ln_${i + 1}`, label: 'Loan Issued', description: `Loan issued to ${lab.name} with ${lines.length} product line(s).`, date: iso(issuedAt), actor: actor() },
+  ]
+  if (status === 'closed') {
+    history.push({ id: `ln_${i + 1}_evt_closed`, loanId: `ln_${i + 1}`, label: 'Loan Closed', description: `${totalReturned} returned, ${totalLost} lost in this return; all outstanding items are now accounted for.`, date: returnEventAt!, actor: actor() })
+  } else if (status === 'partially-returned') {
+    history.push({ id: `ln_${i + 1}_evt_partial`, loanId: `ln_${i + 1}`, label: 'Partial Return Recorded', description: `${totalReturned} returned, ${totalLost} lost in this return; some items remain outstanding.`, date: returnEventAt!, actor: actor() })
+  }
+
   const loan: Loan = {
     id: `ln_${i + 1}`,
     loanNumber: nextLoanNumber(year),
-    labId: pick(labs).id,
+    labId: lab.id,
     status,
     lines,
     issuedBy: pick(users).id,
@@ -90,6 +108,7 @@ for (let i = 0; i < 40; i++) {
     dueDate,
     closedAt,
     notes: chance(0.2) ? 'Loan issued for try-in and verification prior to final restoration delivery.' : undefined,
+    history,
   }
   loans.push(loan)
 

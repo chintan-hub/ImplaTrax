@@ -16,6 +16,7 @@ import { LabsPage } from '@/pages/labs/LabsPage'
 import { LabDetailPage } from '@/pages/labs/LabDetailPage'
 import { SalesPage } from '@/pages/sales/SalesPage'
 import { LoansPage } from '@/pages/loans/LoansPage'
+import { LoanDetailPage } from '@/pages/loans/LoanDetailPage'
 import { LoanReturnsPage } from '@/pages/loan-returns/LoanReturnsPage'
 import { ReportsPage } from '@/pages/reports/ReportsPage'
 import { UsersPage } from '@/pages/users/UsersPage'
@@ -42,6 +43,7 @@ function App() {
             <Route path="/labs/:labId" element={<LabDetailPage />} />
             <Route path="/sales" element={<SalesPage />} />
             <Route path="/loans" element={<LoansPage />} />
+            <Route path="/loans/:loanId" element={<LoanDetailPage />} />
             <Route path="/loan-returns" element={<LoanReturnsPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/users" element={<UsersPage />} />
