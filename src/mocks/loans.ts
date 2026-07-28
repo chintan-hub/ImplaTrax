@@ -74,6 +74,7 @@ for (let i = 0; i < 40; i++) {
       quantityReturned,
       quantityLost,
       lostReason,
+      batchLot: p.batchTracked ? `LOT-${ri(10000, 99999)}` : undefined,
     }
   })
 

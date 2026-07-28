@@ -4,6 +4,7 @@ import { users } from './users'
 import { purchaseOrders } from './purchaseOrders'
 import { loans } from './loans'
 import { sales } from './sales'
+import { batchLotByPoLine } from './batches'
 import { ri, pick, chance, iso, daysAgo } from './rng'
 
 const ADJUSTMENT_REASONS = [
@@ -37,6 +38,7 @@ purchaseOrders
           reference: po.poNumber,
           performedBy: pick(users).id,
           createdAt: po.receivedAt ?? po.eta,
+          batchLot: batchLotByPoLine.get(line.id),
         })
       }
     })
@@ -53,6 +55,7 @@ loans.forEach((loan) => {
       reference: loan.loanNumber,
       performedBy: loan.issuedBy,
       createdAt: loan.issuedAt,
+      batchLot: line.batchLot,
     })
     if (line.quantityReturned > 0) {
       addMovement({
@@ -63,6 +66,7 @@ loans.forEach((loan) => {
         reference: loan.loanNumber,
         performedBy: loan.issuedBy,
         createdAt: loan.closedAt ?? iso(daysAgo(ri(0, 60))),
+        batchLot: line.batchLot,
       })
     }
     if (line.quantityLost > 0) {
@@ -74,6 +78,7 @@ loans.forEach((loan) => {
         reference: loan.loanNumber,
         performedBy: loan.issuedBy,
         createdAt: loan.closedAt ?? iso(daysAgo(ri(0, 60))),
+        batchLot: line.batchLot,
       })
     }
   })
@@ -90,6 +95,7 @@ sales.forEach((sale) => {
       reference: sale.saleNumber,
       performedBy: sale.soldBy,
       createdAt: sale.createdAt,
+      batchLot: line.batchLot,
     })
   })
 })

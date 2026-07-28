@@ -295,6 +295,14 @@
 - **Estimated complexity:** Not yet estimated — needs its own scoping session before implementation begins.
 - **Note:** This is a placeholder only, added so the Production Data Policy (`PROJECT.md` §2b) isn't silently forgotten while other milestones proceed. It is not yet prioritized into the Priority 1–4 sequencing above — that's a decision for a future session.
 
+### P-WORKFLOW — Product "Available Workflows" Selector *(placeholder — not yet scoped)*
+- **Objective:** Implement the permanent business rule locked in `PROJECT.md` §3 (Inventory): every product declares its Available Workflows (Sale Only / Loan Only / Sale & Loan) via a mandatory, no-default segmented control, with plain-language help text under it explaining how the selection affects the product. Must remain editable later from product settings.
+- **Files affected:** Not yet determined — at minimum `src/types/index.ts` (new required `Product` field), `src/components/products/ProductFormDialog.tsx` (the control + validation blocking save with nothing selected), and some product-edit surface to satisfy "changeable later" — which depends on **P2-D Product Edit** (currently unbuilt; `updateProduct` exists in `DataContext` but has zero callers).
+- **Risks:** Medium — a mandatory field with no default on an entity that currently has no edit flow means this milestone likely can't ship cleanly before or without P2-D; sequencing them together (or this one just after) is probably right, but that's a call for whoever scopes it.
+- **Dependencies:** P2-D Product Edit (for the "changeable later" requirement).
+- **Estimated complexity:** Not yet estimated — needs its own scoping session.
+- **Note:** Placeholder only, added so this permanent decision isn't lost while P1-E and other milestones proceed. Not yet prioritized into the Priority 1–4 sequencing above.
+
 ---
 
 ## Summary Table
@@ -328,6 +336,7 @@
 | 4 | P4-C Roll Out Selection + Bulk Actions | L | P4-B, relevant P1 milestones |
 | 4 | P4-D Keyboard Shortcuts + Palette Actions | M | — |
 | Unprioritized | P-DATA Remove Seeded Data & Empty-State Bootstrap *(placeholder)* | TBD | `PROJECT.md` §2b |
+| Unprioritized | P-WORKFLOW Product Available Workflows Selector *(placeholder)* | TBD | P2-D Product Edit |
 
 **Open decisions needed before/during implementation** (full detail in `AUDIT.md`): case-transition scope, oversell hard-block vs. warning, Proforma modeling, Payment Receipt data fields, `quantityReserved`/`expiryDate` fate, click-select-vs-open for multi-select.
 

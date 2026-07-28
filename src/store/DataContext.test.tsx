@@ -787,3 +787,127 @@ describe('Case lifecycle (P1-A)', () => {
     expect(unchanged.implants).toHaveLength(0)
   })
 })
+
+describe('Batch/Lot receiving & traceability (P1-E)', () => {
+  function submittedPo(result: { current: ReturnType<typeof useData> }, productId: string, quantityOrdered = 10) {
+    const vendor = result.current.vendors[0]
+    let po: ReturnType<typeof result.current.createPurchaseOrder>
+    act(() => {
+      po = result.current.createPurchaseOrder(vendor.id, [{ productId, quantityOrdered, unitCost: 5 }], new Date().toISOString())
+    })
+    act(() => {
+      result.current.submitPurchaseOrder(po!.id)
+    })
+    return po!
+  }
+
+  it('rejects receiving a batch-tracked product with no lot number, and leaves stock/PO status unchanged', () => {
+    const { result } = setup()
+    const product = result.current.products.find((p) => p.batchTracked)!
+    const po = submittedPo(result, product.id)
+    const before = product.quantityOnHand
+
+    expect(() => result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 5 }])).toThrow(/lot\/batch number is required/i)
+
+    const unchangedProduct = result.current.products.find((p) => p.id === product.id)!
+    expect(unchangedProduct.quantityOnHand).toBe(before)
+    const unchangedPo = result.current.purchaseOrders.find((p) => p.id === po.id)!
+    expect(unchangedPo.status).toBe('submitted')
+  })
+
+  it('does not require a lot number for a non-batch-tracked product', () => {
+    const { result } = setup()
+    const product = result.current.products.find((p) => !p.batchTracked)!
+    const po = submittedPo(result, product.id)
+
+    expect(() => act(() => {
+      result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 5 }])
+    })).not.toThrow()
+
+    expect(result.current.batches.some((b) => b.reference === po.poNumber)).toBe(false)
+  })
+
+  it('receiving a batch-tracked product with a lot number creates a ProductBatch record and a movement carrying the same lot', () => {
+    const { result } = setup()
+    const product = result.current.products.find((p) => p.batchTracked)!
+    const po = submittedPo(result, product.id)
+
+    act(() => {
+      result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 5, lotNumber: 'LOT-55501', expiryDate: '2027-01-01' }])
+    })
+
+    const batch = result.current.batches.find((b) => b.lotNumber === 'LOT-55501')!
+    expect(batch).toBeTruthy()
+    expect(batch.productId).toBe(product.id)
+    expect(batch.quantity).toBe(5)
+    expect(batch.expiryDate).toBe('2027-01-01')
+    expect(batch.reference).toBe(po.poNumber)
+
+    const movement = result.current.movements.find((m) => m.type === 'inbound' && m.reference === po.poNumber)!
+    expect(movement.batchLot).toBe('LOT-55501')
+  })
+
+  it('the same lot number received across two separate receipts creates two ProductBatch records, not a merged one', () => {
+    const { result } = setup()
+    const product = result.current.products.find((p) => p.batchTracked)!
+    const po = submittedPo(result, product.id, 20)
+
+    act(() => {
+      result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 5, lotNumber: 'LOT-DUP' }])
+    })
+    act(() => {
+      result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 5, lotNumber: 'LOT-DUP' }])
+    })
+
+    const matching = result.current.batches.filter((b) => b.lotNumber === 'LOT-DUP')
+    expect(matching).toHaveLength(2)
+    expect(matching.reduce((s, b) => s + b.quantity, 0)).toBe(10)
+  })
+
+  it('createLoan threads batchLot into the LoanLine and the loan-out movement', () => {
+    const { result } = setup()
+    const lab = result.current.labs[0]
+    const product = result.current.products.find((p) => p.batchTracked && p.quantityOnHand >= 3)!
+
+    let loan: ReturnType<typeof result.current.createLoan>
+    act(() => {
+      loan = result.current.createLoan(lab.id, [{ productId: product.id, quantityLoaned: 3, batchLot: 'LOT-LOANED' }])
+    })
+
+    expect(loan!.lines[0].batchLot).toBe('LOT-LOANED')
+    const movement = result.current.movements.find((m) => m.type === 'loan-out' && m.reference === loan!.loanNumber)!
+    expect(movement.batchLot).toBe('LOT-LOANED')
+  })
+
+  it('returnLoanLines reads the lot back off the existing LoanLine — the caller does not re-supply it', () => {
+    const { result } = setup()
+    const lab = result.current.labs[0]
+    const product = result.current.products.find((p) => p.batchTracked && p.quantityOnHand >= 3)!
+
+    let loan: ReturnType<typeof result.current.createLoan>
+    act(() => {
+      loan = result.current.createLoan(lab.id, [{ productId: product.id, quantityLoaned: 3, batchLot: 'LOT-RETURNED' }])
+    })
+    act(() => {
+      result.current.returnLoanLines(loan!.id, [{ lineId: loan!.lines[0].id, quantityReturned: 2, quantityLost: 1, lostReason: 'Dropped' }])
+    })
+
+    const returnMovement = result.current.movements.find((m) => m.type === 'loan-return' && m.reference === loan!.loanNumber)!
+    expect(returnMovement.batchLot).toBe('LOT-RETURNED')
+    const lostMovement = result.current.movements.find((m) => m.type === 'lost' && m.reference === loan!.loanNumber)!
+    expect(lostMovement.batchLot).toBe('LOT-RETURNED')
+  })
+
+  it('createSale threads batchLot into the sale movement, not just the stored Sale line', () => {
+    const { result } = setup()
+    const product = result.current.products.find((p) => p.batchTracked && p.quantityOnHand >= 1)!
+
+    let sale: ReturnType<typeof result.current.createSale>
+    act(() => {
+      sale = result.current.createSale([{ productId: product.id, quantity: 1, unitPrice: 100, batchLot: 'LOT-SOLD' }])
+    })
+
+    const movement = result.current.movements.find((m) => m.type === 'sale' && m.reference === sale!.saleNumber)!
+    expect(movement.batchLot).toBe('LOT-SOLD')
+  })
+})

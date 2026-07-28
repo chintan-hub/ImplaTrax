@@ -78,7 +78,10 @@ export function LoanReturnDialog({ loan, open, onOpenChange }: { loan: Loan | nu
             return (
               <div key={line.id} className="rounded-lg border border-border p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-medium">{product?.name}</p>
+                  <div>
+                    <p className="text-sm font-medium">{product?.name}</p>
+                    {line.batchLot && <p className="text-xs text-muted-foreground">Lot: {line.batchLot}</p>}
+                  </div>
                   <span className="text-xs text-muted-foreground">Outstanding: {outstanding}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-3">

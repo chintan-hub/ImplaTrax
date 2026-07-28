@@ -56,6 +56,7 @@ export function LoanDetailPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Product</TableHead>
+                    <TableHead>Lot</TableHead>
                     <TableHead className="text-right">Loaned</TableHead>
                     <TableHead className="text-right">Returned</TableHead>
                     <TableHead className="text-right">Lost</TableHead>
@@ -73,6 +74,7 @@ export function LoanDetailPage() {
                           <p className="text-xs text-muted-foreground">{product?.sku}</p>
                           {line.lostReason && <p className="mt-0.5 text-xs text-danger-600">Lost: {line.lostReason}</p>}
                         </TableCell>
+                        <TableCell className="text-muted-foreground">{line.batchLot ?? '—'}</TableCell>
                         <TableCell className="text-right tabular-nums">{line.quantityLoaned}</TableCell>
                         <TableCell className="text-right tabular-nums">{line.quantityReturned}</TableCell>
                         <TableCell className="text-right tabular-nums">{line.quantityLost}</TableCell>

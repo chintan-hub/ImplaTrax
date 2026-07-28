@@ -14,6 +14,7 @@ import { simulateLatency } from '@/lib/utils'
 interface Line {
   productId: string
   quantityLoaned: number
+  batchLot?: string
 }
 
 export function LoanFormDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
@@ -42,6 +43,9 @@ export function LoanFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     return requested > available ? { available, requested } : null
   }
   const hasStockIssue = lines.some((l) => stockIssue(l.productId) !== null)
+  // Batch-tracked products require a lot number at issuance — traceability
+  // begins at receiving and stays intact through every stage of the loan.
+  const hasLotIssue = lines.some((l) => products.find((p) => p.id === l.productId)?.batchTracked && !l.batchLot?.trim())
 
   const reset = () => {
     setLabId('')
@@ -60,6 +64,10 @@ export function LoanFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     }
     if (hasStockIssue) {
       toast.error('One or more lines exceed available stock.')
+      return
+    }
+    if (hasLotIssue) {
+      toast.error('Enter a lot/batch number for every batch-tracked line.')
       return
     }
     setSubmitting(true)
@@ -106,10 +114,11 @@ export function LoanFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
           <div className="space-y-2 max-h-56 overflow-y-auto scrollbar-thin">
             {lines.map((line, i) => {
               const issue = stockIssue(line.productId)
+              const product = products.find((p) => p.id === line.productId)
               return (
                 <div key={i} className="rounded-lg border border-border p-2">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <Select value={line.productId} onValueChange={(v) => updateLine(i, { productId: v })}>
+                    <Select value={line.productId} onValueChange={(v) => updateLine(i, { productId: v, batchLot: undefined })}>
                       <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
                       <SelectContent className="max-h-72">
                         {products.map((p) => <SelectItem key={p.id} value={p.id}>{p.name} ({p.quantityOnHand} in stock)</SelectItem>)}
@@ -122,6 +131,17 @@ export function LoanFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                       </Button>
                     </div>
                   </div>
+                  {product?.batchTracked && (
+                    <div className="mt-2">
+                      <Input
+                        placeholder="Batch / Lot number (required)"
+                        aria-label="Batch / Lot number"
+                        value={line.batchLot ?? ''}
+                        onChange={(e) => updateLine(i, { batchLot: e.target.value || undefined })}
+                      />
+                      <p className="mt-1 text-xs text-muted-foreground">{MICROCOPY.loanLot}</p>
+                    </div>
+                  )}
                   {issue && (
                     <p className="mt-1.5 text-xs text-danger-600">Only {issue.available} in stock — {issue.requested} requested.</p>
                   )}
@@ -139,7 +159,7 @@ export function LoanFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
-          <Button onClick={handleSubmit} loading={submitting} disabled={hasStockIssue}>Issue Loan</Button>
+          <Button onClick={handleSubmit} loading={submitting} disabled={hasStockIssue || hasLotIssue}>Issue Loan</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

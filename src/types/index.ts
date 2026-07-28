@@ -62,6 +62,8 @@ export interface ProductBatch {
   expiryDate?: string
   quantity: number
   receivedAt: string
+  /** Purchase Order number this batch was received against — the origin point of its traceability story. */
+  reference?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -80,6 +82,8 @@ export interface InventoryMovement {
   performedBy: ID // user id
   createdAt: string
   note?: string
+  /** Lot/batch number this movement affected, for batch-tracked products. */
+  batchLot?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -243,6 +247,7 @@ export interface LoanLine {
   quantityReturned: number
   quantityLost: number
   lostReason?: string
+  batchLot?: string
 }
 
 /** One entry in a Loan's audit trail — every issue/return event is recorded, append-only. */

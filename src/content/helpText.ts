@@ -81,6 +81,14 @@ export const TERMS = {
     title: 'Return',
     description: 'Records that a loaned component has been received back into inventory.',
   },
+  batchLot: {
+    title: 'Batch / Lot',
+    description: 'One specific delivery of a component, identified by the number printed on its packaging — used to trace exactly which units came from where.',
+  },
+  remainingQuantity: {
+    title: 'Remaining',
+    description: 'How many units of this lot are still in the business — received minus everything sold, loaned out, or lost. Units used in a case are shown separately (see below).',
+  },
 } as const satisfies Record<string, HelpEntry>
 
 export type TermKey = keyof typeof TERMS
@@ -185,6 +193,8 @@ export const MICROCOPY = {
   batchTracked: 'Turn this on for components where lot-level traceability matters, like implant fixtures or graft material.',
   dueDate: 'When you expect this loan to be returned by the lab. Loans can stay open for months if needed.',
   eta: 'The date you expect this order to arrive from the vendor.',
+  receivingLot: 'Required for batch-tracked components — the number printed on the box or packing slip. This is what lets you trace exactly where a component came from and everywhere it went.',
+  loanLot: 'Required for batch-tracked components — the same lot automatically follows this item when it comes back from the lab.',
 } as const
 
 export type MicrocopyKey = keyof typeof MICROCOPY
@@ -236,6 +246,10 @@ export const PAGE_INTROS = {
   loanReturns: {
     title: 'Loan Returns',
     description: 'A record of everything labs have sent back, and anything lost along the way.',
+  },
+  batches: {
+    title: 'Batch / Lot Tracking',
+    description: 'Full traceability for every batch-tracked component — where each lot came from, where it went, and how much is left.',
   },
   reports: {
     title: 'Reports',
@@ -311,6 +325,10 @@ export const EMPTY_STATES = {
     title: 'No Sales Found',
     description: 'A sale means a component was permanently used or sold, usually as part of a patient case. Record one to see it here.',
     actionLabel: 'Record Sale',
+  },
+  batches: {
+    title: 'No Batch/Lot Data Yet',
+    description: 'Lots appear here once a batch-tracked product is received with a lot number. Go to Purchase Orders and receive one to get started.',
   },
 } as const satisfies Record<string, EmptyStateEntry>
 

@@ -19,6 +19,7 @@ import { SaleDetailPage } from '@/pages/sales/SaleDetailPage'
 import { LoansPage } from '@/pages/loans/LoansPage'
 import { LoanDetailPage } from '@/pages/loans/LoanDetailPage'
 import { LoanReturnsPage } from '@/pages/loan-returns/LoanReturnsPage'
+import { BatchesPage } from '@/pages/batches/BatchesPage'
 import { ReportsPage } from '@/pages/reports/ReportsPage'
 import { UsersPage } from '@/pages/users/UsersPage'
 import { SettingsPage } from '@/pages/settings/SettingsPage'
@@ -47,6 +48,7 @@ function App() {
             <Route path="/loans" element={<LoansPage />} />
             <Route path="/loans/:loanId" element={<LoanDetailPage />} />
             <Route path="/loan-returns" element={<LoanReturnsPage />} />
+            <Route path="/batches" element={<BatchesPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/users" element={<UsersPage />} />
             <Route path="/settings" element={<SettingsPage />} />
