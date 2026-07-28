@@ -15,10 +15,10 @@ Full product framing, business rules, data model, and terminology: **`PROJECT.md
 ## 2. Current repo state (verify before trusting this — it's a snapshot)
 
 - **Branch:** `main`
-- **Latest commit:** `29084af` — "P1-E: Batch/Lot Management Screen — traceability from receiving onward"
-- **Remote:** `origin` → `https://github.com/chintan-hub/ImplaTrax.git`, `main` is pushed and up to date with `origin/main` (verified: identical SHA both sides, 28 commits both sides).
+- **Latest commit:** `e7f8acd` — "P1-F: real Purchase Order PDF + Inventory CSV export"
+- **Remote:** `origin` → `https://github.com/chintan-hub/ImplaTrax.git`, `main` is pushed and up to date with `origin/main`.
 - **Working tree:** clean.
-- **Verification status as of the last commit:** `npx tsc -b --noEmit` clean, `npm run lint` 0 errors (4 pre-existing `react-refresh/only-export-components` warnings, not new, not a target for cleanup), `npm test -- --run` → **65/65 passing**, `npm run build` succeeds (one pre-existing chunk-size warning, not an error).
+- **Verification status as of the last commit:** `npx tsc -b --noEmit` clean, `npm run lint` 0 errors (4 pre-existing `react-refresh/only-export-components` warnings, not new, not a target for cleanup), `npm test -- --run` → **71/71 passing**, `npm run build` succeeds (one pre-existing chunk-size warning, not an error). The `@media print` output was additionally verified with a real headless-browser print-preview screenshot (PO Detail + Inventory, light + dark) — not just code review.
 - Always re-run these four checks yourself before trusting "current state" — don't assume they still pass without checking.
 - **Repo visibility:** currently **public** (was made public mid-P1-E to work around this session's lack of GitHub credentials — see §9's note on GitHub access if picking this up in a fresh sandbox/computer-use session). Confirm current visibility before assuming either way; the user may have flipped it back to private since.
 
@@ -42,7 +42,8 @@ Full product framing, business rules, data model, and terminology: **`PROJECT.md
 - **Deterministic ID generation**: `src/lib/idGenerator.ts` (`nextInternalId`, `createSequence`, `formatTimestampId`, `createTimestampIdGenerator`). Purchase Order numbers are timestamp-based (`YYYYMMDDHHmm`); Case IDs reset per calendar year; other human-readable numbers use a simple incrementing sequence.
 - **Pure derived-computation modules** (new pattern as of P1-E): `src/lib/batches.ts`'s `summarizeLots` takes `batches`/`movements`/`cases` and returns aggregated, never-stored lot summaries — the same "derive, don't duplicate" philosophy as `LoanReturnsPage`, but as a standalone, independently unit-tested function rather than inline page logic. Mirror this (a plain function in `src/lib/`, its own `*.test.ts`) any time a future page needs a non-trivial aggregation over existing `DataContext` state rather than a legality-guard module.
 - **Detail-via-Sheet, not always a route**: not every "detail view" needs its own `/entity/:id` route — `BatchesPage`'s per-lot journey uses a `Sheet` (mirroring `ProductDetailSheet`) instead of a route, since a lot isn't a standalone entity with its own ID the rest of the app links to. Reach for a route when other pages need to link directly to the record (Purchase Orders, Cases, Loans, Sales all do); reach for a Sheet/Dialog when the detail is only ever opened from one list.
-- **Test conventions**: `src/store/DataContext.test.tsx` is the main test file (49 tests as of P1-E). Tests read whatever the deterministic mock seed produced at call time rather than hardcoding expected values, so they stay valid if seed generators change. New lifecycle guard modules and derived-computation modules each get their own `*.test.ts` file (e.g. `src/lib/caseWorkflow.test.ts`, `src/lib/batches.test.ts`). 65 tests total across 3 files as of the last commit.
+- **Test conventions**: `src/store/DataContext.test.tsx` is the main test file (49 tests as of P1-E). Tests read whatever the deterministic mock seed produced at call time rather than hardcoding expected values, so they stay valid if seed generators change. New lifecycle guard modules and derived-computation modules each get their own `*.test.ts` file (e.g. `src/lib/caseWorkflow.test.ts`, `src/lib/batches.test.ts`, and as of P1-F `src/lib/documents/csv.test.ts` + `src/lib/documents/purchaseOrder.test.ts`). 71 tests total across 5 files as of the last commit.
+- **Document generation (`src/lib/documents/`, new as of P1-F)**: `DocumentLayout.tsx` is the shared print/PDF shell every document type builds on (clinic header with a reserved logo slot, meta block, footer) — mirror it for any new document rather than inventing a new layout. `csv.ts`'s `exportToCsv(rows, filename)` is the one shared CSV export utility — rows are pre-shaped by the caller with final column-header keys, no per-page duplication. Printing works by rendering the real document markup in a `hidden print:block` container alongside the normal `print:hidden` page UI, then calling `window.print()` — see `PODetailPage.tsx` for the reference implementation P1-G's remaining documents (GRN, Sales Invoice, Delivery Challan, Loan slips) should mirror.
 
 ---
 
@@ -90,6 +91,7 @@ Full detail in `PROJECT.md` §2/§2a. Summary:
 | `5d99d3a` | **P1-D: Sales → Full Workflow** — Sale Detail page, batch/lot capture on the sale-line form |
 | `56f71fa` | Locked in the Production Data Policy (`PROJECT.md` §2b) and the `P-DATA` placeholder milestone — documentation only, no source changes |
 | `29084af` | **P1-E: Batch/Lot Management Screen** — batch/lot traceability begins at receiving (`ProductBatch` finally constructed, was dead code since the prototype), `InventoryMovement`/`LoanLine` gain `batchLot`, new `src/lib/batches.ts` derived computation, new `/batches` page with a per-lot "life story" journey Sheet. Also locked the Available Workflows decision (`PROJECT.md` §3, `P-WORKFLOW` placeholder) and logged a new `AUDIT.md` finding: `addImplantToCase` never deducts stock or creates a movement — documented, not fixed, deserves its own milestone. |
+| `c3ae2b3`, `3354ba1`, `e7f8acd` | **P1-F: Document Generation Foundation** — real `@media print` stylesheet (forces the light palette regardless of theme, hides Sidebar/Topbar via `print:hidden`, drops the content container's max-width/padding under print); `src/lib/documents/csv.ts`'s `exportToCsv` (Blob-based, no new dependency), proved on Inventory's new "Export CSV" button; `src/lib/documents/` document-rendering layer (`DocumentLayout` shell with a reserved logo slot for future branding, `PurchaseOrderDocument`), proved by replacing the PO Detail page's disabled "Generate PDF — coming soon" stub with a real working button — both "Print" and "Generate PDF" now render the same clean document and open the browser's print dialog. `src/lib/poShare.ts` was relocated/generalized into `src/lib/documents/purchaseOrder.ts` per the plan. Print output verified with real headless-browser screenshots, not just code review. |
 
 **Reports for completed phases**: `PHASE1_REPORT.md`, `PHASE2_REPORT.md`, `PHASE3_REPORT.md`, `BUGFIX_REPORT.md`. No PHASE4+ report exists — P1-A through P1-E were reported directly in-conversation, not as separate files (this is fine, not a gap to fix).
 
@@ -106,8 +108,8 @@ The roadmap is ordered **Priority 1 → 4 by business value**, not by implementa
 | Milestone | Objective | Depends on |
 |---|---|---|
 | P1-E — Batch/Lot Management Screen ✅ | Done — see §5. | P1-A (helped, wasn't blocking) |
-| **P1-F — Document Generation Foundation** ← **NEXT** | Shared engine: print-to-PDF via `@media print` (no new PDF library), `exportToCsv` utility, one presentational-component pattern per document type | — |
-| P1-G — Core Transactional Documents | Real PO PDF, GRN, Sales Invoice, Delivery Challan, Loan Out Slip, Loan Return Receipt | P1-F, P1-C ✅, P1-D ✅ |
+| P1-F — Document Generation Foundation ✅ | Done — see §5. | — |
+| **P1-G — Core Transactional Documents** ← **NEXT** | Real PO PDF, GRN, Sales Invoice, Delivery Challan, Loan Out Slip, Loan Return Receipt | P1-F ✅, P1-C ✅, P1-D ✅ |
 | P1-H — Proforma Invoice & Payment Receipt | Blocked on two open product decisions (see below) | P1-F, P1-D ✅, your decisions |
 | P1-I — Reports: Export + New Report Types | Export on every Reports tab + Stock Valuation/Batch-Lot/Expiry/Doctor-wise/Manufacturer-wise reports | P1-F, P1-E ✅ |
 | P1-J — Print Everywhere + List-Page Export | CSV export on every list page + Inventory audit-trail export | P1-F |
@@ -151,30 +153,29 @@ This has been enforced strictly, milestone by milestone, for the entire P1 serie
 
 ---
 
-## 8. Exact next milestone: P1-F — Document Generation Foundation
+## 8. Exact next milestone: P1-G — Core Transactional Documents
 
 Copied verbatim from `DEVELOPMENT_PLAN.md` so this document is self-contained — but re-read the live file too, in case it has been updated since this handoff was written:
 
-> **Objective:** The shared engine every document in P1-G/H/I is built on: a print-to-PDF approach (extending the proven `window.print()` + `print:` pattern from Purchase Orders with a real `@media print` stylesheet), a `exportToCsv(rows, filename)` utility (Blob-based, no new dependency), and one presentational-component pattern per document type consuming a plain data object (generalizing `poShare.ts`).
+> **Objective:** Using the P1-F foundation: a real Purchase Order PDF (replacing the "coming soon" stub), a Goods Received Note (from a PO's receiving event), a Sales Invoice and Delivery Challan (from Sale Detail, P1-D), and a Loan Out Slip + Loan Return Receipt (from Loan Detail, P1-C).
 >
-> **Files affected:** New `src/lib/documents/` (or similar) — a base layout component, the CSV utility, print stylesheet additions to `src/index.css`. `src/lib/poShare.ts` likely relocates/generalizes into this layer.
+> **Files affected:** New per-document components under the P1-F layer; "Generate PDF"/"Print"/"Export" buttons added to `PODetailPage.tsx`, the new `SaleDetailPage.tsx`, and the new `LoanDetailPage.tsx`.
 >
-> **Risks:** Medium — this is a real technical decision point (confirmed in `AUDIT.md`: print-to-PDF recommended over a new PDF library dependency; revisit only if label-sheet precision proves it insufficient).
+> **Risks:** Low once P1-F/C/D exist — this is mostly template-authoring work at that point, not new architecture.
 >
-> **Dependencies:** None — can start independently, but P1-G needs it.
+> **Dependencies:** P1-F (foundation), P1-C (Loan Detail must exist), P1-D (Sale Detail must exist).
 >
-> **Estimated complexity:** Medium.
+> **Estimated complexity:** Medium (six document types, but templated).
 >
 > **Acceptance criteria:**
-> - A real `@media print` stylesheet exists and is verified (via a real print preview, not just code review) to produce a clean, readable printout with app chrome (sidebar/topbar) hidden.
-> - `exportToCsv` is a single, reusable utility with no per-page duplication, verified against at least one real dataset (e.g. Inventory movements).
-> - The document-component pattern is proven on one real document (Purchase Order PDF, replacing the disabled stub) before P1-G reuses it elsewhere.
+> - Each of the six documents can be generated (print/PDF) from its correct source record, with accurate data (verified against the source record, not just "renders without error").
+> - The old "Generate PDF — coming soon" stub is gone, replaced by a working button. **Note: this specific bullet is already satisfied** — P1-F replaced that stub as part of proving its document-component pattern. Re-verify it still holds, but it isn't new work for P1-G.
 
-**Before writing any P1-F code**, a new session should:
-1. Read `DEVELOPMENT_PLAN.md`'s P1-F section fresh (in case it changed).
-2. Read `src/lib/poShare.ts` fresh — it's the existing pattern this milestone generalizes (`buildPOSummaryText` already assembles Purchase Order content; P1-F needs a real renderer, not new data logic).
-3. Read `src/pages/purchase-orders/PODetailPage.tsx` fresh for the existing disabled "Generate PDF — coming soon" stub this milestone replaces, and the `window.print()` + `print:` CSS pattern already proven there.
-4. Present scope + file list + business rules/edge cases, and wait for approval, per §7 above — nothing about P1-F has been pre-approved in any prior conversation.
+**Before writing any P1-G code**, a new session should:
+1. Read `DEVELOPMENT_PLAN.md`'s P1-G section fresh (in case it changed).
+2. Read `src/lib/documents/` fresh — `DocumentLayout.tsx`, `purchaseOrder.ts`/`PurchaseOrderDocument.tsx` are the reference pattern this milestone mirrors five more times (GRN, Sales Invoice, Delivery Challan, Loan Out Slip, Loan Return Receipt).
+3. Read `src/pages/purchase-orders/PODetailPage.tsx` fresh for the `hidden print:block` + `window.print()` wiring pattern this milestone reuses on `SaleDetailPage.tsx` and `LoanDetailPage.tsx`.
+4. Present scope + file list + business rules/edge cases, and wait for approval, per §7 above — nothing about P1-G has been pre-approved in any prior conversation.
 
 ---
 
