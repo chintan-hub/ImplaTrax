@@ -21,6 +21,21 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const patientCases = useMemo(() => cases.filter((c) => c.patientId === patientId), [cases, patientId])
   const total = lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0)
 
+  // A product can appear on more than one line, so availability is checked
+  // against the combined quantity requested across all lines for that
+  // product, not each line in isolation (mirrors the DataContext guard).
+  const requestedByProduct = useMemo(() => {
+    const m = new Map<string, number>()
+    lines.forEach((l) => m.set(l.productId, (m.get(l.productId) ?? 0) + l.quantity))
+    return m
+  }, [lines])
+  const stockIssue = (productId: string) => {
+    const available = products.find((p) => p.id === productId)?.quantityOnHand ?? 0
+    const requested = requestedByProduct.get(productId) ?? 0
+    return requested > available ? { available, requested } : null
+  }
+  const hasStockIssue = lines.some((l) => stockIssue(l.productId) !== null)
+
   const addLine = () => {
     const p = products[0]
     setLines((prev) => [...prev, { productId: p.id, quantity: 1, unitPrice: p.unitPrice }])
@@ -37,6 +52,10 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const handleSubmit = async () => {
     if (lines.length === 0) {
       toast.error('Add at least one product line.')
+      return
+    }
+    if (hasStockIssue) {
+      toast.error('One or more lines exceed available stock.')
       return
     }
     setSubmitting(true)
@@ -87,26 +106,34 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             </Button>
           </div>
           <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-thin">
-            {lines.map((line, i) => (
-              <div key={i} className="flex flex-col gap-2 rounded-lg border border-border p-2 sm:flex-row sm:items-center">
-                <Select
-                  value={line.productId}
-                  onValueChange={(v) => updateLine(i, { productId: v, unitPrice: products.find((p) => p.id === v)?.unitPrice ?? line.unitPrice })}
-                >
-                  <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
-                  <SelectContent className="max-h-72">
-                    {products.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <div className="flex items-center gap-2">
-                  <Input type="number" className="w-16" min={1} aria-label="Quantity" value={line.quantity} onChange={(e) => updateLine(i, { quantity: Math.max(1, Number(e.target.value) || 1) })} />
-                  <Input type="number" className="w-24" step="0.01" aria-label="Unit price" value={line.unitPrice} onChange={(e) => updateLine(i, { unitPrice: Math.max(0, Number(e.target.value) || 0) })} />
-                  <Button type="button" size="icon" variant="ghost" className="shrink-0" onClick={() => removeLine(i)} aria-label="Remove line item">
-                    <Trash2 className="h-4 w-4 text-danger-600" />
-                  </Button>
+            {lines.map((line, i) => {
+              const issue = stockIssue(line.productId)
+              return (
+                <div key={i} className="rounded-lg border border-border p-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <Select
+                      value={line.productId}
+                      onValueChange={(v) => updateLine(i, { productId: v, unitPrice: products.find((p) => p.id === v)?.unitPrice ?? line.unitPrice })}
+                    >
+                      <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {products.map((p) => <SelectItem key={p.id} value={p.id}>{p.name} ({p.quantityOnHand} in stock)</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <div className="flex items-center gap-2">
+                      <Input type="number" className="w-16" min={1} aria-label="Quantity" value={line.quantity} onChange={(e) => updateLine(i, { quantity: Math.max(1, Number(e.target.value) || 1) })} />
+                      <Input type="number" className="w-24" step="0.01" aria-label="Unit price" value={line.unitPrice} onChange={(e) => updateLine(i, { unitPrice: Math.max(0, Number(e.target.value) || 0) })} />
+                      <Button type="button" size="icon" variant="ghost" className="shrink-0" onClick={() => removeLine(i)} aria-label="Remove line item">
+                        <Trash2 className="h-4 w-4 text-danger-600" />
+                      </Button>
+                    </div>
+                  </div>
+                  {issue && (
+                    <p className="mt-1.5 text-xs text-danger-600">Only {issue.available} in stock — {issue.requested} requested.</p>
+                  )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
             {lines.length === 0 && <p className="text-sm text-muted-foreground">No products added yet.</p>}
           </div>
           {lines.length > 0 && (
@@ -116,7 +143,7 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
-          <Button onClick={handleSubmit} loading={submitting}>Record Sale</Button>
+          <Button onClick={handleSubmit} loading={submitting} disabled={hasStockIssue}>Record Sale</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

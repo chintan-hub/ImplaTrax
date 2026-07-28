@@ -363,6 +363,86 @@ describe('business-rule validation (M4)', () => {
 })
 
 /**
+ * P1-B: createSale/createLoan must reject an attempt to sell/loan more than
+ * quantityOnHand instead of silently letting applyQtyDelta's Math.max(0, ...)
+ * floor clamp it to zero (AUDIT.md Executive Summary #2).
+ */
+describe('Stock-availability enforcement (P1-B)', () => {
+  it('createSale rejects a single line that requests more than quantityOnHand, and stock is unchanged', () => {
+    const { result } = setup()
+    const product = result.current.products.find((p) => p.quantityOnHand > 0)!
+    const before = product.quantityOnHand
+    const beforeSaleCount = result.current.sales.length
+    const beforeMovementCount = result.current.movements.length
+
+    expect(() => result.current.createSale([{ productId: product.id, quantity: before + 1, unitPrice: 100 }])).toThrow(/not enough stock/i)
+
+    expect(result.current.products.find((p) => p.id === product.id)!.quantityOnHand).toBe(before)
+    expect(result.current.sales.length).toBe(beforeSaleCount)
+    expect(result.current.movements.length).toBe(beforeMovementCount)
+  })
+
+  it('createSale rejects when the SAME product appears on multiple lines and their combined quantity exceeds stock', () => {
+    const { result } = setup()
+    const product = result.current.products.find((p) => p.quantityOnHand >= 4)!
+    const before = product.quantityOnHand
+    const half = Math.ceil(before / 2)
+
+    // Each line alone is <= before, but together they exceed it.
+    expect(() =>
+      result.current.createSale([
+        { productId: product.id, quantity: half, unitPrice: 100 },
+        { productId: product.id, quantity: before - half + 1, unitPrice: 100 },
+      ]),
+    ).toThrow(/not enough stock/i)
+
+    expect(result.current.products.find((p) => p.id === product.id)!.quantityOnHand).toBe(before)
+  })
+
+  it('createSale allows selling exactly the full quantityOnHand', () => {
+    const { result } = setup()
+    const product = result.current.products.find((p) => p.quantityOnHand > 0)!
+    const before = product.quantityOnHand
+
+    act(() => {
+      result.current.createSale([{ productId: product.id, quantity: before, unitPrice: 100 }])
+    })
+
+    expect(result.current.products.find((p) => p.id === product.id)!.quantityOnHand).toBe(0)
+  })
+
+  it('createLoan rejects a single line that requests more than quantityOnHand, and stock is unchanged', () => {
+    const { result } = setup()
+    const lab = result.current.labs[0]
+    const product = result.current.products.find((p) => p.quantityOnHand > 0)!
+    const before = product.quantityOnHand
+    const beforeLoanCount = result.current.loans.length
+
+    expect(() => result.current.createLoan(lab.id, [{ productId: product.id, quantityLoaned: before + 1 }])).toThrow(/not enough stock/i)
+
+    expect(result.current.products.find((p) => p.id === product.id)!.quantityOnHand).toBe(before)
+    expect(result.current.loans.length).toBe(beforeLoanCount)
+  })
+
+  it('createLoan rejects when the SAME product appears on multiple lines and their combined quantity exceeds stock', () => {
+    const { result } = setup()
+    const lab = result.current.labs[0]
+    const product = result.current.products.find((p) => p.quantityOnHand >= 4)!
+    const before = product.quantityOnHand
+    const half = Math.ceil(before / 2)
+
+    expect(() =>
+      result.current.createLoan(lab.id, [
+        { productId: product.id, quantityLoaned: half },
+        { productId: product.id, quantityLoaned: before - half + 1 },
+      ]),
+    ).toThrow(/not enough stock/i)
+
+    expect(result.current.products.find((p) => p.id === product.id)!.quantityOnHand).toBe(before)
+  })
+})
+
+/**
  * Phase 3: the production Purchase Order workflow — status gates, the
  * append-only audit history, the timestamp-based ID, and the rule that a
  * Purchase Order never changes inventory itself (only receiving does).

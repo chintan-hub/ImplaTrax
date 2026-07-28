@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Plus, Trash2 } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -28,6 +28,21 @@ export function LoanFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const updateLine = (i: number, patch: Partial<Line>) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)))
   const removeLine = (i: number) => setLines((prev) => prev.filter((_, idx) => idx !== i))
 
+  // A product can appear on more than one line, so availability is checked
+  // against the combined quantity requested across all lines for that
+  // product, not each line in isolation (mirrors the DataContext guard).
+  const requestedByProduct = useMemo(() => {
+    const m = new Map<string, number>()
+    lines.forEach((l) => m.set(l.productId, (m.get(l.productId) ?? 0) + l.quantityLoaned))
+    return m
+  }, [lines])
+  const stockIssue = (productId: string) => {
+    const available = products.find((p) => p.id === productId)?.quantityOnHand ?? 0
+    const requested = requestedByProduct.get(productId) ?? 0
+    return requested > available ? { available, requested } : null
+  }
+  const hasStockIssue = lines.some((l) => stockIssue(l.productId) !== null)
+
   const reset = () => {
     setLabId('')
     setLines([])
@@ -41,6 +56,10 @@ export function LoanFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     }
     if (lines.length === 0) {
       toast.error('Add at least one product line.')
+      return
+    }
+    if (hasStockIssue) {
+      toast.error('One or more lines exceed available stock.')
       return
     }
     setSubmitting(true)
@@ -85,22 +104,30 @@ export function LoanFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             </Button>
           </div>
           <div className="space-y-2 max-h-56 overflow-y-auto scrollbar-thin">
-            {lines.map((line, i) => (
-              <div key={i} className="flex flex-col gap-2 rounded-lg border border-border p-2 sm:flex-row sm:items-center">
-                <Select value={line.productId} onValueChange={(v) => updateLine(i, { productId: v })}>
-                  <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
-                  <SelectContent className="max-h-72">
-                    {products.map((p) => <SelectItem key={p.id} value={p.id}>{p.name} ({p.quantityOnHand} in stock)</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <div className="flex items-center gap-2">
-                  <Input type="number" className="w-20" min={1} aria-label="Quantity" value={line.quantityLoaned} onChange={(e) => updateLine(i, { quantityLoaned: Math.max(1, Number(e.target.value) || 1) })} />
-                  <Button type="button" size="icon" variant="ghost" className="shrink-0" onClick={() => removeLine(i)} aria-label="Remove product from loan">
-                    <Trash2 className="h-4 w-4 text-danger-600" />
-                  </Button>
+            {lines.map((line, i) => {
+              const issue = stockIssue(line.productId)
+              return (
+                <div key={i} className="rounded-lg border border-border p-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <Select value={line.productId} onValueChange={(v) => updateLine(i, { productId: v })}>
+                      <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {products.map((p) => <SelectItem key={p.id} value={p.id}>{p.name} ({p.quantityOnHand} in stock)</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <div className="flex items-center gap-2">
+                      <Input type="number" className="w-20" min={1} aria-label="Quantity" value={line.quantityLoaned} onChange={(e) => updateLine(i, { quantityLoaned: Math.max(1, Number(e.target.value) || 1) })} />
+                      <Button type="button" size="icon" variant="ghost" className="shrink-0" onClick={() => removeLine(i)} aria-label="Remove product from loan">
+                        <Trash2 className="h-4 w-4 text-danger-600" />
+                      </Button>
+                    </div>
+                  </div>
+                  {issue && (
+                    <p className="mt-1.5 text-xs text-danger-600">Only {issue.available} in stock — {issue.requested} requested.</p>
+                  )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
             {lines.length === 0 && <p className="text-sm text-muted-foreground">No products added yet.</p>}
           </div>
         </div>
@@ -112,7 +139,7 @@ export function LoanFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
-          <Button onClick={handleSubmit} loading={submitting}>Issue Loan</Button>
+          <Button onClick={handleSubmit} loading={submitting} disabled={hasStockIssue}>Issue Loan</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

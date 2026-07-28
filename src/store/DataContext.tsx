@@ -39,6 +39,25 @@ function pad(n: number, width: number) {
   return String(n).padStart(width, '0')
 }
 
+/**
+ * Rejects a Sale/Loan submission that would take any product below zero on
+ * hand — quantities are summed per product across every line first, since a
+ * single submission can list the same product on more than one line
+ * (AUDIT.md Executive Summary #2: applyQtyDelta silently floors at zero
+ * instead of the transaction being rejected).
+ */
+function assertStockAvailable(products: Product[], requests: { productId: string; quantity: number }[]) {
+  const requestedByProduct = new Map<string, number>()
+  requests.forEach((r) => requestedByProduct.set(r.productId, (requestedByProduct.get(r.productId) ?? 0) + r.quantity))
+  for (const [productId, requested] of requestedByProduct) {
+    const product = products.find((p) => p.id === productId)
+    const available = product?.quantityOnHand ?? 0
+    if (requested > available) {
+      throw new BusinessRuleError(`Not enough stock for ${product?.name ?? 'this product'} — only ${available} available, ${requested} requested.`)
+    }
+  }
+}
+
 // Human-readable sequence numbers (PO/loan/sale numbers, patient codes, Case
 // IDs) — independent of live array length, seeded once from the mock seed
 // counts (see src/lib/idGenerator.ts and ARCHITECTURE.md §6.3).
@@ -310,6 +329,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const createLoan = useCallback<DataContextValue['createLoan']>((labId, lines, dueDate, notes) => {
     if (!labs.some((l) => l.id === labId)) throw new BusinessRuleError('Loans can only be issued to a lab.')
     if (lines.length === 0) throw new BusinessRuleError('A loan must include at least one product line.')
+    assertStockAvailable(products, lines.map((l) => ({ productId: l.productId, quantity: l.quantityLoaned })))
     const id = nextInternalId('ln')
     const seq = nextLoanSeq()
     const year = new Date().getFullYear()
@@ -330,7 +350,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addMovement(l.productId, 'loan-out', -l.quantityLoaned, 'Loan issued to lab', loan.loanNumber)
     })
     return loan
-  }, [labs, applyQtyDelta, addMovement])
+  }, [labs, products, applyQtyDelta, addMovement])
 
   const returnLoanLines = useCallback<DataContextValue['returnLoanLines']>((loanId, returns) => {
     if (!returns.some((r) => r.quantityReturned > 0 || r.quantityLost > 0)) {
@@ -374,6 +394,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const createSale = useCallback<DataContextValue['createSale']>((lines, patientId, caseId) => {
     if (lines.length === 0) throw new BusinessRuleError('A sale must include at least one product line.')
+    assertStockAvailable(products, lines.map((l) => ({ productId: l.productId, quantity: l.quantity })))
     const id = nextInternalId('sal')
     const seq = nextSaleSeq()
     const year = new Date().getFullYear()
@@ -393,7 +414,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addMovement(l.productId, 'sale', -l.quantity, caseId ? 'Used in patient case' : 'Direct sale', sale.saleNumber)
     })
     return sale
-  }, [applyQtyDelta, addMovement])
+  }, [products, applyQtyDelta, addMovement])
 
   const addPatient = useCallback<DataContextValue['addPatient']>((input) => {
     const id = nextInternalId('pat')
