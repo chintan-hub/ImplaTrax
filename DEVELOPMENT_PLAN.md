@@ -91,6 +91,34 @@
   - [ ] `exportToCsv` is a single, reusable utility with no per-page duplication, verified against at least one real dataset (e.g. Inventory movements).
   - [ ] The document-component pattern is proven on one real document (Purchase Order PDF, replacing the disabled stub) before P1-G reuses it elsewhere.
 
+### P1-L — Global Batch/Lot Tracking Setting
+*Inserted out of letter-order: this is a permanent product decision locked on 2026-07-28, after P1-F shipped, and requested to be scoped before P1-G begins. Its actual sequencing relative to P1-G/P1-I below is an open question — see Risks.*
+
+- **Objective:** Promote Batch/Lot Tracking from today's per-product opt-in (`Product.batchTracked`) to a single, application-wide ON/OFF setting on `ClinicSettings`, per the permanent rule locked in `PROJECT.md` §3 (2026-07-28). **OFF (default)** must fully hide every trace of the feature — no nav item, no pages, no fields, no validation, no per-product control. **ON** must fully integrate it across every relevant workflow with no partially-enabled state.
+- **Files affected:**
+  - `src/types/index.ts` — new `ClinicSettings.batchLotTrackingEnabled: boolean`.
+  - `src/mocks/settings.ts` — `defaultClinicSettings.batchLotTrackingEnabled: false`.
+  - `src/pages/settings/SettingsPage.tsx` — new "Batch/Lot Tracking" card (mirrors the existing Barcode Settings card pattern on the same page).
+  - `src/components/layout/nav.ts` / `src/components/layout/Sidebar.tsx` — the `/batches` nav item must be filtered out of `NAV_ITEMS` at render time when off (consumed by both the desktop sidebar and the mobile drawer).
+  - `src/pages/batches/BatchesPage.tsx` — the route must be unreachable (redirect) when off, even via a typed URL, not just unlinked.
+  - `src/components/products/ProductFormDialog.tsx`, `ProductCard.tsx`, `ProductDetailSheet.tsx` — the per-product batch-tracked toggle/badge only renders when the global setting is on.
+  - `src/components/purchase-orders/POReceiveDialog.tsx` — lot input + "needs lot" validation only when on.
+  - `src/components/sales/SaleFormDialog.tsx`, `src/pages/sales/SaleDetailPage.tsx` — lot input/column only when on.
+  - `src/components/loans/LoanFormDialog.tsx`, `LoanReturnDialog.tsx`, `src/pages/loans/LoanDetailPage.tsx` — lot input/validation/column only when on.
+  - `src/pages/cases/CaseDetailPage.tsx` — lot input on "Add Implant" only when on.
+  - `src/pages/inventory/InventoryPage.tsx` — **new** Batch/Lot column on the movements table (doesn't exist today, a real gap found during scoping since Inventory History is explicitly named in the locked rule), shown only when on and included in the P1-F CSV export when on.
+  - `src/content/helpText.ts` — new copy for the Settings card.
+- **Risks:** Medium-high — the widest-reaching gating change in the project so far (nine-plus files across five modules); a missed spot directly violates the "never partially enabled" rule. Two things need your decision before implementation, not an assumption:
+  1. Does per-product `Product.batchTracked` survive as a secondary, per-product refinement once the global switch is ON (recommended — mirrors the existing Barcode-mode precedent of a clinic-wide mode layered over a per-entity concept; a plain prosthetic screw likely never needs a lot number the way a fixture or graft material does), or does ON mean every product becomes lot-tracked, removing the per-product field entirely?
+  2. Sequencing relative to P1-G (GRN/receiving documents may want to show lot numbers) and P1-I (the not-yet-built Batch/Lot report must also be gated by this setting once it exists) — build this before P1-G, interleave, or after?
+- **Dependencies:** None blocking on its own; interacts with P1-G and P1-I as noted above.
+- **Estimated complexity:** Medium-Large — mechanical per-touchpoint once the open decisions above are resolved, but broad.
+- **Acceptance criteria:**
+  - [ ] With the setting OFF: no Batch/Lot nav item, `/batches` unreachable, no lot fields/validation/columns anywhere, no per-product batch-tracked control on the Product form — verified by a real click-through pass in the browser, not just code review.
+  - [ ] With the setting ON: every workflow named in `PROJECT.md` §3 shows/enforces lot behavior exactly as it does today, plus the new Inventory History lot column and its CSV export.
+  - [ ] Toggling the setting neither deletes nor mutates any existing `ProductBatch`/`batchLot` data.
+  - [ ] Full verification suite passes; existing `DataContext`/`batches` tests are unaffected (they test data plumbing, not UI visibility, since the underlying data model is unchanged).
+
 ### P1-G — Core Transactional Documents
 - **Objective:** Using the P1-F foundation: a real Purchase Order PDF (replacing the "coming soon" stub), a Goods Received Note (from a PO's receiving event), a Sales Invoice and Delivery Challan (from Sale Detail, P1-D), and a Loan Out Slip + Loan Return Receipt (from Loan Detail, P1-C).
 - **Files affected:** New per-document components under the P1-F layer; "Generate PDF"/"Print"/"Export" buttons added to `PODetailPage.tsx`, the new `SaleDetailPage.tsx`, and the new `LoanDetailPage.tsx`.
@@ -315,6 +343,7 @@
 | 1 | P1-D Sales → Full Workflow | S-M | — |
 | 1 | P1-E Batch/Lot Screen | M-L | your decisions (reserved stock, expiry) |
 | 1 | P1-F Document Generation Foundation | M | — |
+| 1 | P1-L Global Batch/Lot Tracking Setting | M-L | your decisions (per-product field fate, sequencing) |
 | 1 | P1-G Core Transactional Documents | M | P1-F, P1-C, P1-D |
 | 1 | P1-H Proforma & Payment Receipt | M | your decisions (proforma model, payment fields) |
 | 1 | P1-I Reports Export + New Reports | M | P1-F, P1-E |
@@ -338,6 +367,6 @@
 | Unprioritized | P-DATA Remove Seeded Data & Empty-State Bootstrap *(placeholder)* | TBD | `PROJECT.md` §2b |
 | Unprioritized | P-WORKFLOW Product Available Workflows Selector *(placeholder)* | TBD | P2-D Product Edit |
 
-**Open decisions needed before/during implementation** (full detail in `AUDIT.md`): case-transition scope, oversell hard-block vs. warning, Proforma modeling, Payment Receipt data fields, `quantityReserved`/`expiryDate` fate, click-select-vs-open for multi-select.
+**Open decisions needed before/during implementation** (full detail in `AUDIT.md`): case-transition scope, oversell hard-block vs. warning, Proforma modeling, Payment Receipt data fields, `quantityReserved`/`expiryDate` fate, click-select-vs-open for multi-select. **New (P1-L, locked 2026-07-28):** whether per-product `Product.batchTracked` survives as a secondary refinement once the new global Batch/Lot Tracking switch is on, and how P1-L sequences against P1-G/P1-I.
 
 **Recommended immediate next step:** P1-A (Case Lifecycle Completion) — the single most consequential gap found in the audit, and fully independent of every open decision above.
