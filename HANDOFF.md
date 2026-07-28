@@ -109,7 +109,8 @@ The roadmap is ordered **Priority 1 → 4 by business value**, not by implementa
 |---|---|---|
 | P1-E — Batch/Lot Management Screen ✅ | Done — see §5. | P1-A (helped, wasn't blocking) |
 | P1-F — Document Generation Foundation ✅ | Done — see §5. | — |
-| **P1-G — Core Transactional Documents** ← **NEXT** | Real PO PDF, GRN, Sales Invoice, Delivery Challan, Loan Out Slip, Loan Return Receipt | P1-F ✅, P1-C ✅, P1-D ✅ |
+| **P1-L — Global Batch/Lot Tracking Setting** ← **NEXT** | Promote Batch/Lot Tracking from a per-product opt-in to a single application-wide ON/OFF setting (`PROJECT.md` §3, locked 2026-07-28). Scoped and both open decisions confirmed 2026-07-28 (per-product `batchTracked` survives as a secondary refinement; runs before P1-G) — see `DEVELOPMENT_PLAN.md`. | — |
+| P1-G — Core Transactional Documents | Real PO PDF, GRN, Sales Invoice, Delivery Challan, Loan Out Slip, Loan Return Receipt | P1-F ✅, P1-L, P1-C ✅, P1-D ✅ |
 | P1-H — Proforma Invoice & Payment Receipt | Blocked on two open product decisions (see below) | P1-F, P1-D ✅, your decisions |
 | P1-I — Reports: Export + New Report Types | Export on every Reports tab + Stock Valuation/Batch-Lot/Expiry/Doctor-wise/Manufacturer-wise reports | P1-F, P1-E ✅ |
 | P1-J — Print Everywhere + List-Page Export | CSV export on every list page + Inventory audit-trail export | P1-F |
@@ -153,29 +154,34 @@ This has been enforced strictly, milestone by milestone, for the entire P1 serie
 
 ---
 
-## 8. Exact next milestone: P1-G — Core Transactional Documents
+## 8. Exact next milestone: P1-L — Global Batch/Lot Tracking Setting
 
-Copied verbatim from `DEVELOPMENT_PLAN.md` so this document is self-contained — but re-read the live file too, in case it has been updated since this handoff was written:
+Copied verbatim from `DEVELOPMENT_PLAN.md` so this document is self-contained — but re-read the live file too, in case it has been updated since this handoff was written. Unlike every other P1 milestone, this one was inserted out of letter-order mid-roadmap on 2026-07-28 as a locked product decision (see `PROJECT.md` §3), scoped in the same conversation, with both open decisions already confirmed:
 
-> **Objective:** Using the P1-F foundation: a real Purchase Order PDF (replacing the "coming soon" stub), a Goods Received Note (from a PO's receiving event), a Sales Invoice and Delivery Challan (from Sale Detail, P1-D), and a Loan Out Slip + Loan Return Receipt (from Loan Detail, P1-C).
+> **Objective:** Promote Batch/Lot Tracking from today's per-product opt-in (`Product.batchTracked`) to a single, application-wide ON/OFF setting on `ClinicSettings`, per the permanent rule locked in `PROJECT.md` §3 (2026-07-28). **OFF (default)** must fully hide every trace of the feature — no nav item, no pages, no fields, no validation, no per-product control. **ON** must fully integrate it across every relevant workflow with no partially-enabled state.
 >
-> **Files affected:** New per-document components under the P1-F layer; "Generate PDF"/"Print"/"Export" buttons added to `PODetailPage.tsx`, the new `SaleDetailPage.tsx`, and the new `LoanDetailPage.tsx`.
+> **Files affected:** `types/index.ts` (new `ClinicSettings.batchLotTrackingEnabled`), `mocks/settings.ts` (default `false`), `SettingsPage.tsx` (new toggle card), `nav.ts`/`Sidebar.tsx` (filter the `/batches` nav item live), `BatchesPage.tsx` (redirect when off), `ProductFormDialog`/`ProductCard`/`ProductDetailSheet` (gate the per-product toggle/badge), `POReceiveDialog`, `SaleFormDialog`/`SaleDetailPage`, `LoanFormDialog`/`LoanReturnDialog`/`LoanDetailPage`, `CaseDetailPage` (gate every lot field/validation/column), `InventoryPage.tsx` (**new** lot column — a real gap found during scoping, since Inventory History is explicitly named in the locked rule — plus its CSV export), `helpText.ts` (new copy).
 >
-> **Risks:** Low once P1-F/C/D exist — this is mostly template-authoring work at that point, not new architecture.
+> **Risks:** Medium-high — the widest-reaching gating change in the project so far (nine-plus files across five modules); a missed spot directly violates the "never partially enabled" rule.
 >
-> **Dependencies:** P1-F (foundation), P1-C (Loan Detail must exist), P1-D (Sale Detail must exist).
+> **Confirmed decisions (2026-07-28):** (1) `Product.batchTracked` survives as a secondary, per-product refinement once the global switch is ON — not removed; the global switch only gates whether the feature exists at all. (2) P1-L runs before P1-G, so P1-G's GRN/receiving documents can show lot numbers from the start.
 >
-> **Estimated complexity:** Medium (six document types, but templated).
+> **Dependencies:** None blocking. Runs before P1-G (confirmed above).
+>
+> **Estimated complexity:** Medium-Large — mechanical per-touchpoint, but broad.
 >
 > **Acceptance criteria:**
-> - Each of the six documents can be generated (print/PDF) from its correct source record, with accurate data (verified against the source record, not just "renders without error").
-> - The old "Generate PDF — coming soon" stub is gone, replaced by a working button. **Note: this specific bullet is already satisfied** — P1-F replaced that stub as part of proving its document-component pattern. Re-verify it still holds, but it isn't new work for P1-G.
+> - With the setting OFF: no Batch/Lot nav item, `/batches` unreachable (even via typed URL), no lot fields/validation/columns anywhere, no per-product batch-tracked control on the Product form — verified by a real click-through pass in the browser, not just code review.
+> - With the setting ON: every workflow named in `PROJECT.md` §3 shows/enforces lot behavior exactly as it does today, plus the new Inventory History lot column and its CSV export.
+> - Toggling the setting neither deletes nor mutates any existing `ProductBatch`/`batchLot` data.
+> - Full verification suite passes; existing `DataContext`/`batches` tests are unaffected (they test data plumbing, not UI visibility).
 
-**Before writing any P1-G code**, a new session should:
-1. Read `DEVELOPMENT_PLAN.md`'s P1-G section fresh (in case it changed).
-2. Read `src/lib/documents/` fresh — `DocumentLayout.tsx`, `purchaseOrder.ts`/`PurchaseOrderDocument.tsx` are the reference pattern this milestone mirrors five more times (GRN, Sales Invoice, Delivery Challan, Loan Out Slip, Loan Return Receipt).
-3. Read `src/pages/purchase-orders/PODetailPage.tsx` fresh for the `hidden print:block` + `window.print()` wiring pattern this milestone reuses on `SaleDetailPage.tsx` and `LoanDetailPage.tsx`.
-4. Present scope + file list + business rules/edge cases, and wait for approval, per §7 above — nothing about P1-G has been pre-approved in any prior conversation.
+**Before writing any P1-L code**, a new session should:
+1. Read `DEVELOPMENT_PLAN.md`'s P1-L section and `PROJECT.md` §3's Batch/Lot Tracking entry fresh (in case either changed).
+2. Read every file in the "Files affected" list above fresh — this milestone touches nine-plus files across five modules, so don't rely on memory of old contents.
+3. Since both open decisions are already confirmed above, a fresh session does **not** need to re-ask them — but should still restate the plan (exact gating mechanism per file) and wait for approval before writing code, per §7's process rules, since the *mechanism* per file hasn't been pre-approved, only the two named decisions have.
+
+**After P1-L, P1-G — Core Transactional Documents** is next (see `DEVELOPMENT_PLAN.md`); it was the prior "next milestone" before this decision was inserted ahead of it.
 
 ---
 

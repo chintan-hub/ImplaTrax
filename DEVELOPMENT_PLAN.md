@@ -92,7 +92,7 @@
   - [ ] The document-component pattern is proven on one real document (Purchase Order PDF, replacing the disabled stub) before P1-G reuses it elsewhere.
 
 ### P1-L — Global Batch/Lot Tracking Setting
-*Inserted out of letter-order: this is a permanent product decision locked on 2026-07-28, after P1-F shipped, and requested to be scoped before P1-G begins. Its actual sequencing relative to P1-G/P1-I below is an open question — see Risks.*
+*Inserted out of letter-order: a permanent product decision locked on 2026-07-28, after P1-F shipped, scoped and confirmed before P1-G begins — it now runs first (see Dependencies).*
 
 - **Objective:** Promote Batch/Lot Tracking from today's per-product opt-in (`Product.batchTracked`) to a single, application-wide ON/OFF setting on `ClinicSettings`, per the permanent rule locked in `PROJECT.md` §3 (2026-07-28). **OFF (default)** must fully hide every trace of the feature — no nav item, no pages, no fields, no validation, no per-product control. **ON** must fully integrate it across every relevant workflow with no partially-enabled state.
 - **Files affected:**
@@ -108,10 +108,11 @@
   - `src/pages/cases/CaseDetailPage.tsx` — lot input on "Add Implant" only when on.
   - `src/pages/inventory/InventoryPage.tsx` — **new** Batch/Lot column on the movements table (doesn't exist today, a real gap found during scoping since Inventory History is explicitly named in the locked rule), shown only when on and included in the P1-F CSV export when on.
   - `src/content/helpText.ts` — new copy for the Settings card.
-- **Risks:** Medium-high — the widest-reaching gating change in the project so far (nine-plus files across five modules); a missed spot directly violates the "never partially enabled" rule. Two things need your decision before implementation, not an assumption:
-  1. Does per-product `Product.batchTracked` survive as a secondary, per-product refinement once the global switch is ON (recommended — mirrors the existing Barcode-mode precedent of a clinic-wide mode layered over a per-entity concept; a plain prosthetic screw likely never needs a lot number the way a fixture or graft material does), or does ON mean every product becomes lot-tracked, removing the per-product field entirely?
-  2. Sequencing relative to P1-G (GRN/receiving documents may want to show lot numbers) and P1-I (the not-yet-built Batch/Lot report must also be gated by this setting once it exists) — build this before P1-G, interleave, or after?
-- **Dependencies:** None blocking on its own; interacts with P1-G and P1-I as noted above.
+- **Risks:** Medium-high — the widest-reaching gating change in the project so far (nine-plus files across five modules); a missed spot directly violates the "never partially enabled" rule.
+- **Confirmed decisions (2026-07-28):**
+  1. **`Product.batchTracked` survives** as a secondary, per-product refinement once the global switch is ON — it is not removed. The global switch only gates whether the feature exists in the app at all; which specific products carry lot numbers is still chosen per product, exactly as today.
+  2. **Sequencing:** P1-L runs before P1-G, so P1-G's GRN/receiving documents can show lot numbers correctly from the start rather than retrofitting them later.
+- **Dependencies:** None blocking. Runs before P1-G (confirmed above); P1-I's not-yet-built Batch/Lot report must also be gated by this setting whenever it's eventually built.
 - **Estimated complexity:** Medium-Large — mechanical per-touchpoint once the open decisions above are resolved, but broad.
 - **Acceptance criteria:**
   - [ ] With the setting OFF: no Batch/Lot nav item, `/batches` unreachable, no lot fields/validation/columns anywhere, no per-product batch-tracked control on the Product form — verified by a real click-through pass in the browser, not just code review.
@@ -343,8 +344,8 @@
 | 1 | P1-D Sales → Full Workflow | S-M | — |
 | 1 | P1-E Batch/Lot Screen | M-L | your decisions (reserved stock, expiry) |
 | 1 | P1-F Document Generation Foundation | M | — |
-| 1 | P1-L Global Batch/Lot Tracking Setting | M-L | your decisions (per-product field fate, sequencing) |
-| 1 | P1-G Core Transactional Documents | M | P1-F, P1-C, P1-D |
+| 1 | P1-L Global Batch/Lot Tracking Setting | M-L | — |
+| 1 | P1-G Core Transactional Documents | M | P1-F, P1-L, P1-C, P1-D |
 | 1 | P1-H Proforma & Payment Receipt | M | your decisions (proforma model, payment fields) |
 | 1 | P1-I Reports Export + New Reports | M | P1-F, P1-E |
 | 1 | P1-J Print Everywhere + List Export | M | P1-F |
@@ -367,6 +368,6 @@
 | Unprioritized | P-DATA Remove Seeded Data & Empty-State Bootstrap *(placeholder)* | TBD | `PROJECT.md` §2b |
 | Unprioritized | P-WORKFLOW Product Available Workflows Selector *(placeholder)* | TBD | P2-D Product Edit |
 
-**Open decisions needed before/during implementation** (full detail in `AUDIT.md`): case-transition scope, oversell hard-block vs. warning, Proforma modeling, Payment Receipt data fields, `quantityReserved`/`expiryDate` fate, click-select-vs-open for multi-select. **New (P1-L, locked 2026-07-28):** whether per-product `Product.batchTracked` survives as a secondary refinement once the new global Batch/Lot Tracking switch is on, and how P1-L sequences against P1-G/P1-I.
+**Open decisions needed before/during implementation** (full detail in `AUDIT.md`): case-transition scope, oversell hard-block vs. warning, Proforma modeling, Payment Receipt data fields, `quantityReserved`/`expiryDate` fate, click-select-vs-open for multi-select. **P1-L's two decisions (per-product field fate, sequencing vs. P1-G) were confirmed 2026-07-28 — see P1-L above.**
 
 **Recommended immediate next step:** P1-A (Case Lifecycle Completion) — the single most consequential gap found in the audit, and fully independent of every open decision above.
