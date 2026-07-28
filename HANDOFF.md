@@ -15,11 +15,12 @@ Full product framing, business rules, data model, and terminology: **`PROJECT.md
 ## 2. Current repo state (verify before trusting this — it's a snapshot)
 
 - **Branch:** `main`
-- **Latest commit:** `5d99d3a` — "P1-D: Sales -> Full Workflow"
-- **Remote:** `origin` → `https://github.com/chintan-hub/ImplaTrax.git`, `main` is pushed and up to date with `origin/main` (verified: identical SHA both sides, 25 commits both sides).
-- **Working tree:** clean except a harmless local `.claude/settings.local.json` tool-permission diff (not app code, not tracked as a concern).
-- **Verification status as of the last commit:** `npx tsc -b --noEmit` clean, `npm run lint` 0 errors (8 pre-existing `react-refresh/only-export-components` warnings, not new, not a target for cleanup), `npm test -- --run` → **47/47 passing**, `npm run build` succeeds (one pre-existing chunk-size warning, not an error).
+- **Latest commit:** `29084af` — "P1-E: Batch/Lot Management Screen — traceability from receiving onward"
+- **Remote:** `origin` → `https://github.com/chintan-hub/ImplaTrax.git`, `main` is pushed and up to date with `origin/main` (verified: identical SHA both sides, 28 commits both sides).
+- **Working tree:** clean.
+- **Verification status as of the last commit:** `npx tsc -b --noEmit` clean, `npm run lint` 0 errors (4 pre-existing `react-refresh/only-export-components` warnings, not new, not a target for cleanup), `npm test -- --run` → **65/65 passing**, `npm run build` succeeds (one pre-existing chunk-size warning, not an error).
 - Always re-run these four checks yourself before trusting "current state" — don't assume they still pass without checking.
+- **Repo visibility:** currently **public** (was made public mid-P1-E to work around this session's lack of GitHub credentials — see §9's note on GitHub access if picking this up in a fresh sandbox/computer-use session). Confirm current visibility before assuming either way; the user may have flipped it back to private since.
 
 ---
 
@@ -39,7 +40,9 @@ Full product framing, business rules, data model, and terminology: **`PROJECT.md
 - **Detail-page pattern** (Purchase Order, Case, Loan, Sale all follow this — mirror it for any new detail page): back-link, header (id/number + status badge if applicable + inline action buttons), two-column layout (`lg:col-span-2` main content with line items + History timeline card using the dot-CSS timeline pattern, sidebar with entity info card).
 - **Status-actions pattern**: one component per lifecycle entity (`POStatusActions.tsx`, `LoanStatusActions.tsx`) owns its own action buttons + confirmation dialogs + open/close state, shared between the list page (compact) and detail page — so the two never drift. Sales have no such component since a Sale is an immutable one-time record, not a lifecycle.
 - **Deterministic ID generation**: `src/lib/idGenerator.ts` (`nextInternalId`, `createSequence`, `formatTimestampId`, `createTimestampIdGenerator`). Purchase Order numbers are timestamp-based (`YYYYMMDDHHmm`); Case IDs reset per calendar year; other human-readable numbers use a simple incrementing sequence.
-- **Test conventions**: `src/store/DataContext.test.tsx` is the main test file (47 tests). Tests read whatever the deterministic mock seed produced at call time rather than hardcoding expected values, so they stay valid if seed generators change. New lifecycle guard modules get their own `*.test.ts` file (e.g. `src/lib/caseWorkflow.test.ts`).
+- **Pure derived-computation modules** (new pattern as of P1-E): `src/lib/batches.ts`'s `summarizeLots` takes `batches`/`movements`/`cases` and returns aggregated, never-stored lot summaries — the same "derive, don't duplicate" philosophy as `LoanReturnsPage`, but as a standalone, independently unit-tested function rather than inline page logic. Mirror this (a plain function in `src/lib/`, its own `*.test.ts`) any time a future page needs a non-trivial aggregation over existing `DataContext` state rather than a legality-guard module.
+- **Detail-via-Sheet, not always a route**: not every "detail view" needs its own `/entity/:id` route — `BatchesPage`'s per-lot journey uses a `Sheet` (mirroring `ProductDetailSheet`) instead of a route, since a lot isn't a standalone entity with its own ID the rest of the app links to. Reach for a route when other pages need to link directly to the record (Purchase Orders, Cases, Loans, Sales all do); reach for a Sheet/Dialog when the detail is only ever opened from one list.
+- **Test conventions**: `src/store/DataContext.test.tsx` is the main test file (49 tests as of P1-E). Tests read whatever the deterministic mock seed produced at call time rather than hardcoding expected values, so they stay valid if seed generators change. New lifecycle guard modules and derived-computation modules each get their own `*.test.ts` file (e.g. `src/lib/caseWorkflow.test.ts`, `src/lib/batches.test.ts`). 65 tests total across 3 files as of the last commit.
 
 ---
 
@@ -53,6 +56,8 @@ Full detail in `PROJECT.md` §2/§2a. Summary:
 4. **Standing permission to refactor previously-built UI for usability** whenever working in that area, as long as business logic and data integrity are unchanged. Not a one-time exception.
 5. **Two-tier workflow for UX issues found mid-development**: local/low-risk → fix immediately. Needs a consistent cross-app pattern → log it in `USABILITY_BACKLOG.md` and build it once, applied everywhere, not piecemeal.
 6. **Barcode System is a locked, permanent spec** (Disabled / Display Only / Full Workflow modes, permanent internal Product ID separate from any barcode, barcode/QR always generated dynamically, never stored) — **documented but not yet implemented**. Full spec in `PROJECT.md` §3. Don't build any part of it without re-reading that spec first.
+7. **Production Data Policy, `PROJECT.md` §2b (locked 2026-07-28, not yet implemented)**: production builds must always start with zero business data (Products, Doctors, Patients, Labs, Inventory, Sales, Loans, Purchase Orders, Batch/Lot records) — the sole exception is minimum system configuration (a Super Admin account or first-time setup wizard). Mock/demo data in `src/mocks/*` stays dev/test-only and must never ship to production. Every future feature must be built and verified against a genuinely empty dataset from the start, not patched for it later. Tracked as the unscoped placeholder milestone `P-DATA` in `DEVELOPMENT_PLAN.md` — not yet prioritized into P1–P4.
+8. **Available Workflows, `PROJECT.md` §3 Inventory (locked 2026-07-28, not yet implemented)**: every product will require a mandatory, no-default "Available Workflows" segmented control — **Sale Only / Loan Only / Sale & Loan** — with a short explanation under it and the ability to change it later from product settings. Explicitly out of scope for P1-E and deliberately not implemented yet. Tracked as the unscoped placeholder milestone `P-WORKFLOW`, flagged as dependent on P2-D (Product Edit, currently unbuilt).
 
 ---
 
@@ -83,26 +88,28 @@ Full detail in `PROJECT.md` §2/§2a. Summary:
 | `80a80d4` | **P1-B: Stock-Availability Enforcement** — `createSale`/`createLoan` reject overselling (summed per-product across all lines in one submission), inline form warnings |
 | `55eddc2` | **P1-C: Loans → Full Workflow** — Loan Detail page, `LoanEvent`/`Loan.history`, `loanWorkflow.ts`, `LoanStatusActions.tsx` |
 | `5d99d3a` | **P1-D: Sales → Full Workflow** — Sale Detail page, batch/lot capture on the sale-line form |
+| `56f71fa` | Locked in the Production Data Policy (`PROJECT.md` §2b) and the `P-DATA` placeholder milestone — documentation only, no source changes |
+| `29084af` | **P1-E: Batch/Lot Management Screen** — batch/lot traceability begins at receiving (`ProductBatch` finally constructed, was dead code since the prototype), `InventoryMovement`/`LoanLine` gain `batchLot`, new `src/lib/batches.ts` derived computation, new `/batches` page with a per-lot "life story" journey Sheet. Also locked the Available Workflows decision (`PROJECT.md` §3, `P-WORKFLOW` placeholder) and logged a new `AUDIT.md` finding: `addImplantToCase` never deducts stock or creates a movement — documented, not fixed, deserves its own milestone. |
 
-**Reports for completed phases**: `PHASE1_REPORT.md`, `PHASE2_REPORT.md`, `PHASE3_REPORT.md`, `BUGFIX_REPORT.md`. No PHASE4+ report exists — P1-A through P1-D were reported directly in-conversation, not as separate files (this is fine, not a gap to fix).
+**Reports for completed phases**: `PHASE1_REPORT.md`, `PHASE2_REPORT.md`, `PHASE3_REPORT.md`, `BUGFIX_REPORT.md`. No PHASE4+ report exists — P1-A through P1-E were reported directly in-conversation, not as separate files (this is fine, not a gap to fix).
 
 ---
 
-## 6. The roadmap — where P1-D leaves off
+## 6. The roadmap — where P1-E leaves off
 
 **Authoritative source: `DEVELOPMENT_PLAN.md`.** Read the whole thing, don't rely only on this summary — it has full objective/files/risks/acceptance-criteria detail per milestone that this table intentionally omits.
 
-The roadmap is ordered **Priority 1 → 4 by business value**, not by implementation difficulty (this was an explicit, deliberate reordering — see `816e309`). Priority 1 = finish core business workflows. Priority 2 = fill missing screens. Priority 3 = UX polish. Priority 4 = reusable interaction primitives (multi-select, sticky-stack, keyboard shortcuts). A separate "Deferred Infrastructure & Backend Work" section (services layer, auth, real backend) is intentionally sequenced behind everything else.
+The roadmap is ordered **Priority 1 → 4 by business value**, not by implementation difficulty (this was an explicit, deliberate reordering — see `816e309`). Priority 1 = finish core business workflows. Priority 2 = fill missing screens. Priority 3 = UX polish. Priority 4 = reusable interaction primitives (multi-select, sticky-stack, keyboard shortcuts). A separate "Deferred Infrastructure & Backend Work" section (services layer, auth, real backend) is intentionally sequenced behind everything else, and now also holds two **unscoped placeholder milestones** added during/after P1-E — `P-DATA` (strip seeded mock data before production, per `PROJECT.md` §2b) and `P-WORKFLOW` (the Available Workflows selector, per `PROJECT.md` §3) — neither is prioritized into P1–P4 yet; that's a call for whoever picks them up.
 
 ### Remaining Priority 1 milestones (core business workflows — do these next, in order)
 
 | Milestone | Objective | Depends on |
 |---|---|---|
-| **P1-E — Batch/Lot Management Screen** ← **NEXT** | A dedicated view: every lot of Product X, remaining quantity, where it came from/went. Also resolves two dead/decorative fields found in the audit: wire `quantityReserved` to something real (or explicitly retire it), and decide the fate of unused `Product.expiryDate`. | P1-A (helps, not blocking) |
-| P1-F — Document Generation Foundation | Shared engine: print-to-PDF via `@media print` (no new PDF library), `exportToCsv` utility, one presentational-component pattern per document type | — |
+| P1-E — Batch/Lot Management Screen ✅ | Done — see §5. | P1-A (helped, wasn't blocking) |
+| **P1-F — Document Generation Foundation** ← **NEXT** | Shared engine: print-to-PDF via `@media print` (no new PDF library), `exportToCsv` utility, one presentational-component pattern per document type | — |
 | P1-G — Core Transactional Documents | Real PO PDF, GRN, Sales Invoice, Delivery Challan, Loan Out Slip, Loan Return Receipt | P1-F, P1-C ✅, P1-D ✅ |
 | P1-H — Proforma Invoice & Payment Receipt | Blocked on two open product decisions (see below) | P1-F, P1-D ✅, your decisions |
-| P1-I — Reports: Export + New Report Types | Export on every Reports tab + Stock Valuation/Batch-Lot/Expiry/Doctor-wise/Manufacturer-wise reports | P1-F, P1-E |
+| P1-I — Reports: Export + New Report Types | Export on every Reports tab + Stock Valuation/Batch-Lot/Expiry/Doctor-wise/Manufacturer-wise reports | P1-F, P1-E ✅ |
 | P1-J — Print Everywhere + List-Page Export | CSV export on every list page + Inventory audit-trail export | P1-F |
 | P1-K — Import | Bulk Product import with mandatory preview-before-commit (sequenced last — highest data-integrity risk in P1) | — |
 
@@ -119,10 +126,13 @@ P4-A Sticky Stack Primitive · P4-B Multi-Selection System (the highest-complexi
 From `AUDIT.md`'s "Open product decisions" list and `DEVELOPMENT_PLAN.md`'s summary table:
 1. **Proforma Invoice modeling** — special Sale state (recommended) vs. a new Quote/Estimate entity. Blocks P1-H.
 2. **Payment Receipt fields** — needs `amountPaid`/method/balance added to `Sale`. Blocks P1-H.
-3. **`quantityReserved` / `Product.expiryDate` fate** — wire to real behavior or explicitly remove. Relevant to P1-E.
-4. **Click-select-vs-click-open** for the future multi-select system (P4-B) — recommended resolution is written out in `DEVELOPMENT_PLAN.md` but not yet confirmed by the user.
+3. **Click-select-vs-click-open** for the future multi-select system (P4-B) — recommended resolution is written out in `DEVELOPMENT_PLAN.md` but not yet confirmed by the user.
 
-(Stock-availability hard-block-vs-warning and case-transition-scope, the other two decisions originally listed, are **resolved** — P1-B and P1-A implemented them.)
+(Stock-availability hard-block-vs-warning and case-transition-scope, resolved by P1-B/P1-A; `quantityReserved`/`expiryDate`'s fate, resolved during P1-E scoping — **keep both fields, don't remove either, `quantityReserved` stays explicitly deferred** — see `PROJECT.md` §3 and `HANDOFF.md` §5's P1-E row.)
+
+**New since P1-E, not yet resolved:**
+4. **`P-DATA` and `P-WORKFLOW`** (see §4 above and `DEVELOPMENT_PLAN.md`'s Deferred Infrastructure section) are locked *requirements* but their actual implementation scope, files, and sequencing into P1–P4 haven't been decided — don't guess this, ask when picking either up.
+5. **The `addImplantToCase`-doesn't-deduct-stock gap** (logged in `AUDIT.md`, Cases section, dated 2026-07-28) has no milestone yet at all — flagged during P1-E scoping, deliberately not fixed. Ask whether/when to scope it before touching `addImplantToCase`.
 
 ---
 
@@ -137,35 +147,34 @@ This has been enforced strictly, milestone by milestone, for the entire P1 serie
 5. **Review the full diff before committing** (`git status` + `git diff --stat` at minimum) — confirm the changed-file list matches exactly what was approved, nothing extra snuck in.
 6. **Commit with a detailed message** explaining the what and why, matching the style of existing commits (see `git log` — multi-paragraph, explains the business reasoning and what was verified, not just a one-line summary).
 7. **Stop after the milestone is committed.** Report: what was completed, files changed, commit hash, working-tree-clean confirmation, and the next milestone from `DEVELOPMENT_PLAN.md`. **Do not start the next milestone without new explicit approval**, even if it seems obvious what comes next.
-8. **A milestone's own plan (once approved by the user in that conversation) is the authority for that milestone** — but if a *new* session is picking this up cold, nothing has been pre-approved yet. Do step 1 (explain scope, wait for approval) fresh for P1-E even though its shape is already well-defined in `DEVELOPMENT_PLAN.md`.
+8. **A milestone's own plan (once approved by the user in that conversation) is the authority for that milestone** — but if a *new* session is picking this up cold, nothing has been pre-approved yet. Do step 1 (explain scope, wait for approval) fresh for whatever milestone §6/§8 currently point to as next, even though its shape is already well-defined in `DEVELOPMENT_PLAN.md`.
 
 ---
 
-## 8. Exact next milestone: P1-E — Batch/Lot Management Screen
+## 8. Exact next milestone: P1-F — Document Generation Foundation
 
 Copied verbatim from `DEVELOPMENT_PLAN.md` so this document is self-contained — but re-read the live file too, in case it has been updated since this handoff was written:
 
-> **Objective:** A dedicated view answering "all lots of Product X, remaining quantity, where they came from, where they went" — the biggest traceability gap found in the audit. Also resolves two adjacent dead/decorative fields found during the audit: wire `quantityReserved` to something real, or explicitly retire it; decide the fate of the unused `Product.expiryDate` field (wire it in if in scope, or remove it if not — don't leave dead schema either way).
+> **Objective:** The shared engine every document in P1-G/H/I is built on: a print-to-PDF approach (extending the proven `window.print()` + `print:` pattern from Purchase Orders with a real `@media print` stylesheet), a `exportToCsv(rows, filename)` utility (Blob-based, no new dependency), and one presentational-component pattern per document type consuming a plain data object (generalizing `poShare.ts`).
 >
-> **Files affected:** `src/types/index.ts` (`LoanLine` gains `batchLot` for parity with Case/Sale lines), new `src/pages/batches/BatchesPage.tsx` + route + nav entry, a derived-view computation (aggregates existing `batchLot` data — no new stored state, matching the Loan Returns page's "derive, don't duplicate" philosophy).
+> **Files affected:** New `src/lib/documents/` (or similar) — a base layout component, the CSV utility, print stylesheet additions to `src/index.css`. `src/lib/poShare.ts` likely relocates/generalizes into this layer.
 >
-> **Risks:** Medium — genuinely new feature surface; the `quantityReserved`/`expiryDate` decisions need the user's input (see `AUDIT.md`'s Open Decisions) before this can be fully scoped.
+> **Risks:** Medium — this is a real technical decision point (confirmed in `AUDIT.md`: print-to-PDF recommended over a new PDF library dependency; revisit only if label-sheet precision proves it insufficient).
 >
-> **Dependencies:** P1-A helps (case implant usage is one of the three places lot data originates) but isn't strictly blocking.
+> **Dependencies:** None — can start independently, but P1-G needs it.
 >
-> **Estimated complexity:** Medium-Large.
+> **Estimated complexity:** Medium.
 >
 > **Acceptance criteria:**
-> - For any batch-tracked product, a user can see every lot ever recorded against it (from receiving, case usage, and sales) and a remaining-quantity figure per lot.
-> - `quantityReserved` and `Product.expiryDate` are either wired to real behavior or explicitly and visibly removed — not left silently decorative.
-> - Full verification suite passes.
+> - A real `@media print` stylesheet exists and is verified (via a real print preview, not just code review) to produce a clean, readable printout with app chrome (sidebar/topbar) hidden.
+> - `exportToCsv` is a single, reusable utility with no per-page duplication, verified against at least one real dataset (e.g. Inventory movements).
+> - The document-component pattern is proven on one real document (Purchase Order PDF, replacing the disabled stub) before P1-G reuses it elsewhere.
 
-**Before writing any P1-E code**, a new session should:
-1. Read `DEVELOPMENT_PLAN.md`'s P1-E section fresh (in case it changed) and the "Open product decisions" section of `AUDIT.md` for the `quantityReserved`/`expiryDate` context.
-2. Read `src/types/index.ts` fresh (`Product.quantityReserved`, `Product.expiryDate`, `LoanLine`, `CaseImplantUsage.batchLot`, `SaleLine.batchLot`).
-3. Read `src/pages/loan-returns/LoanReturnsPage.tsx` fresh — it's explicitly named as the "derive, don't duplicate" pattern to mirror (a read-only view computed purely from `movements`, no new stored state).
-4. Ask the user for a decision on `quantityReserved` and `Product.expiryDate` if it isn't already resolved elsewhere by the time you pick this up — don't guess a product decision.
-5. Present scope + file list + business rules/edge cases, and wait for approval, per §7 above.
+**Before writing any P1-F code**, a new session should:
+1. Read `DEVELOPMENT_PLAN.md`'s P1-F section fresh (in case it changed).
+2. Read `src/lib/poShare.ts` fresh — it's the existing pattern this milestone generalizes (`buildPOSummaryText` already assembles Purchase Order content; P1-F needs a real renderer, not new data logic).
+3. Read `src/pages/purchase-orders/PODetailPage.tsx` fresh for the existing disabled "Generate PDF — coming soon" stub this milestone replaces, and the `window.print()` + `print:` CSS pattern already proven there.
+4. Present scope + file list + business rules/edge cases, and wait for approval, per §7 above — nothing about P1-F has been pre-approved in any prior conversation.
 
 ---
 
@@ -179,3 +188,10 @@ Copied verbatim from `DEVELOPMENT_PLAN.md` so this document is self-contained �
 | `ARCHITECTURE.md` | Full architecture detail (this handoff's §3 is a condensed version) |
 | `USABILITY_BACKLOG.md` | Cross-app UX patterns not yet consistently applied — its own internal P0/P1/P2 ranking is *not* the same as the roadmap's Priority 1–4 |
 | `PHASE1_REPORT.md` / `PHASE2_REPORT.md` / `PHASE3_REPORT.md` / `BUGFIX_REPORT.md` | Historical completion reports for early phases |
+
+### GitHub access, if picking this up in a fresh computer-use/sandbox session
+
+A sandbox computer-use session (as opposed to Claude Code running locally on the user's machine) has **no persistent GitHub credentials** — nothing set up in one session survives to the next, since the sandbox filesystem resets between sessions entirely. If `git clone`/`git push` fails with an auth error:
+- **Clone (read):** works without credentials once the repo is public; if it's private, ask the user to either make it public temporarily or provide read access another way.
+- **Push (write):** always needs a fresh fine-grained GitHub Personal Access Token from the user, scoped to this repo, with **Contents: Read and write** (not just Read-only — a read-only token clones fine but fails push with a 403). Use it once via `git push https://<token>@github.com/chintan-hub/ImplaTrax.git main`, never stored in git config or anywhere persistent. Expect to ask for a new one every session.
+- If the user wants to avoid re-pasting a token every session, the real fix is switching to **Claude Code running locally** (desktop app, CLI, or IDE) — it uses the user's own machine's existing git auth (SSH key or `gh auth login`), which persists naturally since it's their real filesystem, not a sandbox. This `HANDOFF.md` is written to support exactly that handoff — a fresh Claude Code session should read it first, same as any other new session.
