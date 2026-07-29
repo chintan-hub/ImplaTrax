@@ -18,7 +18,7 @@ interface Line {
 }
 
 export function LoanFormDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
-  const { labs, products, createLoan } = useData()
+  const { labs, products, createLoan, clinicSettings } = useData()
   const [labId, setLabId] = useState('')
   const [dueDate, setDueDate] = useState(() => new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10))
   const [notes, setNotes] = useState('')
@@ -45,7 +45,7 @@ export function LoanFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const hasStockIssue = lines.some((l) => stockIssue(l.productId) !== null)
   // Batch-tracked products require a lot number at issuance — traceability
   // begins at receiving and stays intact through every stage of the loan.
-  const hasLotIssue = lines.some((l) => products.find((p) => p.id === l.productId)?.batchTracked && !l.batchLot?.trim())
+  const hasLotIssue = clinicSettings.batchLotTrackingEnabled && lines.some((l) => products.find((p) => p.id === l.productId)?.batchTracked && !l.batchLot?.trim())
 
   const reset = () => {
     setLabId('')
@@ -131,7 +131,7 @@ export function LoanFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                       </Button>
                     </div>
                   </div>
-                  {product?.batchTracked && (
+                  {clinicSettings.batchLotTrackingEnabled && product?.batchTracked && (
                     <div className="mt-2">
                       <Input
                         placeholder="Batch / Lot number (required)"
