@@ -71,7 +71,7 @@ describe('buildPurchaseOrderDocumentData', () => {
     expect(data.vendorName).toBe('Acme Dental Supply')
     expect(data.status).toBe('Partially Received')
     expect(data.lines).toEqual([
-      { productName: 'Test Fixture', sku: 'SKU-001', quantityOrdered: 5, unitCost: 100, lineTotal: 500 },
+      { productName: 'Test Fixture', sku: 'SKU-001', quantityOrdered: 5, quantityReceived: 2, unitCost: 100, lineTotal: 500 },
     ])
     expect(data.total).toBe(500)
   })

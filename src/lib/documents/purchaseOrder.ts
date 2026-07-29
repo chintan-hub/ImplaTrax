@@ -32,6 +32,7 @@ export interface PurchaseOrderDocumentLine {
   productName: string
   sku: string
   quantityOrdered: number
+  quantityReceived: number
   unitCost: number
   lineTotal: number
 }
@@ -67,6 +68,7 @@ export function buildPurchaseOrderDocumentData(
       productName: product?.name ?? 'Unknown product',
       sku: product?.sku ?? '—',
       quantityOrdered: l.quantityOrdered,
+      quantityReceived: l.quantityReceived,
       unitCost: l.unitCost,
       lineTotal: l.quantityOrdered * l.unitCost,
     }
