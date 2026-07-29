@@ -37,7 +37,7 @@ const TYPE_VARIANT: Record<MovementType, 'success' | 'danger' | 'warning' | 'acc
 }
 
 export function InventoryPage() {
-  const { movements, products, users } = useData()
+  const { movements, products, users, clinicSettings } = useData()
   const [tab, setTab] = useState<'all' | 'inbound' | 'outbound' | 'adjustment'>('all')
   const [search, setSearch] = useState('')
   const [adjustOpen, setAdjustOpen] = useState(false)
@@ -76,6 +76,7 @@ export function InventoryPage() {
         SKU: product?.sku ?? '',
         Type: TYPE_LABEL[m.type],
         Quantity: m.quantity,
+        ...(clinicSettings.batchLotTrackingEnabled ? { 'Batch / Lot': m.batchLot ?? '' } : {}),
         Reason: m.reason,
         Reference: m.reference ?? '',
         'Performed By': user?.name ?? '',
@@ -143,6 +144,7 @@ export function InventoryPage() {
                 <TableHead>Product</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead className="text-right">Quantity</TableHead>
+                {clinicSettings.batchLotTrackingEnabled && <TableHead>Batch / Lot</TableHead>}
                 <TableHead>Reason</TableHead>
                 <TableHead>Reference</TableHead>
                 <TableHead>By</TableHead>
@@ -163,6 +165,7 @@ export function InventoryPage() {
                     <TableCell className={m.quantity >= 0 ? 'text-right text-success-600 font-medium tabular-nums' : 'text-right text-danger-600 font-medium tabular-nums'}>
                       {m.quantity >= 0 ? '+' : ''}{m.quantity}
                     </TableCell>
+                    {clinicSettings.batchLotTrackingEnabled && <TableCell className="text-muted-foreground">{m.batchLot ?? '—'}</TableCell>}
                     <TableCell className="max-w-[220px] truncate">{m.reason}</TableCell>
                     <TableCell className="text-muted-foreground">{m.reference ?? '—'}</TableCell>
                     <TableCell className="text-muted-foreground">{user?.name ?? '—'}</TableCell>
