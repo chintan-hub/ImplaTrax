@@ -15,6 +15,15 @@ export function nextInternalId(prefix: string): string {
   return `${prefix}_${internalIdCounter}`
 }
 
+/** Persistence support: read/restore the counter's raw value across a reload so a fresh session's IDs never collide with previously-persisted ones. */
+export function getInternalIdCounter(): number {
+  return internalIdCounter
+}
+
+export function restoreInternalIdCounter(value: number) {
+  internalIdCounter = value
+}
+
 /** A simple monotonic counter, seeded from a starting value, incrementing on every call. */
 export function createSequence(start: number) {
   let n = start

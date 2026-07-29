@@ -6,12 +6,22 @@ import {
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
 import { StatCard } from '@/components/shared/StatCard'
 import { useData } from '@/store/DataContext'
 import { useChartColors } from '@/lib/chartColors'
 import { formatCurrency } from '@/lib/utils'
+import { exportToCsv } from '@/lib/documents/csv'
 import { PAGE_INTROS } from '@/content/helpText'
-import { DollarSign, TrendingUp, HandCoins, ClipboardList, Package, AlertTriangle } from 'lucide-react'
+import { DollarSign, TrendingUp, HandCoins, ClipboardList, Package, AlertTriangle, Download } from 'lucide-react'
+
+function ExportCsvButton({ rows, filename }: { rows: Record<string, string | number>[]; filename: string }) {
+  return (
+    <Button variant="outline" size="sm" onClick={() => exportToCsv(rows, filename)} disabled={rows.length === 0}>
+      <Download className="h-3.5 w-3.5" /> Export CSV
+    </Button>
+  )
+}
 
 export function ReportsPage() {
   const { products, sales, loans, purchaseOrders, movements, vendors } = useData()
@@ -86,9 +96,15 @@ export function ReportsPage() {
             <StatCard label="Units Lost (all time)" value={String(lostUnits)} icon={AlertTriangle} tone="danger" />
           </div>
           <Card>
-            <CardHeader>
-              <CardTitle>Inventory Value by Category</CardTitle>
-              <CardDescription>Current stock valuation at cost, by product category</CardDescription>
+            <CardHeader className="flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle>Inventory Value by Category</CardTitle>
+                <CardDescription>Current stock valuation at cost, by product category</CardDescription>
+              </div>
+              <ExportCsvButton
+                rows={inventoryByCategory.map((r) => ({ Category: r.name, 'Value at Cost': r.value }))}
+                filename={`inventory-value-by-category-${new Date().toISOString().slice(0, 10)}.csv`}
+              />
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={340}>
@@ -111,9 +127,15 @@ export function ReportsPage() {
             <StatCard label="Avg Sale Value" value={formatCurrency(Math.round(totalRevenue / (sales.length || 1)))} icon={TrendingUp} tone="accent" />
           </div>
           <Card>
-            <CardHeader>
-              <CardTitle>Revenue Trend</CardTitle>
-              <CardDescription>Sales revenue over the last 6 months</CardDescription>
+            <CardHeader className="flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle>Revenue Trend</CardTitle>
+                <CardDescription>Sales revenue over the last 6 months</CardDescription>
+              </div>
+              <ExportCsvButton
+                rows={salesByMonth.map((r) => ({ Month: r.label, Revenue: r.revenue }))}
+                filename={`sales-revenue-trend-${new Date().toISOString().slice(0, 10)}.csv`}
+              />
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
@@ -136,9 +158,15 @@ export function ReportsPage() {
             <StatCard label="Units Lost on Loan" value={String(lostUnits)} icon={AlertTriangle} tone="danger" />
           </div>
           <Card>
-            <CardHeader>
-              <CardTitle>Loan Status Breakdown</CardTitle>
-              <CardDescription>Distribution of loans by current status</CardDescription>
+            <CardHeader className="flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle>Loan Status Breakdown</CardTitle>
+                <CardDescription>Distribution of loans by current status</CardDescription>
+              </div>
+              <ExportCsvButton
+                rows={loanStatusBreakdown.map((r) => ({ Status: r.name, Count: r.value }))}
+                filename={`loan-status-breakdown-${new Date().toISOString().slice(0, 10)}.csv`}
+              />
             </CardHeader>
             <CardContent className="flex flex-col sm:flex-row items-center gap-6">
               <ResponsiveContainer width="100%" height={260} className="sm:max-w-[280px]">
@@ -176,9 +204,15 @@ export function ReportsPage() {
             />
           </div>
           <Card>
-            <CardHeader>
-              <CardTitle>Spend by Vendor</CardTitle>
-              <CardDescription>Total ordered value per vendor across all purchase orders</CardDescription>
+            <CardHeader className="flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle>Spend by Vendor</CardTitle>
+                <CardDescription>Total ordered value per vendor across all purchase orders</CardDescription>
+              </div>
+              <ExportCsvButton
+                rows={poSpendByVendor.map((r) => ({ Vendor: r.vendorName, 'Total Spend': r.value }))}
+                filename={`po-spend-by-vendor-${new Date().toISOString().slice(0, 10)}.csv`}
+              />
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={340}>

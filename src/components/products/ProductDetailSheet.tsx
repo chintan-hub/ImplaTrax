@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Minus, Plus, Package } from 'lucide-react'
+import { Minus, Plus, Package, Pencil } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetBody, SheetFooter } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,7 @@ import { MICROCOPY } from '@/content/helpText'
 import { patientFullName } from '@/mocks/patients'
 import { summarizeLots } from '@/lib/batches'
 import { stockStatus, availableStock, STOCK_STATUS_LABEL } from '@/lib/stock'
+import { ProductFormDialog } from '@/components/products/ProductFormDialog'
 import type { Product, InventoryMovement } from '@/types'
 
 const STOCK_STATUS_VARIANT = { normal: 'success', low: 'warning', out: 'danger' } as const
@@ -62,6 +63,7 @@ export function ProductDetailSheet({ product, open, onOpenChange }: { product: P
   const [adjustDelta, setAdjustDelta] = useState(1)
   const [reason, setReason] = useState('')
   const [pendingSign, setPendingSign] = useState<1 | -1 | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
 
   if (!product) return null
 
@@ -91,16 +93,21 @@ export function ProductDetailSheet({ product, open, onOpenChange }: { product: P
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="max-w-lg w-full sm:max-w-lg">
         <SheetHeader>
-          <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: `${product.imageColor}1a`, color: product.imageColor }}>
-              <Package className="h-5 w-5" />
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: `${product.imageColor}1a`, color: product.imageColor }}>
+                <Package className="h-5 w-5" />
+              </div>
+              <div>
+                <SheetTitle>{product.name}</SheetTitle>
+                <SheetDescription className="inline-flex items-center gap-1">
+                  <TermHint term="sku" iconOnly /> {product.sku}
+                </SheetDescription>
+              </div>
             </div>
-            <div>
-              <SheetTitle>{product.name}</SheetTitle>
-              <SheetDescription className="inline-flex items-center gap-1">
-                <TermHint term="sku" iconOnly /> {product.sku}
-              </SheetDescription>
-            </div>
+            <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+              <Pencil className="h-3.5 w-3.5" /> Edit
+            </Button>
           </div>
         </SheetHeader>
 
@@ -282,6 +289,8 @@ export function ProductDetailSheet({ product, open, onOpenChange }: { product: P
           <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
         </SheetFooter>
       </SheetContent>
+
+      <ProductFormDialog product={product} open={editOpen} onOpenChange={setEditOpen} />
     </Sheet>
   )
 }

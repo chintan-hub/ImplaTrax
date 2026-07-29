@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react'
 import type {
   Product,
   ProductBatch,
@@ -24,10 +24,18 @@ import type {
 } from '@/types'
 import * as mock from '@/mocks'
 import { currentUser } from '@/mocks/users'
-import { nextInternalId, createSequence, createTimestampIdGenerator } from '@/lib/idGenerator'
+import { nextInternalId, createSequence, createTimestampIdGenerator, getInternalIdCounter, restoreInternalIdCounter } from '@/lib/idGenerator'
 import { canSubmitPO, canConfirmPO, canReceivePO, canCancelPO } from '@/lib/poWorkflow'
 import { canAdvanceCaseStatus } from '@/lib/caseWorkflow'
 import { canReturnLoan } from '@/lib/loanWorkflow'
+import { loadPersistedSnapshot, savePersistedSnapshot } from './persistence'
+
+// Loaded once at module scope — the same evaluation-order guarantee the
+// sequence generators below already relied on for mock data. Restoring the
+// ID counter here, before any nextInternalId() call in this session, is what
+// keeps freshly-generated IDs from colliding with previously-persisted ones.
+const persisted = loadPersistedSnapshot()
+if (persisted) restoreInternalIdCounter(persisted.internalIdCounter)
 
 /**
  * Business-rule validation lives here, in the action functions, not just in
@@ -81,12 +89,16 @@ function makeQtyTracker(products: Product[]) {
 }
 
 // Human-readable sequence numbers (PO/loan/sale numbers, patient codes, Case
-// IDs) — independent of live array length, seeded once from the mock seed
-// counts (see src/lib/idGenerator.ts and ARCHITECTURE.md §6.3).
-const nextProductSeq = createSequence(mock.products.length + 1)
-const nextLoanSeq = createSequence(mock.loans.length + 1)
-const nextSaleSeq = createSequence(mock.sales.length + 1)
-const nextPatientSeq = createSequence(mock.patients.length + 1)
+// IDs) — independent of live array length, seeded once from whichever data
+// this session actually starts from: a persisted snapshot's array lengths if
+// one exists, otherwise the mock seed counts (see src/lib/idGenerator.ts and
+// ARCHITECTURE.md §6.3). Using the persisted length is safe because nothing
+// in this app deletes records — array length and highest-assigned sequence
+// number always match.
+const nextProductSeq = createSequence((persisted?.products.length ?? mock.products.length) + 1)
+const nextLoanSeq = createSequence((persisted?.loans.length ?? mock.loans.length) + 1)
+const nextSaleSeq = createSequence((persisted?.sales.length ?? mock.sales.length) + 1)
+const nextPatientSeq = createSequence((persisted?.patients.length ?? mock.patients.length) + 1)
 
 // Purchase Order IDs are timestamp-based (YYYYMMDDHHmm), a business rule
 // specific to this entity — see src/lib/idGenerator.ts.
@@ -98,7 +110,8 @@ const nextPoNumber = createTimestampIdGenerator()
 const caseSeqByYear = new Map<number, () => number>()
 function nextCaseSeq(year: number): number {
   if (!caseSeqByYear.has(year)) {
-    const existing = mock.cases.filter((c) => c.caseId.includes(`-${year}-`)).length
+    const sourceCases = persisted?.cases ?? mock.cases
+    const existing = sourceCases.filter((c) => c.caseId.includes(`-${year}-`)).length
     caseSeqByYear.set(year, createSequence(existing + 1))
   }
   return caseSeqByYear.get(year)!()
@@ -161,6 +174,7 @@ interface DataContextValue {
   createSale: (lines: SaleLine[], patientId?: string, caseId?: string) => Sale
 
   addPatient: (input: Omit<Patient, 'id' | 'patientCode' | 'createdAt'>) => Patient
+  updatePatient: (id: string, patch: Partial<Patient>) => void
   addCase: (input: Omit<Case, 'id' | 'caseId' | 'createdAt' | 'implants' | 'history'> & { implants?: Case['implants'] }) => Case
   advanceCaseStatus: (caseId: string, status: CaseStatus) => void
   addImplantToCase: (caseId: string, usage: CaseImplantUsage) => void
@@ -174,19 +188,19 @@ interface DataContextValue {
 const DataContext = createContext<DataContextValue | null>(null)
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const [products, setProducts] = useState<Product[]>(mock.products)
-  const [movements, setMovements] = useState<InventoryMovement[]>(mock.inventoryMovements)
-  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(mock.purchaseOrders)
-  const [vendors, setVendors] = useState<Vendor[]>(mock.vendors)
-  const [patients, setPatients] = useState<Patient[]>(mock.patients)
-  const [cases, setCases] = useState<Case[]>(mock.cases)
-  const [labs, setLabs] = useState<Lab[]>(mock.labs)
-  const [sales, setSales] = useState<Sale[]>(mock.sales)
-  const [loans, setLoans] = useState<Loan[]>(mock.loans)
-  const [users, setUsers] = useState<AppUser[]>(mock.users)
-  const [clinicSettings, setClinicSettings] = useState<ClinicSettings>(mock.defaultClinicSettings)
-  const [batches, setBatches] = useState<ProductBatch[]>(mock.batches)
-  const [doctors, setDoctors] = useState<Doctor[]>(mock.doctors)
+  const [products, setProducts] = useState<Product[]>(persisted?.products ?? mock.products)
+  const [movements, setMovements] = useState<InventoryMovement[]>(persisted?.movements ?? mock.inventoryMovements)
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(persisted?.purchaseOrders ?? mock.purchaseOrders)
+  const [vendors, setVendors] = useState<Vendor[]>(persisted?.vendors ?? mock.vendors)
+  const [patients, setPatients] = useState<Patient[]>(persisted?.patients ?? mock.patients)
+  const [cases, setCases] = useState<Case[]>(persisted?.cases ?? mock.cases)
+  const [labs, setLabs] = useState<Lab[]>(persisted?.labs ?? mock.labs)
+  const [sales, setSales] = useState<Sale[]>(persisted?.sales ?? mock.sales)
+  const [loans, setLoans] = useState<Loan[]>(persisted?.loans ?? mock.loans)
+  const [users, setUsers] = useState<AppUser[]>(persisted?.users ?? mock.users)
+  const [clinicSettings, setClinicSettings] = useState<ClinicSettings>(persisted?.clinicSettings ?? mock.defaultClinicSettings)
+  const [batches, setBatches] = useState<ProductBatch[]>(persisted?.batches ?? mock.batches)
+  const [doctors, setDoctors] = useState<Doctor[]>(persisted?.doctors ?? mock.doctors)
 
   const addMovement = useCallback<DataContextValue['addMovement']>((input) => {
     const movement: InventoryMovement = {
@@ -579,6 +593,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return patient
   }, [])
 
+  const updatePatient = useCallback<DataContextValue['updatePatient']>((id, patch) => {
+    setPatients((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)))
+  }, [])
+
   const caseEvent = useCallback((caseId: string, label: string, description: string, date: string): CaseTimelineEvent => {
     return { id: nextInternalId('cseevt'), caseId, label, description, date, actor: currentUser.name }
   }, [])
@@ -708,6 +726,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       returnLoanLines,
       createSale,
       addPatient,
+      updatePatient,
       addCase,
       advanceCaseStatus,
       addImplantToCase,
@@ -745,6 +764,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       returnLoanLines,
       createSale,
       addPatient,
+      updatePatient,
       addCase,
       advanceCaseStatus,
       addImplantToCase,
@@ -755,6 +775,28 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addDoctor,
     ],
   )
+
+  // Persist every business-data slice on every change — there is no backend,
+  // so this is the only thing standing between a user's work and losing it
+  // on the next reload.
+  useEffect(() => {
+    savePersistedSnapshot({
+      products,
+      movements,
+      purchaseOrders,
+      vendors,
+      patients,
+      cases,
+      labs,
+      sales,
+      loans,
+      users,
+      clinicSettings,
+      batches,
+      doctors,
+      internalIdCounter: getInternalIdCounter(),
+    })
+  }, [products, movements, purchaseOrders, vendors, patients, cases, labs, sales, loans, users, clinicSettings, batches, doctors])
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>
 }
