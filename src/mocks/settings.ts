@@ -10,4 +10,5 @@ export const defaultClinicSettings: ClinicSettings = {
   barcodeFormat: 'CODE128',
   lowStockGlobalDefault: 10,
   theme: 'system',
+  batchLotTrackingEnabled: false,
 }

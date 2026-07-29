@@ -316,4 +316,6 @@ export interface ClinicSettings {
   barcodeFormat: 'CODE128' | 'CODE39' | 'EAN13'
   lowStockGlobalDefault: number
   theme: 'light' | 'dark' | 'system'
+  /** Application-wide Batch/Lot Tracking switch (PROJECT.md §3, locked 2026-07-28) — not a per-product setting. */
+  batchLotTrackingEnabled: boolean
 }

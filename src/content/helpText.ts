@@ -191,6 +191,7 @@ export const MICROCOPY = {
   batchNumber: 'Optional. Used for manufacturer traceability.',
   priceVisible: 'Controls whether staff without pricing access can see cost and price for this component.',
   batchTracked: 'Turn this on for components where lot-level traceability matters, like implant fixtures or graft material.',
+  batchLotTracking: 'Turn this on to track lot/batch numbers across purchase orders, receiving, sales, loans, returns, and inventory history. When off, Batch/Lot Tracking is hidden everywhere in the app.',
   dueDate: 'When you expect this loan to be returned by the lab. Loans can stay open for months if needed.',
   eta: 'The date you expect this order to arrive from the vendor.',
   receivingLot: 'Required for batch-tracked components — the number printed on the box or packing slip. This is what lets you trace exactly where a component came from and everywhere it went.',
