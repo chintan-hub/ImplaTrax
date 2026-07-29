@@ -57,11 +57,16 @@ export function POReceiveDialog({ po, open, onOpenChange }: { po: PurchaseOrder 
       return
     }
     setSubmitting(true)
-    await simulateLatency()
-    receivePurchaseOrder(po.id, receipts)
-    toast.success(`Received items for ${po.poNumber}`, { description: 'Inventory updated and stock movement history recorded.' })
-    setSubmitting(false)
-    onOpenChange(false)
+    try {
+      await simulateLatency()
+      receivePurchaseOrder(po.id, receipts)
+      toast.success(`Received items for ${po.poNumber}`, { description: 'Inventory updated and stock movement history recorded.' })
+      onOpenChange(false)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not receive this purchase order.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (

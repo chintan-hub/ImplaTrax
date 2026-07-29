@@ -801,9 +801,12 @@ describe('Batch/Lot receiving & traceability (P1-E)', () => {
     return po!
   }
 
-  it('rejects receiving a batch-tracked product with no lot number, and leaves stock/PO status unchanged', () => {
+  it('when Batch/Lot Tracking is on, rejects receiving any line with no lot number, and leaves stock/PO status unchanged', () => {
     const { result } = setup()
-    const product = result.current.products.find((p) => p.batchTracked)!
+    act(() => {
+      result.current.updateClinicSettings({ batchLotTrackingEnabled: true })
+    })
+    const product = result.current.products.find((p) => !p.batchTracked)!
     const po = submittedPo(result, product.id)
     const before = product.quantityOnHand
 
@@ -815,9 +818,9 @@ describe('Batch/Lot receiving & traceability (P1-E)', () => {
     expect(unchangedPo.status).toBe('submitted')
   })
 
-  it('does not require a lot number for a non-batch-tracked product', () => {
+  it('when Batch/Lot Tracking is off (default), no lot number is required even for a batch-tracked product', () => {
     const { result } = setup()
-    const product = result.current.products.find((p) => !p.batchTracked)!
+    const product = result.current.products.find((p) => p.batchTracked)!
     const po = submittedPo(result, product.id)
 
     expect(() => act(() => {

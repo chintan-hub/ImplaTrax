@@ -271,15 +271,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const po = purchaseOrders.find((p) => p.id === poId)
     if (!po || !canReceivePO(po)) throw new BusinessRuleError('This purchase order cannot be received in its current status.')
 
-    // Batch/lot traceability begins here: a batch-tracked product must have
-    // a lot number captured at the moment it enters the business, not just
-    // when it's later sold or loaned — otherwise its lot has no true origin.
-    for (const r of receipts) {
-      if (r.quantityReceived <= 0) continue
-      const line = po.lines.find((l) => l.id === r.lineId)
-      const product = line ? products.find((p) => p.id === line.productId) : undefined
-      if (product?.batchTracked && !r.lotNumber?.trim()) {
-        throw new BusinessRuleError(`A lot/batch number is required to receive ${product.name} — this product is batch-tracked.`)
+    // Batch/lot traceability begins here: with tracking on, every received
+    // line needs a lot number captured the moment it enters the business —
+    // this is not gated by Product.batchTracked (PROJECT.md §3 point 5).
+    if (clinicSettings.batchLotTrackingEnabled) {
+      for (const r of receipts) {
+        if (r.quantityReceived <= 0) continue
+        if (!r.lotNumber?.trim()) {
+          const line = po.lines.find((l) => l.id === r.lineId)
+          const product = line ? products.find((p) => p.id === line.productId) : undefined
+          throw new BusinessRuleError(`A lot/batch number is required to receive ${product?.name ?? 'this line'}.`)
+        }
       }
     }
 
@@ -329,7 +331,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       }
     })
     if (newBatches.length > 0) setBatches((prev) => [...newBatches, ...prev])
-  }, [purchaseOrders, products, poEvent, applyQtyDelta, addMovement])
+  }, [purchaseOrders, products, poEvent, applyQtyDelta, addMovement, clinicSettings])
 
   const cancelPurchaseOrder = useCallback((poId: string) => {
     const po = purchaseOrders.find((p) => p.id === poId)
