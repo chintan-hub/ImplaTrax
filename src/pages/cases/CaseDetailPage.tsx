@@ -30,7 +30,7 @@ const STATUS_LABEL: Record<CaseStatus, string> = {
 }
 
 function AddImplantDialog({ caseId, open, onOpenChange }: { caseId: string; open: boolean; onOpenChange: (v: boolean) => void }) {
-  const { products, addImplantToCase } = useData()
+  const { products, addImplantToCase, clinicSettings } = useData()
   const [productId, setProductId] = useState(products[0]?.id ?? '')
   const [tooth, setTooth] = useState('')
   const [quantity, setQuantity] = useState(1)
@@ -53,7 +53,12 @@ function AddImplantDialog({ caseId, open, onOpenChange }: { caseId: string; open
     }
     setSubmitting(true)
     await simulateLatency()
-    const usage: CaseImplantUsage = { productId, tooth: tooth.trim(), quantity, batchLot: product?.batchTracked && batchLot.trim() ? batchLot.trim() : undefined }
+    const usage: CaseImplantUsage = {
+      productId,
+      tooth: tooth.trim(),
+      quantity,
+      batchLot: clinicSettings.batchLotTrackingEnabled && product?.batchTracked && batchLot.trim() ? batchLot.trim() : undefined,
+    }
     addImplantToCase(caseId, usage)
     toast.success('Implant added to case')
     setSubmitting(false)
@@ -86,7 +91,7 @@ function AddImplantDialog({ caseId, open, onOpenChange }: { caseId: string; open
             <Label htmlFor="implant-qty">Quantity</Label>
             <Input id="implant-qty" type="number" min={1} value={quantity} onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))} />
           </div>
-          {product?.batchTracked && (
+          {clinicSettings.batchLotTrackingEnabled && product?.batchTracked && (
             <div className="col-span-1 space-y-1.5 sm:col-span-2">
               <Label htmlFor="implant-lot">Batch / Lot number</Label>
               <Input id="implant-lot" placeholder="e.g. LOT-12345" value={batchLot} onChange={(e) => setBatchLot(e.target.value)} />
@@ -105,7 +110,7 @@ function AddImplantDialog({ caseId, open, onOpenChange }: { caseId: string; open
 export function CaseDetailPage() {
   const { caseId } = useParams()
   const navigate = useNavigate()
-  const { cases, patients, labs, products, advanceCaseStatus } = useData()
+  const { cases, patients, labs, products, advanceCaseStatus, clinicSettings } = useData()
   const [addingImplant, setAddingImplant] = useState(false)
   const [confirmingStatus, setConfirmingStatus] = useState<CaseStatus | null>(null)
   const [cancelling, setCancelling] = useState(false)
@@ -201,7 +206,7 @@ export function CaseDetailPage() {
                   <div key={i} className="flex items-center justify-between rounded-lg border border-border p-3 text-sm">
                     <div>
                       <p className="font-medium">{product?.name}</p>
-                      <p className="text-xs text-muted-foreground">Tooth #{usage.tooth} {usage.batchLot && `· Lot ${usage.batchLot}`}</p>
+                      <p className="text-xs text-muted-foreground">Tooth #{usage.tooth} {clinicSettings.batchLotTrackingEnabled && usage.batchLot && `· Lot ${usage.batchLot}`}</p>
                     </div>
                     <Badge variant="outline">Qty {usage.quantity}</Badge>
                   </div>
