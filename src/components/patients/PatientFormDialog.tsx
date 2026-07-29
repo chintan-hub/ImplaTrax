@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import { DoctorCombobox } from '@/components/shared/DoctorCombobox'
 import { useData } from '@/store/DataContext'
-import { DOCTORS } from '@/mocks/names'
 import { simulateLatency } from '@/lib/utils'
 
 export function PatientFormDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
@@ -15,7 +15,7 @@ export function PatientFormDialog({ open, onOpenChange }: { open: boolean; onOpe
   const navigate = useNavigate()
   const [form, setForm] = useState({ firstName: '', lastName: '', dob: '', phone: '', email: '' })
   const [sex, setSex] = useState<'male' | 'female'>('female')
-  const [doctor, setDoctor] = useState<string>(DOCTORS[0])
+  const [doctor, setDoctor] = useState<string>('')
   const [submitting, setSubmitting] = useState(false)
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((prev) => ({ ...prev, [k]: e.target.value }))
@@ -27,6 +27,10 @@ export function PatientFormDialog({ open, onOpenChange }: { open: boolean; onOpe
     }
     if (!form.dob) {
       toast.error('Date of birth is required.')
+      return
+    }
+    if (!doctor.trim()) {
+      toast.error('Select or add a primary doctor.')
       return
     }
     setSubmitting(true)
@@ -78,12 +82,7 @@ export function PatientFormDialog({ open, onOpenChange }: { open: boolean; onOpe
           </div>
           <div className="col-span-1 space-y-1.5 sm:col-span-2">
             <Label>Primary doctor</Label>
-            <Select value={doctor} onValueChange={setDoctor}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {DOCTORS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <DoctorCombobox value={doctor} onChange={setDoctor} />
           </div>
         </div>
         <DialogFooter>

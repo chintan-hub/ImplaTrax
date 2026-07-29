@@ -163,6 +163,24 @@ This is also the reference example for principle 10 (§2) — optional/advanced 
 
 A dedicated Batch/Lot page (`/batches`) shows every recorded lot and its remaining quantity (built in P1-E, `src/lib/batches.ts`) — unreachable, including by a typed URL, whenever the global switch is off.
 
+### Doctors (Master Data, locked 2026-07-29)
+
+**Permanent product rule:** Doctor is a real, persisted lookup entity (`Doctor { id, name, createdAt, active }`, `src/mocks/doctors.ts` seeds it, `DataContext.doctors`/`addDoctor`), replacing the old hardcoded `DOCTORS` string tuple — but there is **no Doctors management page**, and none is planned. Every Doctor field in the app (currently `Patient.primaryDoctor`, `Case.doctor`) is a searchable, create-on-the-fly combobox (`DoctorCombobox`, wrapping the generic `src/components/ui/combobox.tsx`):
+1. The field always displays/searches with the "Dr." prefix; the user only ever types the bare name. `Doctor.name` is stored **without** the prefix — every display composes `"Dr. " + name`.
+2. Typing filters existing doctors live. If no doctor's name exactly matches what was typed, an `Add "Dr. <typed name>"` option appears alongside any partial matches.
+3. Selecting an existing match, or pressing Enter/clicking Add, immediately resolves to a doctor and closes the picker — creation (when needed) happens inline, never as a separate step or page.
+4. Before ever creating a new record, the exact name (case-insensitive) is checked against existing doctors and reused if found — `DoctorCombobox` enforces this even on the "create" path itself, so the same doctor is never duplicated no matter how it's triggered.
+5. **`Patient.primaryDoctor` and `Case.doctor` remain plain display strings** (e.g. `"Dr. Alan Whitfield"`), not a foreign key to `Doctor.id`. This was a deliberate scope decision: the `Doctor` table's job is search + dedup + inline creation, not referential integrity — promoting these fields to a true FK is a future decision if Doctors ever need real profile data (specialty, license, contact info), at which point every existing display/filter/report site listed here would need updating in the same change.
+
+### Master Data Audit (locked 2026-07-29)
+
+Every dropdown/select in the app was reviewed and classified. Recorded here so the classification isn't silently re-litigated file-by-file later:
+- **True static enums (no change):** `Sex` (Patient), every status enum (`POStatus`, `CaseStatus`, `LoanStatus`), Barcode Format (`ClinicSettings.barcodeFormat`) — these are closed, small, non-clinic-specific value sets.
+- **Manufacturer / Product Category — static, but deduplicated (this change):** both are a fixed, real-world catalog (implant brands, component categories), not per-clinic data, so they stay static rather than becoming a persisted table (doing so would need a management surface, which contradicts "do not add new pages unless absolutely necessary" for something that rarely changes). They *were* independently redeclared in both `ProductsPage.tsx` and `ProductFormDialog.tsx` — a drift risk. Now defined once as `MANUFACTURERS`/`PRODUCT_CATEGORIES` in `src/types/index.ts`, imported by both.
+- **Doctor — promoted to a persisted table (this change):** see the section above. The clearest case of "fake demo data that should be real" found in the audit — unlike Manufacturer/Category, clinics genuinely add their own doctors over time, so a hardcoded list was a real gap, not a legitimate static enum.
+- **`PROCEDURES` (`CaseFormDialog`) and `LAB_SPECIALTIES` (`src/mocks/names.ts`) — flagged, not changed:** both have the same "clinic-specific, grows over time" shape as Doctor and are reasonable candidates for the same combobox-with-inline-create treatment in a future pass. Left alone this round to keep this change's blast radius contained to what was explicitly scoped; `LAB_SPECIALTIES` additionally has no live UI reader today (mock-seeding only), so there's nothing to wire up yet regardless.
+- **Vendor, Lab, Patient (entity pickers, not master-data lists):** already real persisted entities. Their `<Select>` fields in `POFormDialog` (Vendor), `CaseFormDialog` (Patient, Lab) were plain full-list dropdowns with no search — upgraded to the same searchable `Combobox` primitive as UX polish (not a data-model change) since long lists with no filter were a genuine "unnecessary clicking" friction point.
+
 ### Audit History
 - The Stock Movement log (`/inventory`) is the audit trail for inventory. It is append-only and every entry is attributable to a user and a reason.
 - Case Detail pages have their own Timeline (`CaseTimelineEvent[]`) — a separate, clinical audit trail of what happened to a treatment over time (case opened, consultation, surgery, healing checks, restoration delivered), independent of the inventory movement log.

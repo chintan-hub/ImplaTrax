@@ -16,6 +16,9 @@ export type Manufacturer =
   | 'Dentium'
   | 'MIS'
 
+/** Single source of truth for the Manufacturer picklist — a fixed, real-world catalog of implant brands, not per-clinic data, so it stays a static list rather than a persisted table (PROJECT.md §3, Master Data Audit). */
+export const MANUFACTURERS: Manufacturer[] = ['Straumann', 'Nobel Biocare', 'Osstem', 'NeoBiotech', 'Dentium', 'MIS']
+
 export type ProductCategory =
   | 'Implant Fixture'
   | 'Healing Abutment'
@@ -27,6 +30,12 @@ export type ProductCategory =
   | 'Bone Graft Material'
   | 'Membrane'
   | 'Prosthetic Screw'
+
+/** Single source of truth for the Category picklist — same rationale as MANUFACTURERS above. */
+export const PRODUCT_CATEGORIES: ProductCategory[] = [
+  'Implant Fixture', 'Healing Abutment', 'Final Abutment', 'Cover Screw', 'Impression Coping',
+  'Analog', 'Surgical Kit', 'Bone Graft Material', 'Membrane', 'Prosthetic Screw',
+]
 
 export interface Product {
   id: ID
@@ -140,6 +149,24 @@ export interface PurchaseOrder {
   history: PurchaseOrderEvent[]
   /** Optional reference photo (e.g. a photographed paper PO or packing slip), stored as a data URL. */
   photoDataUrl?: string
+}
+
+// ---------------------------------------------------------------------------
+// Doctors
+// ---------------------------------------------------------------------------
+
+/**
+ * A real, persisted lookup table (not a per-product/per-patient string) so the
+ * same doctor is reused across Patients, Cases, and any future workflow
+ * instead of re-typing a name each time — created inline from the doctor
+ * autocomplete field, never from a dedicated management page (PROJECT.md §3).
+ * `name` excludes the "Dr." prefix; every UI display composes "Dr. " + name.
+ */
+export interface Doctor {
+  id: ID
+  name: string
+  createdAt: string
+  active: boolean
 }
 
 // ---------------------------------------------------------------------------

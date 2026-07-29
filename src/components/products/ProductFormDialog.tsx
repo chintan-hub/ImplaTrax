@@ -14,18 +14,13 @@ import { TermHint } from '@/components/ui/help-tooltip'
 import { useData } from '@/store/DataContext'
 import { MICROCOPY } from '@/content/helpText'
 import { simulateLatency } from '@/lib/utils'
+import { MANUFACTURERS, PRODUCT_CATEGORIES } from '@/types'
 import type { Manufacturer, ProductCategory } from '@/types'
-
-const MANUFACTURERS: Manufacturer[] = ['Straumann', 'Nobel Biocare', 'Osstem', 'NeoBiotech', 'Dentium', 'MIS']
-const CATEGORIES: ProductCategory[] = [
-  'Implant Fixture', 'Healing Abutment', 'Final Abutment', 'Cover Screw', 'Impression Coping',
-  'Analog', 'Surgical Kit', 'Bone Graft Material', 'Membrane', 'Prosthetic Screw',
-]
 
 const schema = z.object({
   name: z.string().min(3, 'Name is required'),
   manufacturer: z.enum(MANUFACTURERS as [Manufacturer, ...Manufacturer[]]),
-  category: z.enum(CATEGORIES as [ProductCategory, ...ProductCategory[]]),
+  category: z.enum(PRODUCT_CATEGORIES as [ProductCategory, ...ProductCategory[]]),
   system: z.string().min(1, 'System is required'),
   diameterMm: z.coerce.number().optional(),
   lengthMm: z.coerce.number().optional(),
@@ -134,7 +129,7 @@ export function ProductFormDialog({ open, onOpenChange }: { open: boolean; onOpe
                 <Select value={field.value} onValueChange={field.onChange}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    {PRODUCT_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
                 </Select>
               )}

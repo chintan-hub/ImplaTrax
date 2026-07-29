@@ -6,6 +6,7 @@ import type {
   PurchaseOrder,
   PurchaseOrderEvent,
   Vendor,
+  Doctor,
   Patient,
   Case,
   CaseStatus,
@@ -107,6 +108,7 @@ interface DataContextValue {
   users: AppUser[]
   clinicSettings: ClinicSettings
   batches: ProductBatch[]
+  doctors: Doctor[]
 
   addMovement: (productId: string, type: MovementType, quantity: number, reason: string, reference?: string, note?: string, batchLot?: string) => void
   adjustStock: (productId: string, delta: number, reason: string, note?: string) => void
@@ -133,6 +135,7 @@ interface DataContextValue {
   addVendor: (input: Omit<Vendor, 'id' | 'createdAt' | 'totalOrders' | 'onTimeRate'>) => Vendor
   addUser: (input: Omit<AppUser, 'id' | 'createdAt'>) => AppUser
   updateClinicSettings: (patch: Partial<ClinicSettings>) => void
+  addDoctor: (input: { name: string; active?: boolean }) => Doctor
 }
 
 const DataContext = createContext<DataContextValue | null>(null)
@@ -150,6 +153,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [users, setUsers] = useState<AppUser[]>(mock.users)
   const [clinicSettings, setClinicSettings] = useState<ClinicSettings>(mock.defaultClinicSettings)
   const [batches, setBatches] = useState<ProductBatch[]>(mock.batches)
+  const [doctors, setDoctors] = useState<Doctor[]>(mock.doctors)
 
   const addMovement = useCallback(
     (productId: string, type: MovementType, quantity: number, reason: string, reference?: string, note?: string, batchLot?: string) => {
@@ -573,6 +577,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setClinicSettings((prev) => ({ ...prev, ...patch }))
   }, [])
 
+  const addDoctor = useCallback<DataContextValue['addDoctor']>((input) => {
+    const id = nextInternalId('doc')
+    const doctor: Doctor = { name: input.name, active: input.active ?? true, id, createdAt: new Date().toISOString() }
+    setDoctors((prev) => [doctor, ...prev])
+    return doctor
+  }, [])
+
   const value = useMemo<DataContextValue>(
     () => ({
       products,
@@ -587,6 +598,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       users,
       clinicSettings,
       batches,
+      doctors,
       addMovement,
       adjustStock,
       addProduct,
@@ -608,6 +620,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addVendor,
       addUser,
       updateClinicSettings,
+      addDoctor,
     }),
     [
       products,
@@ -622,6 +635,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       users,
       clinicSettings,
       batches,
+      doctors,
       addMovement,
       adjustStock,
       addProduct,
@@ -643,6 +657,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addVendor,
       addUser,
       updateClinicSettings,
+      addDoctor,
     ],
   )
 

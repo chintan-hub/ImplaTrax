@@ -25,13 +25,8 @@ import { IconHelp } from '@/components/ui/help-tooltip'
 import { useData } from '@/store/DataContext'
 import { formatCurrency, cn } from '@/lib/utils'
 import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
-import type { Product, Manufacturer, ProductCategory } from '@/types'
-
-const MANUFACTURERS: Manufacturer[] = ['Straumann', 'Nobel Biocare', 'Osstem', 'NeoBiotech', 'Dentium', 'MIS']
-const CATEGORIES: ProductCategory[] = [
-  'Implant Fixture', 'Healing Abutment', 'Final Abutment', 'Cover Screw', 'Impression Coping',
-  'Analog', 'Surgical Kit', 'Bone Graft Material', 'Membrane', 'Prosthetic Screw',
-]
+import { MANUFACTURERS, PRODUCT_CATEGORIES } from '@/types'
+import type { Product } from '@/types'
 
 const columnHelper = createColumnHelper<Product>()
 
@@ -169,7 +164,7 @@ export function ProductsPage() {
           <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Category" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All categories</SelectItem>
-            {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            {PRODUCT_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={stockFilter} onValueChange={setStockFilter}>

@@ -121,6 +121,31 @@
   - [ ] Toggling the setting neither deletes nor mutates any existing `ProductBatch`/`batchLot` data.
   - [ ] Full verification suite passes; existing `DataContext`/`batches` tests are unaffected (they test data plumbing, not UI visibility, since the underlying data model is unchanged).
 
+### P1-M — Doctor Master Data + Combobox UX Polish
+*Out-of-band cross-cutting polish pass (2026-07-29), not a numbered-sequence dependency of P1-G — sequenced here only because it landed between P1-L and P1-G.*
+
+- **Objective:** Replace the hardcoded `DOCTORS` string tuple with a real, persisted `Doctor` entity (`id`, `name`, `createdAt`, `active`) surfaced everywhere as a searchable, create-inline combobox — never a management page (PROJECT.md §3, Doctors section). Alongside it, a full master-data audit of every dropdown in the app, and a bounded UX pass replacing the plain, unsearchable `<Select>`s the audit flagged with the same combobox primitive.
+- **Files affected:**
+  - `src/types/index.ts` — new `Doctor` interface; `MANUFACTURERS`/`PRODUCT_CATEGORIES` promoted to single-source exported constants (previously redeclared in two files).
+  - `src/mocks/doctors.ts` (new) — seeds `Doctor[]` from the old `DOCTORS` names, prefix stripped.
+  - `src/store/DataContext.tsx` — `doctors` state + `addDoctor` action, following the exact `addLab` pattern.
+  - `src/components/ui/combobox.tsx` (new) — generic Popover+Command combobox, with an optional inline "create" affordance.
+  - `src/components/shared/DoctorCombobox.tsx` (new) — the Doctor-specific wrapper: always displays/searches with the "Dr." prefix, dedups by name before ever creating.
+  - `PatientFormDialog.tsx`, `CaseFormDialog.tsx`, `CasesPage.tsx` — Doctor field/filter now the combobox.
+  - `CaseFormDialog.tsx` (Patient, Lab), `POFormDialog.tsx` (Vendor) — plain full-list `<Select>`s upgraded to the same searchable combobox (UX polish only, no business-rule change).
+  - `ProductsPage.tsx`, `ProductFormDialog.tsx` — import the shared `MANUFACTURERS`/`PRODUCT_CATEGORIES` instead of redeclaring them.
+- **Risks:** Low-medium — new UI primitive, but `Patient.primaryDoctor`/`Case.doctor` deliberately stayed plain display strings (not promoted to a `Doctor.id` foreign key) to keep the blast radius contained; every existing display/filter/test site needed zero changes as a result.
+- **Confirmed decision:** Doctor is search+dedup+inline-create master data, not a foreign-key relationship — see PROJECT.md §3 for the full rationale and the explicit list of what a future FK promotion would need to touch.
+- **Dependencies:** None. Independent of P1-G.
+- **Estimated complexity:** Medium.
+- **Acceptance criteria:**
+  - [ ] Typing an existing doctor's name (no "Dr." prefix typed) shows it as a match; no redundant "Add" offered for it.
+  - [ ] Typing an unmatched name offers `Add "Dr. <name>"`; both a click and pressing Enter create and select it immediately.
+  - [ ] A newly created doctor is immediately searchable/reusable elsewhere — verified live, not just by code review.
+  - [ ] PO creation (now via the Vendor combobox) through to PO Receive still works end-to-end.
+  - [ ] Every route still survives a browser refresh (`vercel.json` untouched).
+  - [ ] Full verification suite passes: `tsc --noEmit`, `vitest` (71/71, unchanged — no data-layer test needed updating), `eslint` (0 errors, no new warnings), `vite build`.
+
 ### P1-G — Core Transactional Documents
 - **Objective:** Using the P1-F foundation: a real Purchase Order PDF (replacing the "coming soon" stub), a Goods Received Note (from a PO's receiving event), a Sales Invoice and Delivery Challan (from Sale Detail, P1-D), and a Loan Out Slip + Loan Return Receipt (from Loan Detail, P1-C).
 - **Files affected:** New per-document components under the P1-F layer; "Generate PDF"/"Print"/"Export" buttons added to `PODetailPage.tsx`, the new `SaleDetailPage.tsx`, and the new `LoanDetailPage.tsx`.
@@ -346,6 +371,7 @@
 | 1 | P1-E Batch/Lot Screen | M-L | your decisions (reserved stock, expiry) |
 | 1 | P1-F Document Generation Foundation | M | — |
 | 1 | P1-L Global Batch/Lot Tracking Setting | M-L | — |
+| 1 | P1-M Doctor Master Data + Combobox UX Polish | M | — |
 | 1 | P1-G Core Transactional Documents | M | P1-F, P1-L, P1-C, P1-D |
 | 1 | P1-H Proforma & Payment Receipt | M | your decisions (proforma model, payment fields) |
 | 1 | P1-I Reports Export + New Reports | M | P1-F, P1-E |
