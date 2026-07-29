@@ -154,15 +154,13 @@ This is also the reference example for principle 10 (§2) — optional/advanced 
 
 ### Batch/Lot Tracking
 
-**Current implementation (pre-global-setting):** Optional per product (`Product.batchTracked: boolean`). Intended for products where lot-level traceability matters (implant fixtures, bone graft material, membranes are batch-tracked more often than not in the mock generator). When a batch-tracked product is used in a Case, Sale, Loan, or Purchase Order receipt, the line/receipt can carry a `batchLot`/`lotNumber` string. A dedicated Batch/Lot page (`/batches`) shows every recorded lot and its remaining quantity (built in P1-E, `src/lib/batches.ts`).
-
-**Permanent product rule (locked 2026-07-28; planned implementation not yet scoped/built, see `DEVELOPMENT_PLAN.md`):** Batch/Lot Tracking becomes a single, application-wide setting — **not a per-product setting** — with exactly two states, **OFF (default)** and **ON**, configured once in Settings:
+**Permanent product rule (locked 2026-07-28, implemented in P1-L):** Batch/Lot Tracking is a single, application-wide setting (`ClinicSettings.batchLotTrackingEnabled`) — **not a per-product setting** — with exactly two states, **OFF (default)** and **ON**, configured once in Settings:
 1. **OFF** — the application behaves as though Batch/Lot Tracking does not exist: no Batch/Lot navigation, no Lot fields, no Lot validation, no Lot selection, no Batch/Lot pages, and no reference to Batch/Lot anywhere in the UI.
-2. **ON** — Batch/Lot Tracking is fully integrated across every relevant workflow (Purchase Orders, Receiving, Sales, Loans, Returns, Inventory History, Reports, and anywhere else it applies). There is **never a partially-enabled state**.
+2. **ON** — Batch/Lot Tracking is fully integrated across every relevant workflow: Purchase Orders/Receiving, Sales, Loans, Returns, and Inventory History all show/enforce lot behavior. There is **never a partially-enabled state**. (Reports integration is pending — no Batch/Lot report exists yet at all, tracked separately in `DEVELOPMENT_PLAN.md` P1-I; whenever it's built, it must consume this same setting.)
 3. Toggling this setting never deletes or migrates existing batch/lot data — only what the UI shows changes, matching this codebase's append-only, non-destructive philosophy (§2 principles 1–2).
-4. How the existing per-product `Product.batchTracked` field relates to the new global switch (e.g. whether it remains a secondary per-product refinement once the global switch is on, or is subsumed entirely) is an implementation detail, not decided here — see the scoping discussion in `DEVELOPMENT_PLAN.md`.
+4. `Product.batchTracked` survives as a secondary, per-product refinement underneath the global switch (confirmed 2026-07-28): which specific products carry lot numbers is still chosen per product, exactly as before — the global switch only gates whether the feature exists in the app at all. The per-product toggle on the Product form, and every badge showing it, are themselves hidden whenever the global switch is off.
 
-This is the same locked-spec-ahead-of-implementation pattern already used for the Barcode System above — read that section's structure as the reference for how this one will evolve.
+A dedicated Batch/Lot page (`/batches`) shows every recorded lot and its remaining quantity (built in P1-E, `src/lib/batches.ts`) — unreachable, including by a typed URL, whenever the global switch is off.
 
 ### Audit History
 - The Stock Movement log (`/inventory`) is the audit trail for inventory. It is append-only and every entry is attributable to a user and a reason.
@@ -187,7 +185,7 @@ All types are defined in `src/types/index.ts`. This is the authoritative schema 
 | **Loan** | `loanNumber`, `labId` (required — labs only), `status`, `lines[]` (`LoanLine`: `productId`, `quantityLoaned`, `quantityReturned`, `quantityLost`, `lostReason?`) | belongs to one `Lab`; each line references a `Product`; `issuedBy` references an `AppUser` |
 | **LoanReturnRecord** | `loanId`, `productId`, `quantityReturned`, `quantityLost`, `lostReason?` | *(type exists in `types/index.ts` but the running app derives the Loan Returns page from `InventoryMovement` instead of a separate mutable table of this type — see §3 Returns)* |
 | **AppUser** | `role` (`admin`/`clinician`/`inventory-manager`/`front-desk`), `avatarColor` | referenced by `performedBy`/`issuedBy`/`soldBy`/`receivedBy` fields across other entities |
-| **ClinicSettings** | `clinicName`, `priceVisibilityDefault`, `barcodeFormat`, `lowStockGlobalDefault`, `theme` | singleton — one per clinic, edited on the Settings page |
+| **ClinicSettings** | `clinicName`, `priceVisibilityDefault`, `barcodeFormat`, `lowStockGlobalDefault`, `theme`, `batchLotTrackingEnabled` | singleton — one per clinic, edited on the Settings page |
 
 **Relationship summary (textual ER):**
 ```
@@ -376,7 +374,7 @@ Everything below is **intentional** for this stage of the project — do not "fi
 - **No delete/edit flows.** Products, patients, cases, etc. can be created but not edited or deleted from the UI. The `ICON_HELP` registry documents copy for an "Edit" and a "Delete" icon (Delete explicitly scoped to Super Admin) for when these are built, but no button currently triggers them anywhere.
 - **No real financial rules.** Currency formatting is illustrative (`Intl.NumberFormat`), there's no tax handling, multi-currency is a cosmetic Settings field only.
 - **`LoanReturnRecord` type is unused by the running app.** The Loan Returns page is derived live from `InventoryMovement` records instead (see §3 Returns) — this was a deliberate simplification to avoid two sources of truth for the same data; the type stays in `types/index.ts` for schema completeness but nothing constructs it at runtime.
-- **Batch/Lot Tracking is still a per-product opt-in, not yet the application-wide setting locked in §3.** A dedicated Batch/Lot page (`/batches`) exists (P1-E), but the global ON/OFF switch and the full workflow-gating it requires (nav, forms, validation, Inventory History, Reports — see §3) is locked as a permanent rule but not yet built, tracked as an upcoming milestone in `DEVELOPMENT_PLAN.md`.
+- **Batch/Lot Tracking has no Reports integration yet.** The global ON/OFF setting (§3) is fully implemented for every other named workflow (P1-L), but no Batch/Lot report exists anywhere in Reports at all — that's the separate, not-yet-built `DEVELOPMENT_PLAN.md` P1-I, which must consume this same setting whenever it's built.
 - **Mock/demo data is a development-only scaffold, not production content** (see §2b, Production Data Policy). `src/mocks/*` currently seeds every entity for ease of development and testing; production builds must always start with an empty business database. This is not yet implemented — tracked as a placeholder milestone in `DEVELOPMENT_PLAN.md` (Deferred Infrastructure & Backend Work) so it isn't silently forgotten.
 - **Large single JS chunk on production build** (`npm run build` warns about a ~1.27MB bundle). Acceptable for a demo; would need route-level code-splitting (`React.lazy`) before shipping to real users on slow connections.
 
@@ -388,7 +386,6 @@ Suggested only — **nothing below is implemented**, and nothing here should be 
 
 ### Prototype (this stage → hardening)
 - Edit/Delete flows for every entity, with the Super Admin gate actually enforced in the UI (even without real auth, gate it behind the mock `currentUser.role`).
-- Global Batch/Lot Tracking as a single application-wide ON/OFF setting (see §3) — the dedicated per-lot view itself already shipped in P1-E, this is the remaining global-gate work.
 - Route-level code-splitting to shrink the initial bundle.
 
 ### MVP (first real backend)
