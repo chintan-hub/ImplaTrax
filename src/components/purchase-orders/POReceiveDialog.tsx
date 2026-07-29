@@ -10,7 +10,7 @@ import { simulateLatency } from '@/lib/utils'
 import type { PurchaseOrder } from '@/types'
 
 export function POReceiveDialog({ po, open, onOpenChange }: { po: PurchaseOrder | null; open: boolean; onOpenChange: (v: boolean) => void }) {
-  const { products, receivePurchaseOrder } = useData()
+  const { products, receivePurchaseOrder, clinicSettings } = useData()
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [lotNumbers, setLotNumbers] = useState<Record<string, string>>({})
   const [expiryDates, setExpiryDates] = useState<Record<string, string>>({})
@@ -37,7 +37,7 @@ export function POReceiveDialog({ po, open, onOpenChange }: { po: PurchaseOrder 
     const qty = quantities[line.id] ?? 0
     if (qty <= 0) return false
     const product = products.find((p) => p.id === line.productId)
-    return product?.batchTracked && !lotNumbers[line.id]?.trim()
+    return clinicSettings.batchLotTrackingEnabled && product?.batchTracked && !lotNumbers[line.id]?.trim()
   })
 
   const handleSubmit = async () => {
@@ -78,7 +78,7 @@ export function POReceiveDialog({ po, open, onOpenChange }: { po: PurchaseOrder 
             const product = products.find((p) => p.id === line.productId)
             const remaining = line.quantityOrdered - line.quantityReceived
             const qty = quantities[line.id] ?? 0
-            const needsLot = product?.batchTracked && qty > 0
+            const needsLot = clinicSettings.batchLotTrackingEnabled && product?.batchTracked && qty > 0
             return (
               <div key={line.id} className="rounded-lg border border-border p-3">
                 <div className="flex items-center justify-between gap-3">
