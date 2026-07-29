@@ -146,6 +146,38 @@
   - [ ] Every route still survives a browser refresh (`vercel.json` untouched).
   - [ ] Full verification suite passes: `tsc --noEmit`, `vitest` (71/71, unchanged — no data-layer test needed updating), `eslint` (0 errors, no new warnings), `vite build`.
 
+### P1-N — Inventory Engine: Structured Movements + Inventory History + Product Details
+*Out-of-band, like P1-M — not a numbered-sequence dependency of P1-G.*
+
+- **Objective:** Convert `InventoryMovement` from a loosely-linked audit row into a self-contained, immutable snapshot (PROJECT.md §3, "Inventory Movement Engine"): every movement carries its own `quantityBefore`/`quantityAfter` and structured `vendorId`/`labId`/`patientId`/`doctor`/`caseId` links, captured at write time by the action that creates it — never reconstructed later via a join through PO/Loan/Sale/Case. Rebuild `/inventory` into a real Inventory History page (Product/Doctor/Patient/Vendor/Lab/Date/Movement Type filters). Enhance Products with a real per-product stock dashboard (Available Stock, Reorder Level, Normal/Low/Out-of-Stock Status). Enhance Product Details with categorized Purchase/Sales/Loan/Adjustment history and Lot information.
+- **Confirmed audit finding (kept, not changed):** every one of the six supported events (PO Received, Sale, Loan Out, Loan Return, Manual Adjustment, Product Creation) already called `addMovement` before this milestone — the movement-creation guarantee itself was not a gap. `addImplantToCase` deliberately still does not move stock; it isn't one of the six events, matching the existing, intentional design (Sale is the real stock-moving event, optionally case-linked).
+- **Files affected:**
+  - `src/types/index.ts` — `InventoryMovement` gains `quantityBefore`, `quantityAfter` (both required), `vendorId`, `labId`, `patientId`, `doctor`, `caseId` (all optional, populated per movement type).
+  - `src/store/DataContext.tsx` — new `makeQtyTracker` helper (correct before/after bookkeeping even when the same product appears on more than one line in a single transaction); `addMovement` converted to a single options-object signature; `receivePurchaseOrder`, `createLoan`, `returnLoanLines`, `createSale`, `adjustStock`, `addProduct` all updated to populate the new fields.
+  - `src/mocks/inventory.ts` — backfills `quantityBefore`/`quantityAfter` as a self-consistent running balance per product (chronological pass) and the new structured links, for all ~150 seeded movements.
+  - `src/pages/inventory/InventoryPage.tsx` — rebuilt as the Inventory History page: Product/Doctor/Patient/Vendor/Lab/Date-range/Movement Type filters (replacing the old All/Inbound/Outbound/Adjustment tabs — `outbound` had zero real producers), new Balance (before → after) and Linked-to columns, CSV export extended to match.
+  - `src/lib/stock.ts` (new) — single source of truth for `stockStatus`/`availableStock`/`STOCK_STATUS_LABEL`, replacing duplicated ad-hoc low-stock checks in `ProductsPage.tsx`/`ProductCard.tsx`.
+  - `src/pages/products/ProductsPage.tsx`, `src/components/products/ProductCard.tsx` — Available/Reserved/Reorder Level/Stock Status added.
+  - `src/components/products/ProductDetailSheet.tsx` — the old generic "Recent stock movements" (10-row cap) replaced by categorized Purchase/Sales/Loan/Adjustment history sections (new `HistorySection` component) plus a Lot Information section reusing `summarizeLots` (`src/lib/batches.ts`, unchanged); Available Stock and a Stock Status badge added to the stats grid.
+  - `src/lib/batches.test.ts`, `src/store/DataContext.test.tsx` — updated/extended for the new required fields; six new tests added, including a regression guard for the same-product-on-multiple-lines bookkeeping case.
+- **Confirmed decisions (2026-07-29, user-directed):**
+  1. Doctor/Patient/Vendor/Lab filters must always be visible and always work identically regardless of movement type — resolved by redesigning the movement schema to carry structured links directly, not by disabling/hiding filters for movement types that can't match.
+  2. Page responsibilities are strictly separated: Products = per-product summary, Inventory (History) = per-movement ledger, Product Details = complete per-product audit. No page duplicates another's row shape.
+  3. `Patient.primaryDoctor`/`Case.doctor` remain plain display strings (P1-M's decision, unchanged) — `InventoryMovement.doctor` follows the same convention, resolved from the linked Case, not a `Doctor.id` FK.
+- **Known pre-existing issue found during verification, not fixed (out of scope):** `src/mocks/loans.ts` assigns each mock loan line a freshly-random `LOT-XXXXX` string instead of reusing a lot actually received via a PO (`batchLotByPoLine`), so `summarizeLots` can show a negative "remaining" for a handful of synthetic mock lots. This is a mock-data-generation quirk (`src/mocks/loans.ts:77`), not a P1-N regression — `summarizeLots` itself is unchanged and correct given complete data.
+- **Risks:** Medium — the widest change to `DataContext.tsx`'s mutation functions since the project's inception; mitigated by the `makeQtyTracker` regression-guard test and full before/after verification.
+- **Dependencies:** None blocking. Independent of P1-G.
+- **Estimated complexity:** Large.
+- **Acceptance criteria:**
+  - [ ] Every movement has real, non-optional `quantityBefore`/`quantityAfter`; a multi-line transaction referencing the same product twice produces correct sequential values, not two identical stale ones — verified by an automated test, not just manual inspection.
+  - [ ] Doctor/Patient/Vendor/Lab/Product/Date/Movement Type filters on Inventory History all work, verified live against real seeded data (not just that the UI renders).
+  - [ ] Products shows Available Stock, Reserved Stock, Reorder Level, and a correct Normal/Low Stock/Out of Stock status per product.
+  - [ ] Product Details shows Purchase/Sales/Loan/Adjustment history and Lot information (when Batch/Lot Tracking is on), verified live.
+  - [ ] PO Receive, Sale, Loan, and Manual Adjustment all still complete successfully end-to-end (regression check).
+  - [ ] Every route still survives a browser refresh.
+  - [ ] Full verification suite passes: `tsc -b --noEmit` (not the no-op plain `tsc --noEmit` — see note below), `vitest` (77/77), `eslint` (0 errors, no new warnings), `vite build`.
+- **Tooling note (important for future sessions):** this project's root `tsconfig.json` uses TypeScript project references with an empty `files: []` — running plain `npx tsc --noEmit` checks **zero files** and always silently "passes." Always use `npx tsc -b --noEmit` (or `npx tsc -b`, matching the real `npm run build` script), the same way this bug was caught mid-P1-N.
+
 ### P1-G — Core Transactional Documents
 - **Objective:** Using the P1-F foundation: a real Purchase Order PDF (replacing the "coming soon" stub), a Goods Received Note (from a PO's receiving event), a Sales Invoice and Delivery Challan (from Sale Detail, P1-D), and a Loan Out Slip + Loan Return Receipt (from Loan Detail, P1-C).
 - **Files affected:** New per-document components under the P1-F layer; "Generate PDF"/"Print"/"Export" buttons added to `PODetailPage.tsx`, the new `SaleDetailPage.tsx`, and the new `LoanDetailPage.tsx`.
@@ -372,6 +404,7 @@
 | 1 | P1-F Document Generation Foundation | M | — |
 | 1 | P1-L Global Batch/Lot Tracking Setting | M-L | — |
 | 1 | P1-M Doctor Master Data + Combobox UX Polish | M | — |
+| 1 | P1-N Inventory Engine: Structured Movements + History + Product Details | L | — |
 | 1 | P1-G Core Transactional Documents | M | P1-F, P1-L, P1-C, P1-D |
 | 1 | P1-H Proforma & Payment Receipt | M | your decisions (proforma model, payment fields) |
 | 1 | P1-I Reports Export + New Reports | M | P1-F, P1-E |

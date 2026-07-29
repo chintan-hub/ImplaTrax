@@ -62,6 +62,24 @@ function assertStockAvailable(products: Product[], requests: { productId: string
   }
 }
 
+/**
+ * Tracks quantityOnHand per product across a single multi-line transaction
+ * (PO receipt, sale, loan issue/return) so quantityBefore/quantityAfter on
+ * each InventoryMovement stay correct even if the same product appears on
+ * more than one line in that transaction — reading live `products` state
+ * directly for every line would give every line after the first a stale,
+ * pre-transaction "before" value (P1-N, locked 2026-07-29).
+ */
+function makeQtyTracker(products: Product[]) {
+  const running = new Map<string, number>(products.map((p) => [p.id, p.quantityOnHand]))
+  return (productId: string, delta: number) => {
+    const before = running.get(productId) ?? 0
+    const after = Math.max(0, before + delta)
+    running.set(productId, after)
+    return { before, after }
+  }
+}
+
 // Human-readable sequence numbers (PO/loan/sale numbers, patient codes, Case
 // IDs) — independent of live array length, seeded once from the mock seed
 // counts (see src/lib/idGenerator.ts and ARCHITECTURE.md §6.3).
@@ -110,7 +128,22 @@ interface DataContextValue {
   batches: ProductBatch[]
   doctors: Doctor[]
 
-  addMovement: (productId: string, type: MovementType, quantity: number, reason: string, reference?: string, note?: string, batchLot?: string) => void
+  addMovement: (input: {
+    productId: string
+    type: MovementType
+    quantity: number
+    quantityBefore: number
+    quantityAfter: number
+    reason: string
+    reference?: string
+    note?: string
+    batchLot?: string
+    vendorId?: string
+    labId?: string
+    patientId?: string
+    doctor?: string
+    caseId?: string
+  }) => void
   adjustStock: (productId: string, delta: number, reason: string, note?: string) => void
   addProduct: (input: Omit<Product, 'id' | 'sku' | 'barcode' | 'qrPayload' | 'createdAt' | 'updatedAt'>) => Product
   updateProduct: (id: string, patch: Partial<Product>) => void
@@ -155,24 +188,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [batches, setBatches] = useState<ProductBatch[]>(mock.batches)
   const [doctors, setDoctors] = useState<Doctor[]>(mock.doctors)
 
-  const addMovement = useCallback(
-    (productId: string, type: MovementType, quantity: number, reason: string, reference?: string, note?: string, batchLot?: string) => {
-      const movement: InventoryMovement = {
-        id: nextInternalId('mv'),
-        productId,
-        type,
-        quantity,
-        reason,
-        reference,
-        performedBy: currentUser.id,
-        createdAt: new Date().toISOString(),
-        note,
-        batchLot,
-      }
-      setMovements((prev) => [movement, ...prev])
-    },
-    [],
-  )
+  const addMovement = useCallback<DataContextValue['addMovement']>((input) => {
+    const movement: InventoryMovement = {
+      id: nextInternalId('mv'),
+      performedBy: currentUser.id,
+      createdAt: new Date().toISOString(),
+      ...input,
+    }
+    setMovements((prev) => [movement, ...prev])
+  }, [])
 
   const applyQtyDelta = useCallback((productId: string, delta: number) => {
     setProducts((prev) => prev.map((p) => (p.id === productId ? { ...p, quantityOnHand: Math.max(0, p.quantityOnHand + delta), updatedAt: new Date().toISOString() } : p)))
@@ -181,10 +205,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const adjustStock = useCallback(
     (productId: string, delta: number, reason: string, note?: string) => {
       if (!reason.trim()) throw new BusinessRuleError('A reason is required for manual stock adjustments.')
+      const before = products.find((p) => p.id === productId)?.quantityOnHand ?? 0
+      const after = Math.max(0, before + delta)
       applyQtyDelta(productId, delta)
-      addMovement(productId, 'adjustment', delta, reason, undefined, note)
+      addMovement({ productId, type: 'adjustment', quantity: delta, quantityBefore: before, quantityAfter: after, reason, note })
     },
-    [addMovement, applyQtyDelta],
+    [addMovement, applyQtyDelta, products],
   )
 
   const addProduct = useCallback<DataContextValue['addProduct']>((input) => {
@@ -202,7 +228,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
     setProducts((prev) => [product, ...prev])
     if (product.quantityOnHand > 0) {
-      addMovement(id, 'inbound', product.quantityOnHand, 'Initial stock on product creation')
+      addMovement({ productId: id, type: 'inbound', quantity: product.quantityOnHand, quantityBefore: 0, quantityAfter: product.quantityOnHand, reason: 'Initial stock on product creation' })
     }
     return product
   }, [addMovement])
@@ -311,13 +337,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       ),
     )
     const newBatches: ProductBatch[] = []
+    const track = makeQtyTracker(products)
     receipts.forEach((r) => {
       if (r.quantityReceived <= 0) return
       const line = po.lines.find((l) => l.id === r.lineId)
       if (!line) return
       const lotNumber = r.lotNumber?.trim()
+      const { before, after } = track(line.productId, r.quantityReceived)
       applyQtyDelta(line.productId, r.quantityReceived)
-      addMovement(line.productId, 'inbound', r.quantityReceived, 'Purchase order received', po.poNumber, undefined, lotNumber)
+      addMovement({
+        productId: line.productId,
+        type: 'inbound',
+        quantity: r.quantityReceived,
+        quantityBefore: before,
+        quantityAfter: after,
+        reason: 'Purchase order received',
+        reference: po.poNumber,
+        batchLot: lotNumber,
+        vendorId: po.vendorId,
+      })
       // Batches are append-only, like every other audit trail in this app —
       // the same lot number received across multiple receipts becomes
       // multiple ProductBatch records, aggregated by (productId, lotNumber)
@@ -393,9 +431,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       history: [loanEvent(id, 'Loan Issued', `Loan issued with ${lines.length} product line(s).`, now)],
     }
     setLoans((prev) => [loan, ...prev])
+    const track = makeQtyTracker(products)
     lines.forEach((l) => {
+      const { before, after } = track(l.productId, -l.quantityLoaned)
       applyQtyDelta(l.productId, -l.quantityLoaned)
-      addMovement(l.productId, 'loan-out', -l.quantityLoaned, 'Loan issued to lab', loan.loanNumber, undefined, l.batchLot)
+      addMovement({
+        productId: l.productId,
+        type: 'loan-out',
+        quantity: -l.quantityLoaned,
+        quantityBefore: before,
+        quantityAfter: after,
+        reason: 'Loan issued to lab',
+        reference: loan.loanNumber,
+        batchLot: l.batchLot,
+        labId,
+      })
     })
     return loan
   }, [labs, products, applyQtyDelta, addMovement, loanEvent])
@@ -436,6 +486,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         return { ...l, lines, status, closedAt: fullyClosed ? now : l.closedAt, history: [...l.history, event] }
       }),
     )
+    const track = makeQtyTracker(products)
     returns.forEach((r) => {
       const line = loan.lines.find((l) => l.id === r.lineId)
       if (!line) return
@@ -444,14 +495,40 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       // user to re-enter it (nothing about a loan return changes which
       // physical lot the item belongs to).
       if (r.quantityReturned > 0) {
+        const { before, after } = track(line.productId, r.quantityReturned)
         applyQtyDelta(line.productId, r.quantityReturned)
-        addMovement(line.productId, 'loan-return', r.quantityReturned, 'Loan components returned by lab', loan.loanNumber, undefined, line.batchLot)
+        addMovement({
+          productId: line.productId,
+          type: 'loan-return',
+          quantity: r.quantityReturned,
+          quantityBefore: before,
+          quantityAfter: after,
+          reason: 'Loan components returned by lab',
+          reference: loan.loanNumber,
+          batchLot: line.batchLot,
+          labId: loan.labId,
+        })
       }
       if (r.quantityLost > 0) {
-        addMovement(line.productId, 'lost', -r.quantityLost, r.lostReason || 'Component lost while on loan', loan.loanNumber, undefined, line.batchLot)
+        // Lost stock was already decremented when the loan was issued
+        // (loan-out) — this movement only records disposition, so it does
+        // not call applyQtyDelta and before === after (quantityOnHand is
+        // unaffected by this event).
+        const { before, after } = track(line.productId, 0)
+        addMovement({
+          productId: line.productId,
+          type: 'lost',
+          quantity: -r.quantityLost,
+          quantityBefore: before,
+          quantityAfter: after,
+          reason: r.lostReason || 'Component lost while on loan',
+          reference: loan.loanNumber,
+          batchLot: line.batchLot,
+          labId: loan.labId,
+        })
       }
     })
-  }, [loans, applyQtyDelta, addMovement, loanEvent])
+  }, [loans, products, applyQtyDelta, addMovement, loanEvent])
 
   const createSale = useCallback<DataContextValue['createSale']>((lines, patientId, caseId) => {
     if (lines.length === 0) throw new BusinessRuleError('A sale must include at least one product line.')
@@ -470,12 +547,30 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       createdAt: new Date().toISOString(),
     }
     setSales((prev) => [sale, ...prev])
+    // Doctor is only ever knowable via a case link — Sale itself has no
+    // doctor field, matching PROJECT.md §3's Doctor decision (a display
+    // string, not a FK, sourced from wherever a Case already carries it).
+    const doctor = caseId ? cases.find((c) => c.id === caseId)?.doctor : undefined
+    const track = makeQtyTracker(products)
     lines.forEach((l) => {
+      const { before, after } = track(l.productId, -l.quantity)
       applyQtyDelta(l.productId, -l.quantity)
-      addMovement(l.productId, 'sale', -l.quantity, caseId ? 'Used in patient case' : 'Direct sale', sale.saleNumber, undefined, l.batchLot)
+      addMovement({
+        productId: l.productId,
+        type: 'sale',
+        quantity: -l.quantity,
+        quantityBefore: before,
+        quantityAfter: after,
+        reason: caseId ? 'Used in patient case' : 'Direct sale',
+        reference: sale.saleNumber,
+        batchLot: l.batchLot,
+        patientId,
+        caseId,
+        doctor,
+      })
     })
     return sale
-  }, [products, applyQtyDelta, addMovement])
+  }, [products, cases, applyQtyDelta, addMovement])
 
   const addPatient = useCallback<DataContextValue['addPatient']>((input) => {
     const id = nextInternalId('pat')

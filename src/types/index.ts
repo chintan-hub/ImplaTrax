@@ -81,18 +81,36 @@ export interface ProductBatch {
 
 export type MovementType = 'inbound' | 'outbound' | 'adjustment' | 'loan-out' | 'loan-return' | 'sale' | 'lost'
 
+/**
+ * Every field below is captured directly, at write time, by the action that
+ * creates the movement (P1-N, locked 2026-07-29) — never reconstructed later
+ * via a join through PO/Loan/Sale/Case. `quantityBefore`/`quantityAfter` make
+ * every record a self-contained snapshot of the product's stock at that
+ * moment; `vendorId`/`labId`/`patientId`/`doctor`/`caseId` make every record
+ * directly filterable without depending on `reference` string-matching a
+ * business-document number. Not every field applies to every `type` — see
+ * PROJECT.md §3 for the exact linkage rules per movement type.
+ */
 export interface InventoryMovement {
   id: ID
   productId: ID
   type: MovementType
   quantity: number // signed: positive = stock increase, negative = decrease
+  quantityBefore: number
+  quantityAfter: number
   reason: string
-  reference?: string // PO number, Loan ID, Sale ID, Case ID
+  reference?: string // PO number, Loan number, Sale number — the human-readable business document
   performedBy: ID // user id
   createdAt: string
   note?: string
   /** Lot/batch number this movement affected, for batch-tracked products. */
   batchLot?: string
+  vendorId?: ID
+  labId?: ID
+  patientId?: ID
+  /** Display string, e.g. "Dr. Alan Whitfield" — matches Case.doctor's convention, not a Doctor.id FK (PROJECT.md §3). */
+  doctor?: string
+  caseId?: ID
 }
 
 // ---------------------------------------------------------------------------
