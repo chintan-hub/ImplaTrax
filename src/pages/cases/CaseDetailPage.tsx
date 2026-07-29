@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, ArrowRight, XCircle, Plus, CheckCircle2, FolderKanban } from 'lucide-react'
+import { ArrowLeft, ArrowRight, XCircle, Plus, CheckCircle2, FolderKanban, MessageCircle, Printer, FileText } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,8 @@ import { useData } from '@/store/DataContext'
 import { patientFullName } from '@/mocks/patients'
 import { nextCaseStatuses } from '@/lib/caseWorkflow'
 import { formatDate, formatDateTime, simulateLatency } from '@/lib/utils'
+import { buildCaseSummaryText, buildCaseDocumentData } from '@/lib/documents/case'
+import { CaseDocument } from '@/lib/documents/CaseDocument'
 import type { CaseImplantUsage, CaseStatus } from '@/types'
 
 const STATUS_LABEL: Record<CaseStatus, string> = {
@@ -127,6 +129,7 @@ export function CaseDetailPage() {
   const nextStatuses = nextCaseStatuses(caseRecord.status)
   const nextForwardStatus = nextStatuses.find((s) => s !== 'cancelled')
   const canCancel = nextStatuses.includes('cancelled')
+  const productById = new Map(products.map((p) => [p.id, p]))
 
   const handleAdvance = (status: CaseStatus) => {
     advanceCaseStatus(caseRecord.id, status)
@@ -138,8 +141,30 @@ export function CaseDetailPage() {
     toast.success('Case cancelled')
   }
 
+  const handleCopyWhatsApp = async () => {
+    const text = buildCaseSummaryText(caseRecord, patient, productById)
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success('Copied to clipboard', { description: 'Paste it into WhatsApp to share this case.' })
+    } catch {
+      toast.error('Could not access the clipboard in this browser.')
+    }
+  }
+
+  const handlePrint = () => {
+    const previousTitle = document.title
+    document.title = caseRecord.caseId
+    const restoreTitle = () => {
+      document.title = previousTitle
+      window.removeEventListener('afterprint', restoreTitle)
+    }
+    window.addEventListener('afterprint', restoreTitle)
+    window.print()
+  }
+
   return (
     <div>
+      <div className="print:hidden">
       <button onClick={() => navigate('/cases')} className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-3.5 w-3.5" /> Back to Cases
       </button>
@@ -268,6 +293,26 @@ export function CaseDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Share & Export</CardTitle>
+              <CardDescription>Send or save a summary of this case</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" size="sm" onClick={handleCopyWhatsApp}>
+                  <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                </Button>
+                <Button variant="outline" size="sm" onClick={handlePrint}>
+                  <Printer className="h-3.5 w-3.5" /> Print
+                </Button>
+                <Button variant="outline" size="sm" className="col-span-2" onClick={handlePrint}>
+                  <FileText className="h-3.5 w-3.5" /> Generate PDF
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
@@ -292,6 +337,11 @@ export function CaseDetailPage() {
         tone="destructive"
         onConfirm={handleCancel}
       />
+      </div>
+
+      <div className="hidden print:block">
+        <CaseDocument data={buildCaseDocumentData(caseRecord, patient, lab, productById, clinicSettings.batchLotTrackingEnabled)} />
+      </div>
     </div>
   )
 }
