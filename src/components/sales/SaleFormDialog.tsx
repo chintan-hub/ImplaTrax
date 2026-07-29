@@ -12,7 +12,7 @@ import { formatCurrency, simulateLatency } from '@/lib/utils'
 import type { SaleLine } from '@/types'
 
 export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
-  const { patients, cases, products, createSale } = useData()
+  const { patients, cases, products, createSale, clinicSettings } = useData()
   const [patientId, setPatientId] = useState<string>('none')
   const [caseId, setCaseId] = useState<string>('none')
   const [lines, setLines] = useState<SaleLine[]>([])
@@ -129,7 +129,7 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                       </Button>
                     </div>
                   </div>
-                  {product?.batchTracked && (
+                  {clinicSettings.batchLotTrackingEnabled && product?.batchTracked && (
                     <Input
                       className="mt-2"
                       placeholder="Batch / Lot number (e.g. LOT-12345)"

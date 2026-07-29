@@ -12,7 +12,7 @@ import { formatCurrency, formatDateTime } from '@/lib/utils'
 export function SaleDetailPage() {
   const { saleId } = useParams()
   const navigate = useNavigate()
-  const { sales, patients, cases, products, users } = useData()
+  const { sales, patients, cases, products, users, clinicSettings } = useData()
 
   const sale = sales.find((s) => s.id === saleId)
 
@@ -51,7 +51,7 @@ export function SaleDetailPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Product</TableHead>
-                    <TableHead>Batch / Lot</TableHead>
+                    {clinicSettings.batchLotTrackingEnabled && <TableHead>Batch / Lot</TableHead>}
                     <TableHead className="text-right">Quantity</TableHead>
                     <TableHead className="text-right">Unit Price</TableHead>
                     <TableHead className="text-right">Line Total</TableHead>
@@ -66,7 +66,7 @@ export function SaleDetailPage() {
                           <p className="font-medium">{product?.name ?? 'Unknown product'}</p>
                           <p className="text-xs text-muted-foreground">{product?.sku}</p>
                         </TableCell>
-                        <TableCell className="text-muted-foreground">{line.batchLot ?? '—'}</TableCell>
+                        {clinicSettings.batchLotTrackingEnabled && <TableCell className="text-muted-foreground">{line.batchLot ?? '—'}</TableCell>}
                         <TableCell className="text-right tabular-nums">{line.quantity}</TableCell>
                         <TableCell className="text-right tabular-nums">{formatCurrency(line.unitPrice)}</TableCell>
                         <TableCell className="text-right tabular-nums font-medium">{formatCurrency(line.unitPrice * line.quantity)}</TableCell>
