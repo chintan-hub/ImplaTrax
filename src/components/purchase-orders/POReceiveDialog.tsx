@@ -30,14 +30,13 @@ export function POReceiveDialog({ po, open, onOpenChange }: { po: PurchaseOrder 
 
   if (!po) return null
 
-  // Batch-tracked products require a lot number before a receipt can be
-  // submitted — traceability begins the moment stock enters the business,
-  // not when it's first sold or loaned (PROJECT.md §2b).
+  // Every received line requires a lot number when tracking is on — Batch/Lot
+  // belongs to the receipt event, not the product definition, so this does not
+  // consult Product.batchTracked (PROJECT.md §3 point 5, locked 2026-07-29).
   const missingLot = po.lines.some((line) => {
     const qty = quantities[line.id] ?? 0
     if (qty <= 0) return false
-    const product = products.find((p) => p.id === line.productId)
-    return clinicSettings.batchLotTrackingEnabled && product?.batchTracked && !lotNumbers[line.id]?.trim()
+    return clinicSettings.batchLotTrackingEnabled && !lotNumbers[line.id]?.trim()
   })
 
   const handleSubmit = async () => {
@@ -54,7 +53,7 @@ export function POReceiveDialog({ po, open, onOpenChange }: { po: PurchaseOrder 
       return
     }
     if (missingLot) {
-      toast.error('Enter a lot/batch number for every batch-tracked line being received.')
+      toast.error('Enter a lot/batch number for every line being received.')
       return
     }
     setSubmitting(true)
@@ -78,7 +77,7 @@ export function POReceiveDialog({ po, open, onOpenChange }: { po: PurchaseOrder 
             const product = products.find((p) => p.id === line.productId)
             const remaining = line.quantityOrdered - line.quantityReceived
             const qty = quantities[line.id] ?? 0
-            const needsLot = clinicSettings.batchLotTrackingEnabled && product?.batchTracked && qty > 0
+            const needsLot = clinicSettings.batchLotTrackingEnabled && qty > 0
             return (
               <div key={line.id} className="rounded-lg border border-border p-3">
                 <div className="flex items-center justify-between gap-3">
@@ -128,7 +127,7 @@ export function POReceiveDialog({ po, open, onOpenChange }: { po: PurchaseOrder 
                   </div>
                 )}
                 {needsLot && !lotNumbers[line.id]?.trim() && (
-                  <p className="mt-1.5 text-xs text-danger-600">A lot/batch number is required — this product is batch-tracked.</p>
+                  <p className="mt-1.5 text-xs text-danger-600">A lot/batch number is required to receive this line.</p>
                 )}
               </div>
             )

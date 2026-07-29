@@ -112,6 +112,7 @@
 - **Confirmed decisions (2026-07-28):**
   1. **`Product.batchTracked` survives** as a secondary, per-product refinement once the global switch is ON — it is not removed. The global switch only gates whether the feature exists in the app at all; which specific products carry lot numbers is still chosen per product, exactly as today.
   2. **Sequencing:** P1-L runs before P1-G, so P1-G's GRN/receiving documents can show lot numbers correctly from the start rather than retrofitting them later.
+- **Confirmed decision, PO Receiving exception (2026-07-29):** `POReceiveDialog.tsx`'s lot capture no longer consults `Product.batchTracked`. With the global switch ON, every received line captures a Lot/Batch number regardless of the product's per-product flag — PROJECT.md §3 point 5. The Product form is unchanged; `batchTracked` still gates Sales/Loans/Cases exactly as decision 1 above describes. This narrows decision 1 to apply everywhere except receiving.
 - **Dependencies:** None blocking. Runs before P1-G (confirmed above); P1-I's not-yet-built Batch/Lot report must also be gated by this setting whenever it's eventually built.
 - **Estimated complexity:** Medium-Large — mechanical per-touchpoint once the open decisions above are resolved, but broad.
 - **Acceptance criteria:**
