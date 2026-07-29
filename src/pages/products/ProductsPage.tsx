@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   useReactTable,
@@ -43,9 +43,17 @@ export function ProductsPage() {
   const [manufacturer, setManufacturer] = useState<string>('all')
   const [category, setCategory] = useState<string>('all')
   const [stockFilter, setStockFilter] = useState<string>('all')
-  const [formOpen, setFormOpen] = useState(params.get('new') === '1')
+  const [formOpen, setFormOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [sorting, setSorting] = useState<SortingState>([])
+
+  useEffect(() => {
+    if (params.get('new') === '1') {
+      setFormOpen(true)
+      params.delete('new')
+      setParams(params, { replace: true })
+    }
+  }, [params, setParams])
 
   const highlightId = params.get('highlight')
   const selected = useMemo(() => products.find((p) => p.id === selectedId) ?? null, [products, selectedId])

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Search, Receipt } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -19,9 +19,17 @@ import { DollarSign, TrendingUp, Package } from 'lucide-react'
 export function SalesPage() {
   const { sales, patients, cases, products } = useData()
   const navigate = useNavigate()
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const [search, setSearch] = useState('')
-  const [formOpen, setFormOpen] = useState(params.get('new') === '1')
+  const [formOpen, setFormOpen] = useState(false)
+
+  useEffect(() => {
+    if (params.get('new') === '1') {
+      setFormOpen(true)
+      params.delete('new')
+      setParams(params, { replace: true })
+    }
+  }, [params, setParams])
 
   const patientById = useMemo(() => new Map(patients.map((p) => [p.id, p])), [patients])
   const caseById = useMemo(() => new Map(cases.map((c) => [c.id, c])), [cases])
