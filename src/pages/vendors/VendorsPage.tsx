@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Mail, Phone, MapPin, Star } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StickyToolbar } from '@/components/shared/StickyToolbar'
@@ -12,6 +13,7 @@ import { useData } from '@/store/DataContext'
 import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
 
 export function VendorsPage() {
+  const navigate = useNavigate()
   const { vendors, purchaseOrders } = useData()
   const [search, setSearch] = useState('')
   const [formOpen, setFormOpen] = useState(false)
@@ -61,7 +63,7 @@ export function VendorsPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((v) => (
-            <Card key={v.id}>
+            <Card key={v.id} onClick={() => navigate(`/vendors/${v.id}`)} className="cursor-pointer transition-all hover:shadow-elevated hover:-translate-y-0.5">
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
                   <p className="font-semibold leading-snug">{v.name}</p>

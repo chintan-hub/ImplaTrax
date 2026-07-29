@@ -8,6 +8,7 @@ import { InventoryPage } from '@/pages/inventory/InventoryPage'
 import { PurchaseOrdersPage } from '@/pages/purchase-orders/PurchaseOrdersPage'
 import { PODetailPage } from '@/pages/purchase-orders/PODetailPage'
 import { VendorsPage } from '@/pages/vendors/VendorsPage'
+import { VendorDetailPage } from '@/pages/vendors/VendorDetailPage'
 import { PatientsPage } from '@/pages/patients/PatientsPage'
 import { PatientProfilePage } from '@/pages/patients/PatientProfilePage'
 import { CasesPage } from '@/pages/cases/CasesPage'
@@ -37,6 +38,7 @@ function App() {
             <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
             <Route path="/purchase-orders/:poId" element={<PODetailPage />} />
             <Route path="/vendors" element={<VendorsPage />} />
+            <Route path="/vendors/:vendorId" element={<VendorDetailPage />} />
             <Route path="/patients" element={<PatientsPage />} />
             <Route path="/patients/:patientId" element={<PatientProfilePage />} />
             <Route path="/cases" element={<CasesPage />} />
