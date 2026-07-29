@@ -1,10 +1,12 @@
 import { Package, Layers } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { useData } from '@/store/DataContext'
 import type { Product } from '@/types'
 import { formatCurrency } from '@/lib/utils'
 
 export function ProductCard({ product, onClick }: { product: Product; onClick: () => void }) {
+  const { clinicSettings } = useData()
   const lowStock = product.quantityOnHand <= product.lowStockThreshold
   return (
     <Card onClick={onClick} className="cursor-pointer transition-all hover:shadow-elevated hover:-translate-y-0.5">
@@ -23,7 +25,7 @@ export function ProductCard({ product, onClick }: { product: Product; onClick: (
                 {product.quantityOnHand === 0 ? 'Out of stock' : 'Low stock'}
               </Badge>
             )}
-            {product.batchTracked && (
+            {clinicSettings.batchLotTrackingEnabled && product.batchTracked && (
               <Badge variant="outline" className="gap-1">
                 <Layers className="h-3 w-3" /> Batch
               </Badge>

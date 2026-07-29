@@ -61,7 +61,7 @@ export function ProductDetailSheet({ product, open, onOpenChange }: { product: P
             <StatusBadge status={product.status} />
             <Badge variant="outline">{product.manufacturer}</Badge>
             <Badge variant="outline">{product.category}</Badge>
-            {product.batchTracked && (
+            {clinicSettings.batchLotTrackingEnabled && product.batchTracked && (
               <Badge variant="accent" className="gap-1">
                 Batch tracked
                 <TermHint term="batchNumber" iconOnly className="text-accent-foreground" />

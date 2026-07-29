@@ -42,7 +42,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 export function ProductFormDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
-  const { addProduct, vendors } = useData()
+  const { addProduct, vendors, clinicSettings } = useData()
   const [submitting, setSubmitting] = useState(false)
   const {
     register,
@@ -190,15 +190,17 @@ export function ProductFormDialog({ open, onOpenChange }: { open: boolean; onOpe
             <Controller control={control} name="priceVisible" render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />} />
           </div>
 
-          <div className="col-span-1 sm:col-span-2 flex items-center justify-between rounded-lg border border-border p-3">
-            <div>
-              <p className="flex items-center gap-1 text-sm font-medium">
-                Batch / lot tracking <TermHint term="batchNumber" iconOnly />
-              </p>
-              <p className="text-xs text-muted-foreground">{MICROCOPY.batchTracked}</p>
+          {clinicSettings.batchLotTrackingEnabled && (
+            <div className="col-span-1 sm:col-span-2 flex items-center justify-between rounded-lg border border-border p-3">
+              <div>
+                <p className="flex items-center gap-1 text-sm font-medium">
+                  Batch / lot tracking <TermHint term="batchNumber" iconOnly />
+                </p>
+                <p className="text-xs text-muted-foreground">{MICROCOPY.batchTracked}</p>
+              </div>
+              <Controller control={control} name="batchTracked" render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />} />
             </div>
-            <Controller control={control} name="batchTracked" render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />} />
-          </div>
+          )}
 
           <div className="col-span-1 sm:col-span-2 space-y-1.5">
             <Label htmlFor="description">Description</Label>
