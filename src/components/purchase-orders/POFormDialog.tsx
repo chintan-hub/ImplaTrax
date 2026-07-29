@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import { Combobox } from '@/components/ui/combobox'
 import { useData } from '@/store/DataContext'
 import { MICROCOPY } from '@/content/helpText'
 import { simulateLatency } from '@/lib/utils'
@@ -72,12 +73,15 @@ export function POFormDialog({ open, onOpenChange }: { open: boolean; onOpenChan
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Vendor</Label>
-              <Select value={vendorId} onValueChange={(v) => { setVendorId(v); setLines([]) }}>
-                <SelectTrigger><SelectValue placeholder="Select vendor" /></SelectTrigger>
-                <SelectContent>
-                  {vendors.map((v) => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Combobox
+                options={vendors.map((v) => ({ value: v.id, label: v.name }))}
+                value={vendorId}
+                onChange={(v) => { setVendorId(v); setLines([]) }}
+                placeholder="Select vendor"
+                searchPlaceholder="Search vendors..."
+                emptyText="No vendors found."
+                triggerAriaLabel="Vendor"
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="eta">Expected delivery (ETA)</Label>

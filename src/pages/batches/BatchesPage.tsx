@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Navigate } from 'react-router-dom'
 import { Search, Boxes, PackageCheck, AlertTriangle, ArrowDownToLine, ArrowUpFromLine, HandCoins, Undo2, XCircle, Stethoscope } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StickyToolbar } from '@/components/shared/StickyToolbar'
@@ -29,7 +30,7 @@ const EVENT_ICON: Record<BatchEvent['kind'], typeof ArrowDownToLine> = {
 const EXPIRY_WARNING_DAYS = 90
 
 export function BatchesPage() {
-  const { products, batches, movements, cases, purchaseOrders, vendors, loans, labs, sales, patients } = useData()
+  const { products, batches, movements, cases, purchaseOrders, vendors, loans, labs, sales, patients, clinicSettings } = useData()
   const [search, setSearch] = useState('')
   const [productFilter, setProductFilter] = useState('all')
   const [selectedLot, setSelectedLot] = useState<LotSummary | null>(null)
@@ -107,6 +108,13 @@ export function BatchesPage() {
       default:
         return { title: 'Stock movement', detail: e.reference ?? '' }
     }
+  }
+
+  // Batch/Lot Tracking is an application-wide setting (PROJECT.md §3) — this
+  // page must be unreachable, even via a typed URL, whenever it's off. Checked
+  // after every hook above so hook call order never changes between renders.
+  if (!clinicSettings.batchLotTrackingEnabled) {
+    return <Navigate to="/" replace />
   }
 
   return (

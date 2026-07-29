@@ -1,12 +1,13 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Phone, Mail, Calendar, Stethoscope, Plus } from 'lucide-react'
+import { ArrowLeft, Phone, Mail, Calendar, Stethoscope, Plus, Pencil } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { PatientFormDialog } from '@/components/patients/PatientFormDialog'
 import { useData } from '@/store/DataContext'
 import { patientFullName } from '@/mocks/patients'
 import { formatCurrency, formatDate, initials } from '@/lib/utils'
@@ -16,6 +17,7 @@ export function PatientProfilePage() {
   const { patientId } = useParams()
   const navigate = useNavigate()
   const { patients, cases, sales } = useData()
+  const [editOpen, setEditOpen] = useState(false)
 
   const patient = patients.find((p) => p.id === patientId)
   const patientCases = useMemo(() => cases.filter((c) => c.patientId === patientId), [cases, patientId])
@@ -44,6 +46,9 @@ export function PatientProfilePage() {
               </Avatar>
               <p className="mt-3 text-lg font-semibold">{patientFullName(patient)}</p>
               <p className="text-sm text-muted-foreground">{patient.patientCode} · {age} yrs · {patient.sex === 'female' ? 'Female' : 'Male'}</p>
+              <Button variant="outline" size="sm" className="mt-3" onClick={() => setEditOpen(true)}>
+                <Pencil className="h-3.5 w-3.5" /> Edit
+              </Button>
             </div>
 
             <div className="mt-6 space-y-3 text-sm">
@@ -113,6 +118,8 @@ export function PatientProfilePage() {
           </Card>
         </div>
       </div>
+
+      <PatientFormDialog patient={patient} open={editOpen} onOpenChange={setEditOpen} />
     </div>
   )
 }

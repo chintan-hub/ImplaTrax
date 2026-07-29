@@ -801,9 +801,12 @@ describe('Batch/Lot receiving & traceability (P1-E)', () => {
     return po!
   }
 
-  it('rejects receiving a batch-tracked product with no lot number, and leaves stock/PO status unchanged', () => {
+  it('when Batch/Lot Tracking is on, rejects receiving any line with no lot number, and leaves stock/PO status unchanged', () => {
     const { result } = setup()
-    const product = result.current.products.find((p) => p.batchTracked)!
+    act(() => {
+      result.current.updateClinicSettings({ batchLotTrackingEnabled: true })
+    })
+    const product = result.current.products.find((p) => !p.batchTracked)!
     const po = submittedPo(result, product.id)
     const before = product.quantityOnHand
 
@@ -815,9 +818,9 @@ describe('Batch/Lot receiving & traceability (P1-E)', () => {
     expect(unchangedPo.status).toBe('submitted')
   })
 
-  it('does not require a lot number for a non-batch-tracked product', () => {
+  it('when Batch/Lot Tracking is off (default), no lot number is required even for a batch-tracked product', () => {
     const { result } = setup()
-    const product = result.current.products.find((p) => !p.batchTracked)!
+    const product = result.current.products.find((p) => p.batchTracked)!
     const po = submittedPo(result, product.id)
 
     expect(() => act(() => {
@@ -909,5 +912,157 @@ describe('Batch/Lot receiving & traceability (P1-E)', () => {
 
     const movement = result.current.movements.find((m) => m.type === 'sale' && m.reference === sale!.saleNumber)!
     expect(movement.batchLot).toBe('LOT-SOLD')
+  })
+})
+
+/**
+ * P1-N: every InventoryMovement is now a self-contained snapshot
+ * (quantityBefore/quantityAfter) and carries its own structured linkage
+ * (vendorId/labId/patientId/doctor/caseId) captured at write time — not
+ * reconstructed later via a join through PO/Loan/Sale/Case.
+ */
+describe('Movement quantityBefore/quantityAfter and structured linkage (P1-N)', () => {
+  it('adjustStock records the correct quantityBefore and quantityAfter', () => {
+    const { result } = setup()
+    const product = result.current.products[0]
+    const before = product.quantityOnHand
+
+    act(() => {
+      result.current.adjustStock(product.id, 7, 'Cycle count adjustment')
+    })
+
+    const movement = result.current.movements[0]
+    expect(movement.quantityBefore).toBe(before)
+    expect(movement.quantityAfter).toBe(before + 7)
+  })
+
+  it('receivePurchaseOrder stamps the movement with the PO vendorId and the correct before/after', () => {
+    const { result } = setup()
+    const vendor = result.current.vendors[0]
+    const product = result.current.products[0]
+    const before = product.quantityOnHand
+
+    let po: ReturnType<typeof result.current.createPurchaseOrder>
+    act(() => {
+      po = result.current.createPurchaseOrder(vendor.id, [{ productId: product.id, quantityOrdered: 10, unitCost: 5 }], new Date().toISOString())
+    })
+    act(() => {
+      result.current.submitPurchaseOrder(po!.id)
+    })
+    act(() => {
+      result.current.receivePurchaseOrder(po!.id, [{ lineId: po!.lines[0].id, quantityReceived: 6 }])
+    })
+
+    const movement = result.current.movements.find((m) => m.type === 'inbound' && m.reference === po!.poNumber)!
+    expect(movement.vendorId).toBe(vendor.id)
+    expect(movement.quantityBefore).toBe(before)
+    expect(movement.quantityAfter).toBe(before + 6)
+  })
+
+  it('receiving two lines for the SAME product in one receipt produces sequential, not stale, before/after values', () => {
+    const { result } = setup()
+    const vendor = result.current.vendors[0]
+    const product = result.current.products[0]
+    const before = product.quantityOnHand
+
+    let po: ReturnType<typeof result.current.createPurchaseOrder>
+    act(() => {
+      po = result.current.createPurchaseOrder(
+        vendor.id,
+        [
+          { productId: product.id, quantityOrdered: 10, unitCost: 5 },
+          { productId: product.id, quantityOrdered: 10, unitCost: 5 },
+        ],
+        new Date().toISOString(),
+      )
+    })
+    act(() => {
+      result.current.submitPurchaseOrder(po!.id)
+    })
+    act(() => {
+      result.current.receivePurchaseOrder(po!.id, [
+        { lineId: po!.lines[0].id, quantityReceived: 4 },
+        { lineId: po!.lines[1].id, quantityReceived: 5 },
+      ])
+    })
+
+    // Movements are prepended (newest first): index 1 is the first line
+    // processed, index 0 is the second — its "before" must reflect the
+    // first line's "after", not a stale pre-transaction value.
+    const inboundMovements = result.current.movements.filter((m) => m.type === 'inbound' && m.reference === po!.poNumber)
+    expect(inboundMovements).toHaveLength(2)
+    const first = inboundMovements[1]
+    const second = inboundMovements[0]
+    expect(first.quantityBefore).toBe(before)
+    expect(first.quantityAfter).toBe(before + 4)
+    expect(second.quantityBefore).toBe(before + 4)
+    expect(second.quantityAfter).toBe(before + 9)
+
+    const updated = result.current.products.find((p) => p.id === product.id)!
+    expect(updated.quantityOnHand).toBe(before + 9)
+  })
+
+  it('createLoan and returnLoanLines stamp every movement with labId', () => {
+    const { result } = setup()
+    const lab = result.current.labs[0]
+    const product = result.current.products.find((p) => p.quantityOnHand >= 3)!
+
+    let loan: ReturnType<typeof result.current.createLoan>
+    act(() => {
+      loan = result.current.createLoan(lab.id, [{ productId: product.id, quantityLoaned: 3 }])
+    })
+    act(() => {
+      result.current.returnLoanLines(loan!.id, [{ lineId: loan!.lines[0].id, quantityReturned: 2, quantityLost: 1, lostReason: 'Dropped' }])
+    })
+
+    const loanOut = result.current.movements.find((m) => m.type === 'loan-out' && m.reference === loan!.loanNumber)!
+    const loanReturn = result.current.movements.find((m) => m.type === 'loan-return' && m.reference === loan!.loanNumber)!
+    const lost = result.current.movements.find((m) => m.type === 'lost' && m.reference === loan!.loanNumber)!
+    expect(loanOut.labId).toBe(lab.id)
+    expect(loanReturn.labId).toBe(lab.id)
+    expect(lost.labId).toBe(lab.id)
+    // The lost movement records disposition only — it never moves stock
+    // (already decremented at loan-out), so before must equal after.
+    expect(lost.quantityBefore).toBe(lost.quantityAfter)
+  })
+
+  it('createSale with a caseId stamps the movement with patientId, caseId, and the case doctor', () => {
+    const { result } = setup()
+    const patient = result.current.patients[0]
+    const product = result.current.products.find((p) => p.quantityOnHand >= 1)!
+
+    let caseRecord: ReturnType<typeof result.current.addCase>
+    act(() => {
+      caseRecord = result.current.addCase({
+        patientId: patient.id,
+        doctor: 'Dr. Test P1-N',
+        status: 'planning',
+        procedure: 'Single Tooth Implant',
+      })
+    })
+
+    let sale: ReturnType<typeof result.current.createSale>
+    act(() => {
+      sale = result.current.createSale([{ productId: product.id, quantity: 1, unitPrice: 100 }], patient.id, caseRecord!.id)
+    })
+
+    const movement = result.current.movements.find((m) => m.type === 'sale' && m.reference === sale!.saleNumber)!
+    expect(movement.patientId).toBe(patient.id)
+    expect(movement.caseId).toBe(caseRecord!.id)
+    expect(movement.doctor).toBe('Dr. Test P1-N')
+  })
+
+  it('createSale with no caseId leaves doctor and caseId undefined', () => {
+    const { result } = setup()
+    const product = result.current.products.find((p) => p.quantityOnHand >= 1)!
+
+    let sale: ReturnType<typeof result.current.createSale>
+    act(() => {
+      sale = result.current.createSale([{ productId: product.id, quantity: 1, unitPrice: 100 }])
+    })
+
+    const movement = result.current.movements.find((m) => m.type === 'sale' && m.reference === sale!.saleNumber)!
+    expect(movement.doctor).toBeUndefined()
+    expect(movement.caseId).toBeUndefined()
   })
 })

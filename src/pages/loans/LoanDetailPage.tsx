@@ -1,5 +1,6 @@
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, HandCoins } from 'lucide-react'
+import { toast } from 'sonner'
+import { ArrowLeft, HandCoins, MessageCircle, Printer, FileText } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -11,11 +12,13 @@ import { TermHint } from '@/components/ui/help-tooltip'
 import { LoanStatusActions } from '@/components/loans/LoanStatusActions'
 import { useData } from '@/store/DataContext'
 import { formatDate, formatDateTime } from '@/lib/utils'
+import { buildLoanSummaryText, buildLoanDocumentData } from '@/lib/documents/loan'
+import { LoanDocument } from '@/lib/documents/LoanDocument'
 
 export function LoanDetailPage() {
   const { loanId } = useParams()
   const navigate = useNavigate()
-  const { loans, labs, products } = useData()
+  const { loans, labs, products, clinicSettings } = useData()
 
   const loan = loans.find((l) => l.id === loanId)
 
@@ -25,9 +28,32 @@ export function LoanDetailPage() {
 
   const lab = labs.find((l) => l.id === loan.labId)
   const history = [...loan.history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+  const productById = new Map(products.map((p) => [p.id, p]))
+
+  const handleCopyWhatsApp = async () => {
+    const text = buildLoanSummaryText(loan, lab, productById)
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success('Copied to clipboard', { description: 'Paste it into WhatsApp to share this loan.' })
+    } catch {
+      toast.error('Could not access the clipboard in this browser.')
+    }
+  }
+
+  const handlePrint = () => {
+    const previousTitle = document.title
+    document.title = loan.loanNumber
+    const restoreTitle = () => {
+      document.title = previousTitle
+      window.removeEventListener('afterprint', restoreTitle)
+    }
+    window.addEventListener('afterprint', restoreTitle)
+    window.print()
+  }
 
   return (
     <div>
+      <div className="print:hidden">
       <button onClick={() => navigate('/loans')} className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-3.5 w-3.5" /> Back to Loans
       </button>
@@ -56,7 +82,7 @@ export function LoanDetailPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Product</TableHead>
-                    <TableHead>Lot</TableHead>
+                    {clinicSettings.batchLotTrackingEnabled && <TableHead>Lot</TableHead>}
                     <TableHead className="text-right">Loaned</TableHead>
                     <TableHead className="text-right">Returned</TableHead>
                     <TableHead className="text-right">Lost</TableHead>
@@ -74,7 +100,7 @@ export function LoanDetailPage() {
                           <p className="text-xs text-muted-foreground">{product?.sku}</p>
                           {line.lostReason && <p className="mt-0.5 text-xs text-danger-600">Lost: {line.lostReason}</p>}
                         </TableCell>
-                        <TableCell className="text-muted-foreground">{line.batchLot ?? '—'}</TableCell>
+                        {clinicSettings.batchLotTrackingEnabled && <TableCell className="text-muted-foreground">{line.batchLot ?? '—'}</TableCell>}
                         <TableCell className="text-right tabular-nums">{line.quantityLoaned}</TableCell>
                         <TableCell className="text-right tabular-nums">{line.quantityReturned}</TableCell>
                         <TableCell className="text-right tabular-nums">{line.quantityLost}</TableCell>
@@ -149,7 +175,32 @@ export function LoanDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Share & Export</CardTitle>
+              <CardDescription>Send or save this loan</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" size="sm" onClick={handleCopyWhatsApp}>
+                  <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                </Button>
+                <Button variant="outline" size="sm" onClick={handlePrint}>
+                  <Printer className="h-3.5 w-3.5" /> Print
+                </Button>
+                <Button variant="outline" size="sm" className="col-span-2" onClick={handlePrint}>
+                  <FileText className="h-3.5 w-3.5" /> Generate PDF
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
+      </div>
+      </div>
+
+      <div className="hidden print:block">
+        <LoanDocument data={buildLoanDocumentData(loan, lab, productById, clinicSettings.batchLotTrackingEnabled)} />
       </div>
     </div>
   )

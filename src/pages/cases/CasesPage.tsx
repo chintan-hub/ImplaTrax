@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Search } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -8,27 +8,35 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import { Combobox } from '@/components/ui/combobox'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { CaseFormDialog } from '@/components/cases/CaseFormDialog'
 import { TermHint } from '@/components/ui/help-tooltip'
 import { useData } from '@/store/DataContext'
 import { patientFullName } from '@/mocks/patients'
 import { formatDate } from '@/lib/utils'
-import { DOCTORS } from '@/mocks/names'
 import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
 import type { CaseStatus } from '@/types'
 
 const STATUSES: CaseStatus[] = ['planning', 'surgery-scheduled', 'in-progress', 'restoration', 'completed', 'cancelled']
 
 export function CasesPage() {
-  const { cases, patients, labs } = useData()
-  const [params] = useSearchParams()
+  const { cases, patients, labs, doctors } = useData()
+  const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [doctor, setDoctor] = useState('all')
   const [labFilter, setLabFilter] = useState('all')
-  const [formOpen, setFormOpen] = useState(params.get('new') === '1')
+  const [formOpen, setFormOpen] = useState(false)
+
+  useEffect(() => {
+    if (params.get('new') === '1') {
+      setFormOpen(true)
+      params.delete('new')
+      setParams(params, { replace: true })
+    }
+  }, [params, setParams])
 
   const patientById = useMemo(() => new Map(patients.map((p) => [p.id, p])), [patients])
   const labById = useMemo(() => new Map(labs.map((l) => [l.id, l])), [labs])
@@ -70,13 +78,16 @@ export function CasesPage() {
             {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={doctor} onValueChange={setDoctor}>
-          <SelectTrigger className="w-full sm:w-52"><SelectValue placeholder="Doctor" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All doctors</SelectItem>
-            {DOCTORS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <Combobox
+          className="w-full sm:w-52"
+          options={[{ value: 'all', label: 'All doctors' }, ...doctors.map((d) => ({ value: `Dr. ${d.name}`, label: `Dr. ${d.name}`, searchValue: d.name }))]}
+          value={doctor}
+          onChange={setDoctor}
+          placeholder="Doctor"
+          searchPlaceholder="Search doctors..."
+          emptyText="No doctors found."
+          triggerAriaLabel="Filter by doctor"
+        />
         <Select value={labFilter} onValueChange={setLabFilter}>
           <SelectTrigger className="w-full sm:w-52"><SelectValue placeholder="Lab" /></SelectTrigger>
           <SelectContent className="max-h-72">

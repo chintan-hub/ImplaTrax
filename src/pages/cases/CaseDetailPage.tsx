@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, ArrowRight, XCircle, Plus, CheckCircle2, FolderKanban } from 'lucide-react'
+import { ArrowLeft, ArrowRight, XCircle, Plus, CheckCircle2, FolderKanban, MessageCircle, Printer, FileText } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,8 @@ import { useData } from '@/store/DataContext'
 import { patientFullName } from '@/mocks/patients'
 import { nextCaseStatuses } from '@/lib/caseWorkflow'
 import { formatDate, formatDateTime, simulateLatency } from '@/lib/utils'
+import { buildCaseSummaryText, buildCaseDocumentData } from '@/lib/documents/case'
+import { CaseDocument } from '@/lib/documents/CaseDocument'
 import type { CaseImplantUsage, CaseStatus } from '@/types'
 
 const STATUS_LABEL: Record<CaseStatus, string> = {
@@ -30,7 +32,7 @@ const STATUS_LABEL: Record<CaseStatus, string> = {
 }
 
 function AddImplantDialog({ caseId, open, onOpenChange }: { caseId: string; open: boolean; onOpenChange: (v: boolean) => void }) {
-  const { products, addImplantToCase } = useData()
+  const { products, addImplantToCase, clinicSettings } = useData()
   const [productId, setProductId] = useState(products[0]?.id ?? '')
   const [tooth, setTooth] = useState('')
   const [quantity, setQuantity] = useState(1)
@@ -53,7 +55,12 @@ function AddImplantDialog({ caseId, open, onOpenChange }: { caseId: string; open
     }
     setSubmitting(true)
     await simulateLatency()
-    const usage: CaseImplantUsage = { productId, tooth: tooth.trim(), quantity, batchLot: product?.batchTracked && batchLot.trim() ? batchLot.trim() : undefined }
+    const usage: CaseImplantUsage = {
+      productId,
+      tooth: tooth.trim(),
+      quantity,
+      batchLot: clinicSettings.batchLotTrackingEnabled && product?.batchTracked && batchLot.trim() ? batchLot.trim() : undefined,
+    }
     addImplantToCase(caseId, usage)
     toast.success('Implant added to case')
     setSubmitting(false)
@@ -86,7 +93,7 @@ function AddImplantDialog({ caseId, open, onOpenChange }: { caseId: string; open
             <Label htmlFor="implant-qty">Quantity</Label>
             <Input id="implant-qty" type="number" min={1} value={quantity} onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))} />
           </div>
-          {product?.batchTracked && (
+          {clinicSettings.batchLotTrackingEnabled && product?.batchTracked && (
             <div className="col-span-1 space-y-1.5 sm:col-span-2">
               <Label htmlFor="implant-lot">Batch / Lot number</Label>
               <Input id="implant-lot" placeholder="e.g. LOT-12345" value={batchLot} onChange={(e) => setBatchLot(e.target.value)} />
@@ -105,7 +112,7 @@ function AddImplantDialog({ caseId, open, onOpenChange }: { caseId: string; open
 export function CaseDetailPage() {
   const { caseId } = useParams()
   const navigate = useNavigate()
-  const { cases, patients, labs, products, advanceCaseStatus } = useData()
+  const { cases, patients, labs, products, advanceCaseStatus, clinicSettings } = useData()
   const [addingImplant, setAddingImplant] = useState(false)
   const [confirmingStatus, setConfirmingStatus] = useState<CaseStatus | null>(null)
   const [cancelling, setCancelling] = useState(false)
@@ -122,6 +129,7 @@ export function CaseDetailPage() {
   const nextStatuses = nextCaseStatuses(caseRecord.status)
   const nextForwardStatus = nextStatuses.find((s) => s !== 'cancelled')
   const canCancel = nextStatuses.includes('cancelled')
+  const productById = new Map(products.map((p) => [p.id, p]))
 
   const handleAdvance = (status: CaseStatus) => {
     advanceCaseStatus(caseRecord.id, status)
@@ -133,8 +141,30 @@ export function CaseDetailPage() {
     toast.success('Case cancelled')
   }
 
+  const handleCopyWhatsApp = async () => {
+    const text = buildCaseSummaryText(caseRecord, patient, productById)
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success('Copied to clipboard', { description: 'Paste it into WhatsApp to share this case.' })
+    } catch {
+      toast.error('Could not access the clipboard in this browser.')
+    }
+  }
+
+  const handlePrint = () => {
+    const previousTitle = document.title
+    document.title = caseRecord.caseId
+    const restoreTitle = () => {
+      document.title = previousTitle
+      window.removeEventListener('afterprint', restoreTitle)
+    }
+    window.addEventListener('afterprint', restoreTitle)
+    window.print()
+  }
+
   return (
     <div>
+      <div className="print:hidden">
       <button onClick={() => navigate('/cases')} className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-3.5 w-3.5" /> Back to Cases
       </button>
@@ -201,7 +231,7 @@ export function CaseDetailPage() {
                   <div key={i} className="flex items-center justify-between rounded-lg border border-border p-3 text-sm">
                     <div>
                       <p className="font-medium">{product?.name}</p>
-                      <p className="text-xs text-muted-foreground">Tooth #{usage.tooth} {usage.batchLot && `· Lot ${usage.batchLot}`}</p>
+                      <p className="text-xs text-muted-foreground">Tooth #{usage.tooth} {clinicSettings.batchLotTrackingEnabled && usage.batchLot && `· Lot ${usage.batchLot}`}</p>
                     </div>
                     <Badge variant="outline">Qty {usage.quantity}</Badge>
                   </div>
@@ -263,6 +293,26 @@ export function CaseDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Share & Export</CardTitle>
+              <CardDescription>Send or save a summary of this case</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" size="sm" onClick={handleCopyWhatsApp}>
+                  <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                </Button>
+                <Button variant="outline" size="sm" onClick={handlePrint}>
+                  <Printer className="h-3.5 w-3.5" /> Print
+                </Button>
+                <Button variant="outline" size="sm" className="col-span-2" onClick={handlePrint}>
+                  <FileText className="h-3.5 w-3.5" /> Generate PDF
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
@@ -287,6 +337,11 @@ export function CaseDetailPage() {
         tone="destructive"
         onConfirm={handleCancel}
       />
+      </div>
+
+      <div className="hidden print:block">
+        <CaseDocument data={buildCaseDocumentData(caseRecord, patient, lab, productById, clinicSettings.batchLotTrackingEnabled)} />
+      </div>
     </div>
   )
 }

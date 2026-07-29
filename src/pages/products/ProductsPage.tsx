@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   useReactTable,
@@ -23,15 +23,13 @@ import { ProductFormDialog } from '@/components/products/ProductFormDialog'
 import { ProductDetailSheet } from '@/components/products/ProductDetailSheet'
 import { IconHelp } from '@/components/ui/help-tooltip'
 import { useData } from '@/store/DataContext'
-import { formatCurrency, cn } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils'
 import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
-import type { Product, Manufacturer, ProductCategory } from '@/types'
+import { MANUFACTURERS, PRODUCT_CATEGORIES } from '@/types'
+import type { Product } from '@/types'
+import { stockStatus, availableStock, STOCK_STATUS_LABEL } from '@/lib/stock'
 
-const MANUFACTURERS: Manufacturer[] = ['Straumann', 'Nobel Biocare', 'Osstem', 'NeoBiotech', 'Dentium', 'MIS']
-const CATEGORIES: ProductCategory[] = [
-  'Implant Fixture', 'Healing Abutment', 'Final Abutment', 'Cover Screw', 'Impression Coping',
-  'Analog', 'Surgical Kit', 'Bone Graft Material', 'Membrane', 'Prosthetic Screw',
-]
+const STOCK_STATUS_VARIANT = { normal: 'success', low: 'warning', out: 'danger' } as const
 
 const columnHelper = createColumnHelper<Product>()
 
@@ -43,9 +41,17 @@ export function ProductsPage() {
   const [manufacturer, setManufacturer] = useState<string>('all')
   const [category, setCategory] = useState<string>('all')
   const [stockFilter, setStockFilter] = useState<string>('all')
-  const [formOpen, setFormOpen] = useState(params.get('new') === '1')
+  const [formOpen, setFormOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [sorting, setSorting] = useState<SortingState>([])
+
+  useEffect(() => {
+    if (params.get('new') === '1') {
+      setFormOpen(true)
+      params.delete('new')
+      setParams(params, { replace: true })
+    }
+  }, [params, setParams])
 
   const highlightId = params.get('highlight')
   const selected = useMemo(() => products.find((p) => p.id === selectedId) ?? null, [products, selectedId])
@@ -56,8 +62,8 @@ export function ProductsPage() {
       if (q && !(p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.barcode.includes(q))) return false
       if (manufacturer !== 'all' && p.manufacturer !== manufacturer) return false
       if (category !== 'all' && p.category !== category) return false
-      if (stockFilter === 'low' && p.quantityOnHand > p.lowStockThreshold) return false
-      if (stockFilter === 'out' && p.quantityOnHand !== 0) return false
+      if (stockFilter === 'low' && stockStatus(p) !== 'low') return false
+      if (stockFilter === 'out' && stockStatus(p) !== 'out') return false
       return true
     })
   }, [products, search, manufacturer, category, stockFilter])
@@ -77,14 +83,27 @@ export function ProductsPage() {
       columnHelper.accessor('category', { header: 'Category' }),
       columnHelper.accessor('quantityOnHand', {
         header: () => <span className="block text-right">On hand</span>,
+        cell: (info) => <span className="block text-right tabular-nums font-medium">{info.getValue()}</span>,
+      }),
+      columnHelper.display({
+        id: 'available',
+        header: () => <span className="block text-right">Available</span>,
+        cell: (info) => <span className="block text-right tabular-nums">{availableStock(info.row.original)}</span>,
+      }),
+      columnHelper.accessor('quantityReserved', {
+        header: () => <span className="block text-right">Reserved</span>,
+        cell: (info) => <span className="block text-right tabular-nums text-muted-foreground">{info.getValue()}</span>,
+      }),
+      columnHelper.accessor('lowStockThreshold', {
+        header: () => <span className="block text-right">Reorder Level</span>,
+        cell: (info) => <span className="block text-right tabular-nums text-muted-foreground">{info.getValue()}</span>,
+      }),
+      columnHelper.display({
+        id: 'stockStatus',
+        header: 'Stock Status',
         cell: (info) => {
-          const p = info.row.original
-          const low = p.quantityOnHand <= p.lowStockThreshold
-          return (
-            <span className={cn('block text-right tabular-nums font-medium', low && 'text-warning-700 dark:text-warning-500')}>
-              {info.getValue()}
-            </span>
-          )
+          const status = stockStatus(info.row.original)
+          return <Badge variant={STOCK_STATUS_VARIANT[status]}>{STOCK_STATUS_LABEL[status]}</Badge>
         },
       }),
       columnHelper.accessor('unitPrice', {
@@ -161,7 +180,7 @@ export function ProductsPage() {
           <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Category" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All categories</SelectItem>
-            {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            {PRODUCT_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={stockFilter} onValueChange={setStockFilter}>
@@ -194,7 +213,7 @@ export function ProductsPage() {
           ))}
         </div>
       ) : (
-        <div className="rounded-xl border border-border bg-card">
+        <div className="rounded-xl border border-border bg-card overflow-x-auto">
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((hg) => (

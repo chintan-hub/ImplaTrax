@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react'
 import type {
   Product,
   ProductBatch,
@@ -6,6 +6,7 @@ import type {
   PurchaseOrder,
   PurchaseOrderEvent,
   Vendor,
+  Doctor,
   Patient,
   Case,
   CaseStatus,
@@ -23,10 +24,18 @@ import type {
 } from '@/types'
 import * as mock from '@/mocks'
 import { currentUser } from '@/mocks/users'
-import { nextInternalId, createSequence, createTimestampIdGenerator } from '@/lib/idGenerator'
+import { nextInternalId, createSequence, createTimestampIdGenerator, getInternalIdCounter, restoreInternalIdCounter } from '@/lib/idGenerator'
 import { canSubmitPO, canConfirmPO, canReceivePO, canCancelPO } from '@/lib/poWorkflow'
 import { canAdvanceCaseStatus } from '@/lib/caseWorkflow'
 import { canReturnLoan } from '@/lib/loanWorkflow'
+import { loadPersistedSnapshot, savePersistedSnapshot } from './persistence'
+
+// Loaded once at module scope — the same evaluation-order guarantee the
+// sequence generators below already relied on for mock data. Restoring the
+// ID counter here, before any nextInternalId() call in this session, is what
+// keeps freshly-generated IDs from colliding with previously-persisted ones.
+const persisted = loadPersistedSnapshot()
+if (persisted) restoreInternalIdCounter(persisted.internalIdCounter)
 
 /**
  * Business-rule validation lives here, in the action functions, not just in
@@ -61,13 +70,35 @@ function assertStockAvailable(products: Product[], requests: { productId: string
   }
 }
 
+/**
+ * Tracks quantityOnHand per product across a single multi-line transaction
+ * (PO receipt, sale, loan issue/return) so quantityBefore/quantityAfter on
+ * each InventoryMovement stay correct even if the same product appears on
+ * more than one line in that transaction — reading live `products` state
+ * directly for every line would give every line after the first a stale,
+ * pre-transaction "before" value (P1-N, locked 2026-07-29).
+ */
+function makeQtyTracker(products: Product[]) {
+  const running = new Map<string, number>(products.map((p) => [p.id, p.quantityOnHand]))
+  return (productId: string, delta: number) => {
+    const before = running.get(productId) ?? 0
+    const after = Math.max(0, before + delta)
+    running.set(productId, after)
+    return { before, after }
+  }
+}
+
 // Human-readable sequence numbers (PO/loan/sale numbers, patient codes, Case
-// IDs) — independent of live array length, seeded once from the mock seed
-// counts (see src/lib/idGenerator.ts and ARCHITECTURE.md §6.3).
-const nextProductSeq = createSequence(mock.products.length + 1)
-const nextLoanSeq = createSequence(mock.loans.length + 1)
-const nextSaleSeq = createSequence(mock.sales.length + 1)
-const nextPatientSeq = createSequence(mock.patients.length + 1)
+// IDs) — independent of live array length, seeded once from whichever data
+// this session actually starts from: a persisted snapshot's array lengths if
+// one exists, otherwise the mock seed counts (see src/lib/idGenerator.ts and
+// ARCHITECTURE.md §6.3). Using the persisted length is safe because nothing
+// in this app deletes records — array length and highest-assigned sequence
+// number always match.
+const nextProductSeq = createSequence((persisted?.products.length ?? mock.products.length) + 1)
+const nextLoanSeq = createSequence((persisted?.loans.length ?? mock.loans.length) + 1)
+const nextSaleSeq = createSequence((persisted?.sales.length ?? mock.sales.length) + 1)
+const nextPatientSeq = createSequence((persisted?.patients.length ?? mock.patients.length) + 1)
 
 // Purchase Order IDs are timestamp-based (YYYYMMDDHHmm), a business rule
 // specific to this entity — see src/lib/idGenerator.ts.
@@ -79,7 +110,8 @@ const nextPoNumber = createTimestampIdGenerator()
 const caseSeqByYear = new Map<number, () => number>()
 function nextCaseSeq(year: number): number {
   if (!caseSeqByYear.has(year)) {
-    const existing = mock.cases.filter((c) => c.caseId.includes(`-${year}-`)).length
+    const sourceCases = persisted?.cases ?? mock.cases
+    const existing = sourceCases.filter((c) => c.caseId.includes(`-${year}-`)).length
     caseSeqByYear.set(year, createSequence(existing + 1))
   }
   return caseSeqByYear.get(year)!()
@@ -107,8 +139,24 @@ interface DataContextValue {
   users: AppUser[]
   clinicSettings: ClinicSettings
   batches: ProductBatch[]
+  doctors: Doctor[]
 
-  addMovement: (productId: string, type: MovementType, quantity: number, reason: string, reference?: string, note?: string, batchLot?: string) => void
+  addMovement: (input: {
+    productId: string
+    type: MovementType
+    quantity: number
+    quantityBefore: number
+    quantityAfter: number
+    reason: string
+    reference?: string
+    note?: string
+    batchLot?: string
+    vendorId?: string
+    labId?: string
+    patientId?: string
+    doctor?: string
+    caseId?: string
+  }) => void
   adjustStock: (productId: string, delta: number, reason: string, note?: string) => void
   addProduct: (input: Omit<Product, 'id' | 'sku' | 'barcode' | 'qrPayload' | 'createdAt' | 'updatedAt'>) => Product
   updateProduct: (id: string, patch: Partial<Product>) => void
@@ -126,6 +174,7 @@ interface DataContextValue {
   createSale: (lines: SaleLine[], patientId?: string, caseId?: string) => Sale
 
   addPatient: (input: Omit<Patient, 'id' | 'patientCode' | 'createdAt'>) => Patient
+  updatePatient: (id: string, patch: Partial<Patient>) => void
   addCase: (input: Omit<Case, 'id' | 'caseId' | 'createdAt' | 'implants' | 'history'> & { implants?: Case['implants'] }) => Case
   advanceCaseStatus: (caseId: string, status: CaseStatus) => void
   addImplantToCase: (caseId: string, usage: CaseImplantUsage) => void
@@ -133,42 +182,35 @@ interface DataContextValue {
   addVendor: (input: Omit<Vendor, 'id' | 'createdAt' | 'totalOrders' | 'onTimeRate'>) => Vendor
   addUser: (input: Omit<AppUser, 'id' | 'createdAt'>) => AppUser
   updateClinicSettings: (patch: Partial<ClinicSettings>) => void
+  addDoctor: (input: { name: string; active?: boolean }) => Doctor
 }
 
 const DataContext = createContext<DataContextValue | null>(null)
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const [products, setProducts] = useState<Product[]>(mock.products)
-  const [movements, setMovements] = useState<InventoryMovement[]>(mock.inventoryMovements)
-  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(mock.purchaseOrders)
-  const [vendors, setVendors] = useState<Vendor[]>(mock.vendors)
-  const [patients, setPatients] = useState<Patient[]>(mock.patients)
-  const [cases, setCases] = useState<Case[]>(mock.cases)
-  const [labs, setLabs] = useState<Lab[]>(mock.labs)
-  const [sales, setSales] = useState<Sale[]>(mock.sales)
-  const [loans, setLoans] = useState<Loan[]>(mock.loans)
-  const [users, setUsers] = useState<AppUser[]>(mock.users)
-  const [clinicSettings, setClinicSettings] = useState<ClinicSettings>(mock.defaultClinicSettings)
-  const [batches, setBatches] = useState<ProductBatch[]>(mock.batches)
+  const [products, setProducts] = useState<Product[]>(persisted?.products ?? mock.products)
+  const [movements, setMovements] = useState<InventoryMovement[]>(persisted?.movements ?? mock.inventoryMovements)
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(persisted?.purchaseOrders ?? mock.purchaseOrders)
+  const [vendors, setVendors] = useState<Vendor[]>(persisted?.vendors ?? mock.vendors)
+  const [patients, setPatients] = useState<Patient[]>(persisted?.patients ?? mock.patients)
+  const [cases, setCases] = useState<Case[]>(persisted?.cases ?? mock.cases)
+  const [labs, setLabs] = useState<Lab[]>(persisted?.labs ?? mock.labs)
+  const [sales, setSales] = useState<Sale[]>(persisted?.sales ?? mock.sales)
+  const [loans, setLoans] = useState<Loan[]>(persisted?.loans ?? mock.loans)
+  const [users, setUsers] = useState<AppUser[]>(persisted?.users ?? mock.users)
+  const [clinicSettings, setClinicSettings] = useState<ClinicSettings>(persisted?.clinicSettings ?? mock.defaultClinicSettings)
+  const [batches, setBatches] = useState<ProductBatch[]>(persisted?.batches ?? mock.batches)
+  const [doctors, setDoctors] = useState<Doctor[]>(persisted?.doctors ?? mock.doctors)
 
-  const addMovement = useCallback(
-    (productId: string, type: MovementType, quantity: number, reason: string, reference?: string, note?: string, batchLot?: string) => {
-      const movement: InventoryMovement = {
-        id: nextInternalId('mv'),
-        productId,
-        type,
-        quantity,
-        reason,
-        reference,
-        performedBy: currentUser.id,
-        createdAt: new Date().toISOString(),
-        note,
-        batchLot,
-      }
-      setMovements((prev) => [movement, ...prev])
-    },
-    [],
-  )
+  const addMovement = useCallback<DataContextValue['addMovement']>((input) => {
+    const movement: InventoryMovement = {
+      id: nextInternalId('mv'),
+      performedBy: currentUser.id,
+      createdAt: new Date().toISOString(),
+      ...input,
+    }
+    setMovements((prev) => [movement, ...prev])
+  }, [])
 
   const applyQtyDelta = useCallback((productId: string, delta: number) => {
     setProducts((prev) => prev.map((p) => (p.id === productId ? { ...p, quantityOnHand: Math.max(0, p.quantityOnHand + delta), updatedAt: new Date().toISOString() } : p)))
@@ -177,10 +219,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const adjustStock = useCallback(
     (productId: string, delta: number, reason: string, note?: string) => {
       if (!reason.trim()) throw new BusinessRuleError('A reason is required for manual stock adjustments.')
+      const before = products.find((p) => p.id === productId)?.quantityOnHand ?? 0
+      const after = Math.max(0, before + delta)
       applyQtyDelta(productId, delta)
-      addMovement(productId, 'adjustment', delta, reason, undefined, note)
+      addMovement({ productId, type: 'adjustment', quantity: delta, quantityBefore: before, quantityAfter: after, reason, note })
     },
-    [addMovement, applyQtyDelta],
+    [addMovement, applyQtyDelta, products],
   )
 
   const addProduct = useCallback<DataContextValue['addProduct']>((input) => {
@@ -198,7 +242,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
     setProducts((prev) => [product, ...prev])
     if (product.quantityOnHand > 0) {
-      addMovement(id, 'inbound', product.quantityOnHand, 'Initial stock on product creation')
+      addMovement({ productId: id, type: 'inbound', quantity: product.quantityOnHand, quantityBefore: 0, quantityAfter: product.quantityOnHand, reason: 'Initial stock on product creation' })
     }
     return product
   }, [addMovement])
@@ -271,15 +315,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const po = purchaseOrders.find((p) => p.id === poId)
     if (!po || !canReceivePO(po)) throw new BusinessRuleError('This purchase order cannot be received in its current status.')
 
-    // Batch/lot traceability begins here: a batch-tracked product must have
-    // a lot number captured at the moment it enters the business, not just
-    // when it's later sold or loaned — otherwise its lot has no true origin.
-    for (const r of receipts) {
-      if (r.quantityReceived <= 0) continue
-      const line = po.lines.find((l) => l.id === r.lineId)
-      const product = line ? products.find((p) => p.id === line.productId) : undefined
-      if (product?.batchTracked && !r.lotNumber?.trim()) {
-        throw new BusinessRuleError(`A lot/batch number is required to receive ${product.name} — this product is batch-tracked.`)
+    // Batch/lot traceability begins here: with tracking on, every received
+    // line needs a lot number captured the moment it enters the business —
+    // this is not gated by Product.batchTracked (PROJECT.md §3 point 5).
+    if (clinicSettings.batchLotTrackingEnabled) {
+      for (const r of receipts) {
+        if (r.quantityReceived <= 0) continue
+        if (!r.lotNumber?.trim()) {
+          const line = po.lines.find((l) => l.id === r.lineId)
+          const product = line ? products.find((p) => p.id === line.productId) : undefined
+          throw new BusinessRuleError(`A lot/batch number is required to receive ${product?.name ?? 'this line'}.`)
+        }
       }
     }
 
@@ -305,13 +351,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       ),
     )
     const newBatches: ProductBatch[] = []
+    const track = makeQtyTracker(products)
     receipts.forEach((r) => {
       if (r.quantityReceived <= 0) return
       const line = po.lines.find((l) => l.id === r.lineId)
       if (!line) return
       const lotNumber = r.lotNumber?.trim()
+      const { before, after } = track(line.productId, r.quantityReceived)
       applyQtyDelta(line.productId, r.quantityReceived)
-      addMovement(line.productId, 'inbound', r.quantityReceived, 'Purchase order received', po.poNumber, undefined, lotNumber)
+      addMovement({
+        productId: line.productId,
+        type: 'inbound',
+        quantity: r.quantityReceived,
+        quantityBefore: before,
+        quantityAfter: after,
+        reason: 'Purchase order received',
+        reference: po.poNumber,
+        batchLot: lotNumber,
+        vendorId: po.vendorId,
+      })
       // Batches are append-only, like every other audit trail in this app —
       // the same lot number received across multiple receipts becomes
       // multiple ProductBatch records, aggregated by (productId, lotNumber)
@@ -329,7 +387,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       }
     })
     if (newBatches.length > 0) setBatches((prev) => [...newBatches, ...prev])
-  }, [purchaseOrders, products, poEvent, applyQtyDelta, addMovement])
+  }, [purchaseOrders, products, poEvent, applyQtyDelta, addMovement, clinicSettings])
 
   const cancelPurchaseOrder = useCallback((poId: string) => {
     const po = purchaseOrders.find((p) => p.id === poId)
@@ -387,9 +445,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       history: [loanEvent(id, 'Loan Issued', `Loan issued with ${lines.length} product line(s).`, now)],
     }
     setLoans((prev) => [loan, ...prev])
+    const track = makeQtyTracker(products)
     lines.forEach((l) => {
+      const { before, after } = track(l.productId, -l.quantityLoaned)
       applyQtyDelta(l.productId, -l.quantityLoaned)
-      addMovement(l.productId, 'loan-out', -l.quantityLoaned, 'Loan issued to lab', loan.loanNumber, undefined, l.batchLot)
+      addMovement({
+        productId: l.productId,
+        type: 'loan-out',
+        quantity: -l.quantityLoaned,
+        quantityBefore: before,
+        quantityAfter: after,
+        reason: 'Loan issued to lab',
+        reference: loan.loanNumber,
+        batchLot: l.batchLot,
+        labId,
+      })
     })
     return loan
   }, [labs, products, applyQtyDelta, addMovement, loanEvent])
@@ -430,6 +500,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         return { ...l, lines, status, closedAt: fullyClosed ? now : l.closedAt, history: [...l.history, event] }
       }),
     )
+    const track = makeQtyTracker(products)
     returns.forEach((r) => {
       const line = loan.lines.find((l) => l.id === r.lineId)
       if (!line) return
@@ -438,14 +509,40 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       // user to re-enter it (nothing about a loan return changes which
       // physical lot the item belongs to).
       if (r.quantityReturned > 0) {
+        const { before, after } = track(line.productId, r.quantityReturned)
         applyQtyDelta(line.productId, r.quantityReturned)
-        addMovement(line.productId, 'loan-return', r.quantityReturned, 'Loan components returned by lab', loan.loanNumber, undefined, line.batchLot)
+        addMovement({
+          productId: line.productId,
+          type: 'loan-return',
+          quantity: r.quantityReturned,
+          quantityBefore: before,
+          quantityAfter: after,
+          reason: 'Loan components returned by lab',
+          reference: loan.loanNumber,
+          batchLot: line.batchLot,
+          labId: loan.labId,
+        })
       }
       if (r.quantityLost > 0) {
-        addMovement(line.productId, 'lost', -r.quantityLost, r.lostReason || 'Component lost while on loan', loan.loanNumber, undefined, line.batchLot)
+        // Lost stock was already decremented when the loan was issued
+        // (loan-out) — this movement only records disposition, so it does
+        // not call applyQtyDelta and before === after (quantityOnHand is
+        // unaffected by this event).
+        const { before, after } = track(line.productId, 0)
+        addMovement({
+          productId: line.productId,
+          type: 'lost',
+          quantity: -r.quantityLost,
+          quantityBefore: before,
+          quantityAfter: after,
+          reason: r.lostReason || 'Component lost while on loan',
+          reference: loan.loanNumber,
+          batchLot: line.batchLot,
+          labId: loan.labId,
+        })
       }
     })
-  }, [loans, applyQtyDelta, addMovement, loanEvent])
+  }, [loans, products, applyQtyDelta, addMovement, loanEvent])
 
   const createSale = useCallback<DataContextValue['createSale']>((lines, patientId, caseId) => {
     if (lines.length === 0) throw new BusinessRuleError('A sale must include at least one product line.')
@@ -464,18 +561,40 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       createdAt: new Date().toISOString(),
     }
     setSales((prev) => [sale, ...prev])
+    // Doctor is only ever knowable via a case link — Sale itself has no
+    // doctor field, matching PROJECT.md §3's Doctor decision (a display
+    // string, not a FK, sourced from wherever a Case already carries it).
+    const doctor = caseId ? cases.find((c) => c.id === caseId)?.doctor : undefined
+    const track = makeQtyTracker(products)
     lines.forEach((l) => {
+      const { before, after } = track(l.productId, -l.quantity)
       applyQtyDelta(l.productId, -l.quantity)
-      addMovement(l.productId, 'sale', -l.quantity, caseId ? 'Used in patient case' : 'Direct sale', sale.saleNumber, undefined, l.batchLot)
+      addMovement({
+        productId: l.productId,
+        type: 'sale',
+        quantity: -l.quantity,
+        quantityBefore: before,
+        quantityAfter: after,
+        reason: caseId ? 'Used in patient case' : 'Direct sale',
+        reference: sale.saleNumber,
+        batchLot: l.batchLot,
+        patientId,
+        caseId,
+        doctor,
+      })
     })
     return sale
-  }, [products, applyQtyDelta, addMovement])
+  }, [products, cases, applyQtyDelta, addMovement])
 
   const addPatient = useCallback<DataContextValue['addPatient']>((input) => {
     const id = nextInternalId('pat')
     const patient: Patient = { ...input, id, patientCode: `PT-${pad(1000 + nextPatientSeq(), 5)}`, createdAt: new Date().toISOString() }
     setPatients((prev) => [patient, ...prev])
     return patient
+  }, [])
+
+  const updatePatient = useCallback<DataContextValue['updatePatient']>((id, patch) => {
+    setPatients((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)))
   }, [])
 
   const caseEvent = useCallback((caseId: string, label: string, description: string, date: string): CaseTimelineEvent => {
@@ -571,6 +690,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setClinicSettings((prev) => ({ ...prev, ...patch }))
   }, [])
 
+  const addDoctor = useCallback<DataContextValue['addDoctor']>((input) => {
+    const id = nextInternalId('doc')
+    const doctor: Doctor = { name: input.name, active: input.active ?? true, id, createdAt: new Date().toISOString() }
+    setDoctors((prev) => [doctor, ...prev])
+    return doctor
+  }, [])
+
   const value = useMemo<DataContextValue>(
     () => ({
       products,
@@ -585,6 +711,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       users,
       clinicSettings,
       batches,
+      doctors,
       addMovement,
       adjustStock,
       addProduct,
@@ -599,6 +726,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       returnLoanLines,
       createSale,
       addPatient,
+      updatePatient,
       addCase,
       advanceCaseStatus,
       addImplantToCase,
@@ -606,6 +734,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addVendor,
       addUser,
       updateClinicSettings,
+      addDoctor,
     }),
     [
       products,
@@ -620,6 +749,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       users,
       clinicSettings,
       batches,
+      doctors,
       addMovement,
       adjustStock,
       addProduct,
@@ -634,6 +764,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       returnLoanLines,
       createSale,
       addPatient,
+      updatePatient,
       addCase,
       advanceCaseStatus,
       addImplantToCase,
@@ -641,8 +772,31 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addVendor,
       addUser,
       updateClinicSettings,
+      addDoctor,
     ],
   )
+
+  // Persist every business-data slice on every change — there is no backend,
+  // so this is the only thing standing between a user's work and losing it
+  // on the next reload.
+  useEffect(() => {
+    savePersistedSnapshot({
+      products,
+      movements,
+      purchaseOrders,
+      vendors,
+      patients,
+      cases,
+      labs,
+      sales,
+      loans,
+      users,
+      clinicSettings,
+      batches,
+      doctors,
+      internalIdCounter: getInternalIdCounter(),
+    })
+  }, [products, movements, purchaseOrders, vendors, patients, cases, labs, sales, loans, users, clinicSettings, batches, doctors])
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>
 }

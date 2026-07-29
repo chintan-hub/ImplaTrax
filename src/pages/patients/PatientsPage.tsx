@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Search } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -17,10 +17,18 @@ import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
 
 export function PatientsPage() {
   const { patients, cases } = useData()
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const [search, setSearch] = useState('')
-  const [formOpen, setFormOpen] = useState(params.get('new') === '1')
+  const [formOpen, setFormOpen] = useState(false)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (params.get('new') === '1') {
+      setFormOpen(true)
+      params.delete('new')
+      setParams(params, { replace: true })
+    }
+  }, [params, setParams])
 
   const caseCountByPatient = useMemo(() => {
     const map = new Map<string, number>()

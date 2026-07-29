@@ -1,11 +1,14 @@
 import { Package, Layers } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { useData } from '@/store/DataContext'
 import type { Product } from '@/types'
 import { formatCurrency } from '@/lib/utils'
+import { stockStatus, availableStock } from '@/lib/stock'
 
 export function ProductCard({ product, onClick }: { product: Product; onClick: () => void }) {
-  const lowStock = product.quantityOnHand <= product.lowStockThreshold
+  const { clinicSettings } = useData()
+  const status = stockStatus(product)
   return (
     <Card onClick={onClick} className="cursor-pointer transition-all hover:shadow-elevated hover:-translate-y-0.5">
       <CardContent className="p-4">
@@ -18,12 +21,12 @@ export function ProductCard({ product, onClick }: { product: Product; onClick: (
           </div>
           <div className="flex flex-col items-end gap-1">
             {product.status === 'discontinued' && <Badge variant="secondary">Discontinued</Badge>}
-            {lowStock && product.status === 'active' && (
-              <Badge variant={product.quantityOnHand === 0 ? 'danger' : 'warning'}>
-                {product.quantityOnHand === 0 ? 'Out of stock' : 'Low stock'}
+            {status !== 'normal' && product.status === 'active' && (
+              <Badge variant={status === 'out' ? 'danger' : 'warning'}>
+                {status === 'out' ? 'Out of stock' : 'Low stock'}
               </Badge>
             )}
-            {product.batchTracked && (
+            {clinicSettings.batchLotTrackingEnabled && product.batchTracked && (
               <Badge variant="outline" className="gap-1">
                 <Layers className="h-3 w-3" /> Batch
               </Badge>
@@ -42,7 +45,9 @@ export function ProductCard({ product, onClick }: { product: Product; onClick: (
         <div className="mt-3 flex items-end justify-between border-t border-border pt-3">
           <div>
             <p className="text-lg font-semibold tabular-nums">{product.quantityOnHand}</p>
-            <p className="text-[11px] text-muted-foreground">in stock</p>
+            <p className="text-[11px] text-muted-foreground">
+              in stock{product.quantityReserved > 0 ? ` · ${availableStock(product)} available` : ''}
+            </p>
           </div>
           {product.priceVisible && (
             <p className="text-sm font-medium tabular-nums">{formatCurrency(product.unitPrice)}</p>

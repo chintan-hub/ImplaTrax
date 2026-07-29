@@ -91,6 +91,93 @@
   - [ ] `exportToCsv` is a single, reusable utility with no per-page duplication, verified against at least one real dataset (e.g. Inventory movements).
   - [ ] The document-component pattern is proven on one real document (Purchase Order PDF, replacing the disabled stub) before P1-G reuses it elsewhere.
 
+### P1-L — Global Batch/Lot Tracking Setting
+*Inserted out of letter-order: a permanent product decision locked on 2026-07-28, after P1-F shipped, scoped and confirmed before P1-G begins — it now runs first (see Dependencies).*
+
+- **Objective:** Promote Batch/Lot Tracking from today's per-product opt-in (`Product.batchTracked`) to a single, application-wide ON/OFF setting on `ClinicSettings`, per the permanent rule locked in `PROJECT.md` §3 (2026-07-28). **OFF (default)** must fully hide every trace of the feature — no nav item, no pages, no fields, no validation, no per-product control. **ON** must fully integrate it across every relevant workflow with no partially-enabled state.
+- **Files affected:**
+  - `src/types/index.ts` — new `ClinicSettings.batchLotTrackingEnabled: boolean`.
+  - `src/mocks/settings.ts` — `defaultClinicSettings.batchLotTrackingEnabled: false`.
+  - `src/pages/settings/SettingsPage.tsx` — new "Batch/Lot Tracking" card (mirrors the existing Barcode Settings card pattern on the same page).
+  - `src/components/layout/nav.ts` / `src/components/layout/Sidebar.tsx` — the `/batches` nav item must be filtered out of `NAV_ITEMS` at render time when off (consumed by both the desktop sidebar and the mobile drawer).
+  - `src/pages/batches/BatchesPage.tsx` — the route must be unreachable (redirect) when off, even via a typed URL, not just unlinked.
+  - `src/components/products/ProductFormDialog.tsx`, `ProductCard.tsx`, `ProductDetailSheet.tsx` — the per-product batch-tracked toggle/badge only renders when the global setting is on.
+  - `src/components/purchase-orders/POReceiveDialog.tsx` — lot input + "needs lot" validation only when on.
+  - `src/components/sales/SaleFormDialog.tsx`, `src/pages/sales/SaleDetailPage.tsx` — lot input/column only when on.
+  - `src/components/loans/LoanFormDialog.tsx`, `LoanReturnDialog.tsx`, `src/pages/loans/LoanDetailPage.tsx` — lot input/validation/column only when on.
+  - `src/pages/cases/CaseDetailPage.tsx` — lot input on "Add Implant" only when on.
+  - `src/pages/inventory/InventoryPage.tsx` — **new** Batch/Lot column on the movements table (doesn't exist today, a real gap found during scoping since Inventory History is explicitly named in the locked rule), shown only when on and included in the P1-F CSV export when on.
+  - `src/content/helpText.ts` — new copy for the Settings card.
+- **Risks:** Medium-high — the widest-reaching gating change in the project so far (nine-plus files across five modules); a missed spot directly violates the "never partially enabled" rule.
+- **Confirmed decisions (2026-07-28):**
+  1. **`Product.batchTracked` survives** as a secondary, per-product refinement once the global switch is ON — it is not removed. The global switch only gates whether the feature exists in the app at all; which specific products carry lot numbers is still chosen per product, exactly as today.
+  2. **Sequencing:** P1-L runs before P1-G, so P1-G's GRN/receiving documents can show lot numbers correctly from the start rather than retrofitting them later.
+- **Confirmed decision, PO Receiving exception (2026-07-29):** `POReceiveDialog.tsx`'s lot capture no longer consults `Product.batchTracked`. With the global switch ON, every received line captures a Lot/Batch number regardless of the product's per-product flag — PROJECT.md §3 point 5. The Product form is unchanged; `batchTracked` still gates Sales/Loans/Cases exactly as decision 1 above describes. This narrows decision 1 to apply everywhere except receiving.
+- **Dependencies:** None blocking. Runs before P1-G (confirmed above); P1-I's not-yet-built Batch/Lot report must also be gated by this setting whenever it's eventually built.
+- **Estimated complexity:** Medium-Large — mechanical per-touchpoint once the open decisions above are resolved, but broad.
+- **Acceptance criteria:**
+  - [ ] With the setting OFF: no Batch/Lot nav item, `/batches` unreachable, no lot fields/validation/columns anywhere, no per-product batch-tracked control on the Product form — verified by a real click-through pass in the browser, not just code review.
+  - [ ] With the setting ON: every workflow named in `PROJECT.md` §3 shows/enforces lot behavior exactly as it does today, plus the new Inventory History lot column and its CSV export.
+  - [ ] Toggling the setting neither deletes nor mutates any existing `ProductBatch`/`batchLot` data.
+  - [ ] Full verification suite passes; existing `DataContext`/`batches` tests are unaffected (they test data plumbing, not UI visibility, since the underlying data model is unchanged).
+
+### P1-M — Doctor Master Data + Combobox UX Polish
+*Out-of-band cross-cutting polish pass (2026-07-29), not a numbered-sequence dependency of P1-G — sequenced here only because it landed between P1-L and P1-G.*
+
+- **Objective:** Replace the hardcoded `DOCTORS` string tuple with a real, persisted `Doctor` entity (`id`, `name`, `createdAt`, `active`) surfaced everywhere as a searchable, create-inline combobox — never a management page (PROJECT.md §3, Doctors section). Alongside it, a full master-data audit of every dropdown in the app, and a bounded UX pass replacing the plain, unsearchable `<Select>`s the audit flagged with the same combobox primitive.
+- **Files affected:**
+  - `src/types/index.ts` — new `Doctor` interface; `MANUFACTURERS`/`PRODUCT_CATEGORIES` promoted to single-source exported constants (previously redeclared in two files).
+  - `src/mocks/doctors.ts` (new) — seeds `Doctor[]` from the old `DOCTORS` names, prefix stripped.
+  - `src/store/DataContext.tsx` — `doctors` state + `addDoctor` action, following the exact `addLab` pattern.
+  - `src/components/ui/combobox.tsx` (new) — generic Popover+Command combobox, with an optional inline "create" affordance.
+  - `src/components/shared/DoctorCombobox.tsx` (new) — the Doctor-specific wrapper: always displays/searches with the "Dr." prefix, dedups by name before ever creating.
+  - `PatientFormDialog.tsx`, `CaseFormDialog.tsx`, `CasesPage.tsx` — Doctor field/filter now the combobox.
+  - `CaseFormDialog.tsx` (Patient, Lab), `POFormDialog.tsx` (Vendor) — plain full-list `<Select>`s upgraded to the same searchable combobox (UX polish only, no business-rule change).
+  - `ProductsPage.tsx`, `ProductFormDialog.tsx` — import the shared `MANUFACTURERS`/`PRODUCT_CATEGORIES` instead of redeclaring them.
+- **Risks:** Low-medium — new UI primitive, but `Patient.primaryDoctor`/`Case.doctor` deliberately stayed plain display strings (not promoted to a `Doctor.id` foreign key) to keep the blast radius contained; every existing display/filter/test site needed zero changes as a result.
+- **Confirmed decision:** Doctor is search+dedup+inline-create master data, not a foreign-key relationship — see PROJECT.md §3 for the full rationale and the explicit list of what a future FK promotion would need to touch.
+- **Dependencies:** None. Independent of P1-G.
+- **Estimated complexity:** Medium.
+- **Acceptance criteria:**
+  - [ ] Typing an existing doctor's name (no "Dr." prefix typed) shows it as a match; no redundant "Add" offered for it.
+  - [ ] Typing an unmatched name offers `Add "Dr. <name>"`; both a click and pressing Enter create and select it immediately.
+  - [ ] A newly created doctor is immediately searchable/reusable elsewhere — verified live, not just by code review.
+  - [ ] PO creation (now via the Vendor combobox) through to PO Receive still works end-to-end.
+  - [ ] Every route still survives a browser refresh (`vercel.json` untouched).
+  - [ ] Full verification suite passes: `tsc --noEmit`, `vitest` (71/71, unchanged — no data-layer test needed updating), `eslint` (0 errors, no new warnings), `vite build`.
+
+### P1-N — Inventory Engine: Structured Movements + Inventory History + Product Details
+*Out-of-band, like P1-M — not a numbered-sequence dependency of P1-G.*
+
+- **Objective:** Convert `InventoryMovement` from a loosely-linked audit row into a self-contained, immutable snapshot (PROJECT.md §3, "Inventory Movement Engine"): every movement carries its own `quantityBefore`/`quantityAfter` and structured `vendorId`/`labId`/`patientId`/`doctor`/`caseId` links, captured at write time by the action that creates it — never reconstructed later via a join through PO/Loan/Sale/Case. Rebuild `/inventory` into a real Inventory History page (Product/Doctor/Patient/Vendor/Lab/Date/Movement Type filters). Enhance Products with a real per-product stock dashboard (Available Stock, Reorder Level, Normal/Low/Out-of-Stock Status). Enhance Product Details with categorized Purchase/Sales/Loan/Adjustment history and Lot information.
+- **Confirmed audit finding (kept, not changed):** every one of the six supported events (PO Received, Sale, Loan Out, Loan Return, Manual Adjustment, Product Creation) already called `addMovement` before this milestone — the movement-creation guarantee itself was not a gap. `addImplantToCase` deliberately still does not move stock; it isn't one of the six events, matching the existing, intentional design (Sale is the real stock-moving event, optionally case-linked).
+- **Files affected:**
+  - `src/types/index.ts` — `InventoryMovement` gains `quantityBefore`, `quantityAfter` (both required), `vendorId`, `labId`, `patientId`, `doctor`, `caseId` (all optional, populated per movement type).
+  - `src/store/DataContext.tsx` — new `makeQtyTracker` helper (correct before/after bookkeeping even when the same product appears on more than one line in a single transaction); `addMovement` converted to a single options-object signature; `receivePurchaseOrder`, `createLoan`, `returnLoanLines`, `createSale`, `adjustStock`, `addProduct` all updated to populate the new fields.
+  - `src/mocks/inventory.ts` — backfills `quantityBefore`/`quantityAfter` as a self-consistent running balance per product (chronological pass) and the new structured links, for all ~150 seeded movements.
+  - `src/pages/inventory/InventoryPage.tsx` — rebuilt as the Inventory History page: Product/Doctor/Patient/Vendor/Lab/Date-range/Movement Type filters (replacing the old All/Inbound/Outbound/Adjustment tabs — `outbound` had zero real producers), new Balance (before → after) and Linked-to columns, CSV export extended to match.
+  - `src/lib/stock.ts` (new) — single source of truth for `stockStatus`/`availableStock`/`STOCK_STATUS_LABEL`, replacing duplicated ad-hoc low-stock checks in `ProductsPage.tsx`/`ProductCard.tsx`.
+  - `src/pages/products/ProductsPage.tsx`, `src/components/products/ProductCard.tsx` — Available/Reserved/Reorder Level/Stock Status added.
+  - `src/components/products/ProductDetailSheet.tsx` — the old generic "Recent stock movements" (10-row cap) replaced by categorized Purchase/Sales/Loan/Adjustment history sections (new `HistorySection` component) plus a Lot Information section reusing `summarizeLots` (`src/lib/batches.ts`, unchanged); Available Stock and a Stock Status badge added to the stats grid.
+  - `src/lib/batches.test.ts`, `src/store/DataContext.test.tsx` — updated/extended for the new required fields; six new tests added, including a regression guard for the same-product-on-multiple-lines bookkeeping case.
+- **Confirmed decisions (2026-07-29, user-directed):**
+  1. Doctor/Patient/Vendor/Lab filters must always be visible and always work identically regardless of movement type — resolved by redesigning the movement schema to carry structured links directly, not by disabling/hiding filters for movement types that can't match.
+  2. Page responsibilities are strictly separated: Products = per-product summary, Inventory (History) = per-movement ledger, Product Details = complete per-product audit. No page duplicates another's row shape.
+  3. `Patient.primaryDoctor`/`Case.doctor` remain plain display strings (P1-M's decision, unchanged) — `InventoryMovement.doctor` follows the same convention, resolved from the linked Case, not a `Doctor.id` FK.
+- **Known pre-existing issue found during verification, not fixed (out of scope):** `src/mocks/loans.ts` assigns each mock loan line a freshly-random `LOT-XXXXX` string instead of reusing a lot actually received via a PO (`batchLotByPoLine`), so `summarizeLots` can show a negative "remaining" for a handful of synthetic mock lots. This is a mock-data-generation quirk (`src/mocks/loans.ts:77`), not a P1-N regression — `summarizeLots` itself is unchanged and correct given complete data.
+- **Risks:** Medium — the widest change to `DataContext.tsx`'s mutation functions since the project's inception; mitigated by the `makeQtyTracker` regression-guard test and full before/after verification.
+- **Dependencies:** None blocking. Independent of P1-G.
+- **Estimated complexity:** Large.
+- **Acceptance criteria:**
+  - [ ] Every movement has real, non-optional `quantityBefore`/`quantityAfter`; a multi-line transaction referencing the same product twice produces correct sequential values, not two identical stale ones — verified by an automated test, not just manual inspection.
+  - [ ] Doctor/Patient/Vendor/Lab/Product/Date/Movement Type filters on Inventory History all work, verified live against real seeded data (not just that the UI renders).
+  - [ ] Products shows Available Stock, Reserved Stock, Reorder Level, and a correct Normal/Low Stock/Out of Stock status per product.
+  - [ ] Product Details shows Purchase/Sales/Loan/Adjustment history and Lot information (when Batch/Lot Tracking is on), verified live.
+  - [ ] PO Receive, Sale, Loan, and Manual Adjustment all still complete successfully end-to-end (regression check).
+  - [ ] Every route still survives a browser refresh.
+  - [ ] Full verification suite passes: `tsc -b --noEmit` (not the no-op plain `tsc --noEmit` — see note below), `vitest` (77/77), `eslint` (0 errors, no new warnings), `vite build`.
+- **Tooling note (important for future sessions):** this project's root `tsconfig.json` uses TypeScript project references with an empty `files: []` — running plain `npx tsc --noEmit` checks **zero files** and always silently "passes." Always use `npx tsc -b --noEmit` (or `npx tsc -b`, matching the real `npm run build` script), the same way this bug was caught mid-P1-N.
+
 ### P1-G — Core Transactional Documents
 - **Objective:** Using the P1-F foundation: a real Purchase Order PDF (replacing the "coming soon" stub), a Goods Received Note (from a PO's receiving event), a Sales Invoice and Delivery Challan (from Sale Detail, P1-D), and a Loan Out Slip + Loan Return Receipt (from Loan Detail, P1-C).
 - **Files affected:** New per-document components under the P1-F layer; "Generate PDF"/"Print"/"Export" buttons added to `PODetailPage.tsx`, the new `SaleDetailPage.tsx`, and the new `LoanDetailPage.tsx`.
@@ -315,7 +402,10 @@
 | 1 | P1-D Sales → Full Workflow | S-M | — |
 | 1 | P1-E Batch/Lot Screen | M-L | your decisions (reserved stock, expiry) |
 | 1 | P1-F Document Generation Foundation | M | — |
-| 1 | P1-G Core Transactional Documents | M | P1-F, P1-C, P1-D |
+| 1 | P1-L Global Batch/Lot Tracking Setting | M-L | — |
+| 1 | P1-M Doctor Master Data + Combobox UX Polish | M | — |
+| 1 | P1-N Inventory Engine: Structured Movements + History + Product Details | L | — |
+| 1 | P1-G Core Transactional Documents | M | P1-F, P1-L, P1-C, P1-D |
 | 1 | P1-H Proforma & Payment Receipt | M | your decisions (proforma model, payment fields) |
 | 1 | P1-I Reports Export + New Reports | M | P1-F, P1-E |
 | 1 | P1-J Print Everywhere + List Export | M | P1-F |
@@ -338,6 +428,6 @@
 | Unprioritized | P-DATA Remove Seeded Data & Empty-State Bootstrap *(placeholder)* | TBD | `PROJECT.md` §2b |
 | Unprioritized | P-WORKFLOW Product Available Workflows Selector *(placeholder)* | TBD | P2-D Product Edit |
 
-**Open decisions needed before/during implementation** (full detail in `AUDIT.md`): case-transition scope, oversell hard-block vs. warning, Proforma modeling, Payment Receipt data fields, `quantityReserved`/`expiryDate` fate, click-select-vs-open for multi-select.
+**Open decisions needed before/during implementation** (full detail in `AUDIT.md`): case-transition scope, oversell hard-block vs. warning, Proforma modeling, Payment Receipt data fields, `quantityReserved`/`expiryDate` fate, click-select-vs-open for multi-select. **P1-L's two decisions (per-product field fate, sequencing vs. P1-G) were confirmed 2026-07-28 — see P1-L above.**
 
 **Recommended immediate next step:** P1-A (Case Lifecycle Completion) — the single most consequential gap found in the audit, and fully independent of every open decision above.

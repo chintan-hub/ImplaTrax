@@ -20,6 +20,8 @@ function movement(overrides: Partial<InventoryMovement> = {}): InventoryMovement
     productId: 'prd_1',
     type: 'sale',
     quantity: -3,
+    quantityBefore: 10,
+    quantityAfter: 7,
     reason: 'Direct sale',
     performedBy: 'usr_1',
     createdAt: '2026-01-02T00:00:00.000Z',

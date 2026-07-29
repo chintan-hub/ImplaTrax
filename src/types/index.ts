@@ -16,6 +16,9 @@ export type Manufacturer =
   | 'Dentium'
   | 'MIS'
 
+/** Single source of truth for the Manufacturer picklist — a fixed, real-world catalog of implant brands, not per-clinic data, so it stays a static list rather than a persisted table (PROJECT.md §3, Master Data Audit). */
+export const MANUFACTURERS: Manufacturer[] = ['Straumann', 'Nobel Biocare', 'Osstem', 'NeoBiotech', 'Dentium', 'MIS']
+
 export type ProductCategory =
   | 'Implant Fixture'
   | 'Healing Abutment'
@@ -27,6 +30,12 @@ export type ProductCategory =
   | 'Bone Graft Material'
   | 'Membrane'
   | 'Prosthetic Screw'
+
+/** Single source of truth for the Category picklist — same rationale as MANUFACTURERS above. */
+export const PRODUCT_CATEGORIES: ProductCategory[] = [
+  'Implant Fixture', 'Healing Abutment', 'Final Abutment', 'Cover Screw', 'Impression Coping',
+  'Analog', 'Surgical Kit', 'Bone Graft Material', 'Membrane', 'Prosthetic Screw',
+]
 
 export interface Product {
   id: ID
@@ -72,18 +81,36 @@ export interface ProductBatch {
 
 export type MovementType = 'inbound' | 'outbound' | 'adjustment' | 'loan-out' | 'loan-return' | 'sale' | 'lost'
 
+/**
+ * Every field below is captured directly, at write time, by the action that
+ * creates the movement (P1-N, locked 2026-07-29) — never reconstructed later
+ * via a join through PO/Loan/Sale/Case. `quantityBefore`/`quantityAfter` make
+ * every record a self-contained snapshot of the product's stock at that
+ * moment; `vendorId`/`labId`/`patientId`/`doctor`/`caseId` make every record
+ * directly filterable without depending on `reference` string-matching a
+ * business-document number. Not every field applies to every `type` — see
+ * PROJECT.md §3 for the exact linkage rules per movement type.
+ */
 export interface InventoryMovement {
   id: ID
   productId: ID
   type: MovementType
   quantity: number // signed: positive = stock increase, negative = decrease
+  quantityBefore: number
+  quantityAfter: number
   reason: string
-  reference?: string // PO number, Loan ID, Sale ID, Case ID
+  reference?: string // PO number, Loan number, Sale number — the human-readable business document
   performedBy: ID // user id
   createdAt: string
   note?: string
   /** Lot/batch number this movement affected, for batch-tracked products. */
   batchLot?: string
+  vendorId?: ID
+  labId?: ID
+  patientId?: ID
+  /** Display string, e.g. "Dr. Alan Whitfield" — matches Case.doctor's convention, not a Doctor.id FK (PROJECT.md §3). */
+  doctor?: string
+  caseId?: ID
 }
 
 // ---------------------------------------------------------------------------
@@ -140,6 +167,24 @@ export interface PurchaseOrder {
   history: PurchaseOrderEvent[]
   /** Optional reference photo (e.g. a photographed paper PO or packing slip), stored as a data URL. */
   photoDataUrl?: string
+}
+
+// ---------------------------------------------------------------------------
+// Doctors
+// ---------------------------------------------------------------------------
+
+/**
+ * A real, persisted lookup table (not a per-product/per-patient string) so the
+ * same doctor is reused across Patients, Cases, and any future workflow
+ * instead of re-typing a name each time — created inline from the doctor
+ * autocomplete field, never from a dedicated management page (PROJECT.md §3).
+ * `name` excludes the "Dr." prefix; every UI display composes "Dr. " + name.
+ */
+export interface Doctor {
+  id: ID
+  name: string
+  createdAt: string
+  active: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -316,4 +361,6 @@ export interface ClinicSettings {
   barcodeFormat: 'CODE128' | 'CODE39' | 'EAN13'
   lowStockGlobalDefault: number
   theme: 'light' | 'dark' | 'system'
+  /** Application-wide Batch/Lot Tracking switch (PROJECT.md §3, locked 2026-07-28) — not a per-product setting. */
+  batchLotTrackingEnabled: boolean
 }

@@ -4,11 +4,12 @@ import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import { Combobox } from '@/components/ui/combobox'
+import { DoctorCombobox } from '@/components/shared/DoctorCombobox'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { useData } from '@/store/DataContext'
 import { patientFullName } from '@/mocks/patients'
-import { DOCTORS } from '@/mocks/names'
 import { MICROCOPY } from '@/content/helpText'
 import { simulateLatency } from '@/lib/utils'
 import type { CaseStatus } from '@/types'
@@ -25,7 +26,7 @@ export function CaseFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const presetPatientId = params.get('patientId') ?? ''
 
   const [patientId, setPatientId] = useState(presetPatientId)
-  const [doctor, setDoctor] = useState<string>(DOCTORS[0])
+  const [doctor, setDoctor] = useState<string>('')
   const [labId, setLabId] = useState<string>('none')
   const [procedure, setProcedure] = useState(PROCEDURES[0])
   const [status, setStatus] = useState<CaseStatus>('planning')
@@ -35,6 +36,10 @@ export function CaseFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const handleSubmit = async () => {
     if (!patientId) {
       toast.error('Select a patient.')
+      return
+    }
+    if (!doctor.trim()) {
+      toast.error('Select or add a doctor.')
       return
     }
     setSubmitting(true)
@@ -63,31 +68,31 @@ export function CaseFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="col-span-1 space-y-1.5 sm:col-span-2">
             <Label>Patient</Label>
-            <Select value={patientId} onValueChange={setPatientId}>
-              <SelectTrigger><SelectValue placeholder="Select patient" /></SelectTrigger>
-              <SelectContent className="max-h-72">
-                {patients.map((p) => <SelectItem key={p.id} value={p.id}>{patientFullName(p)} · {p.patientCode}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Combobox
+              options={patients.map((p) => ({ value: p.id, label: `${patientFullName(p)} · ${p.patientCode}` }))}
+              value={patientId}
+              onChange={setPatientId}
+              placeholder="Select patient"
+              searchPlaceholder="Search patients..."
+              emptyText="No patients found."
+              triggerAriaLabel="Patient"
+            />
           </div>
           <div className="space-y-1.5">
             <Label>Doctor</Label>
-            <Select value={doctor} onValueChange={setDoctor}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {DOCTORS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <DoctorCombobox value={doctor} onChange={setDoctor} />
           </div>
           <div className="space-y-1.5">
             <Label>Lab (optional)</Label>
-            <Select value={labId} onValueChange={setLabId}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent className="max-h-72">
-                <SelectItem value="none">No lab</SelectItem>
-                {labs.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Combobox
+              options={[{ value: 'none', label: 'No lab' }, ...labs.map((l) => ({ value: l.id, label: l.name }))]}
+              value={labId}
+              onChange={setLabId}
+              placeholder="Select lab"
+              searchPlaceholder="Search labs..."
+              emptyText="No labs found."
+              triggerAriaLabel="Lab"
+            />
           </div>
           <div className="col-span-1 space-y-1.5 sm:col-span-2">
             <Label>Procedure</Label>

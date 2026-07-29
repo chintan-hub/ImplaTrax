@@ -4,27 +4,40 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { useData } from '@/store/DataContext'
 import { simulateLatency } from '@/lib/utils'
+import { MANUFACTURERS } from '@/types'
+import type { Manufacturer } from '@/types'
 
 export function VendorFormDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const { addVendor } = useData()
   const [form, setForm] = useState({ name: '', contactName: '', email: '', phone: '', address: '', country: 'United States' })
+  const [manufacturers, setManufacturers] = useState<Manufacturer[]>([])
   const [submitting, setSubmitting] = useState(false)
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((prev) => ({ ...prev, [k]: e.target.value }))
+
+  const toggleManufacturer = (m: Manufacturer, checked: boolean) => {
+    setManufacturers((prev) => (checked ? [...prev, m] : prev.filter((x) => x !== m)))
+  }
 
   const handleSubmit = async () => {
     if (!form.name.trim()) {
       toast.error('Vendor name is required.')
       return
     }
+    if (manufacturers.length === 0) {
+      toast.error('Select at least one manufacturer this vendor supplies.')
+      return
+    }
     setSubmitting(true)
     await simulateLatency()
-    addVendor({ ...form, manufacturers: [] })
+    addVendor({ ...form, manufacturers })
     toast.success(`Vendor "${form.name}" added`, { description: 'It now appears in your vendor directory.' })
     setSubmitting(false)
     setForm({ name: '', contactName: '', email: '', phone: '', address: '', country: 'United States' })
+    setManufacturers([])
     onOpenChange(false)
   }
 
@@ -59,6 +72,18 @@ export function VendorFormDialog({ open, onOpenChange }: { open: boolean; onOpen
           <div className="col-span-1 space-y-1.5 sm:col-span-2">
             <Label htmlFor="vendor-address">Address</Label>
             <Input id="vendor-address" value={form.address} onChange={set('address')} />
+          </div>
+          <div className="col-span-1 space-y-1.5 sm:col-span-2">
+            <Label>Manufacturers supplied</Label>
+            <p className="text-xs text-muted-foreground">Determines which products can be ordered from this vendor on a Purchase Order.</p>
+            <div className="grid grid-cols-2 gap-2 rounded-lg border border-border p-3 sm:grid-cols-3">
+              {MANUFACTURERS.map((m) => (
+                <label key={m} className="flex items-center gap-2 text-sm">
+                  <Checkbox checked={manufacturers.includes(m)} onCheckedChange={(v) => toggleManufacturer(m, v === true)} />
+                  {m}
+                </label>
+              ))}
+            </div>
           </div>
         </div>
         <DialogFooter>

@@ -16,7 +16,7 @@ interface LineState {
 }
 
 export function LoanReturnDialog({ loan, open, onOpenChange }: { loan: Loan | null; open: boolean; onOpenChange: (v: boolean) => void }) {
-  const { products, returnLoanLines } = useData()
+  const { products, returnLoanLines, clinicSettings } = useData()
   const [state, setState] = useState<Record<string, LineState>>({})
   const [submitting, setSubmitting] = useState(false)
 
@@ -80,7 +80,7 @@ export function LoanReturnDialog({ loan, open, onOpenChange }: { loan: Loan | nu
                 <div className="flex items-center justify-between mb-2">
                   <div>
                     <p className="text-sm font-medium">{product?.name}</p>
-                    {line.batchLot && <p className="text-xs text-muted-foreground">Lot: {line.batchLot}</p>}
+                    {clinicSettings.batchLotTrackingEnabled && line.batchLot && <p className="text-xs text-muted-foreground">Lot: {line.batchLot}</p>}
                   </div>
                   <span className="text-xs text-muted-foreground">Outstanding: {outstanding}</span>
                 </div>

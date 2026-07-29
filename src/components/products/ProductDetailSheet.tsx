@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Minus, Plus, Package } from 'lucide-react'
+import { Minus, Plus, Package, Pencil } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetBody, SheetFooter } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -11,20 +11,70 @@ import { BarcodeDisplay, QRDisplay } from '@/components/shared/Barcode'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { TermHint } from '@/components/ui/help-tooltip'
 import { useData } from '@/store/DataContext'
-import { formatCurrency, formatDateTime, simulateLatency } from '@/lib/utils'
+import { formatCurrency, formatDate, formatDateTime, simulateLatency } from '@/lib/utils'
 import { MICROCOPY } from '@/content/helpText'
-import type { Product } from '@/types'
+import { patientFullName } from '@/mocks/patients'
+import { summarizeLots } from '@/lib/batches'
+import { stockStatus, availableStock, STOCK_STATUS_LABEL } from '@/lib/stock'
+import { ProductFormDialog } from '@/components/products/ProductFormDialog'
+import type { Product, InventoryMovement } from '@/types'
+
+const STOCK_STATUS_VARIANT = { normal: 'success', low: 'warning', out: 'danger' } as const
+
+/** One capped, labeled slice of a product's movement history — the full, unfiltered ledger lives on the Inventory History page. */
+function HistorySection({
+  label,
+  emptyText,
+  movements,
+  primaryLabel,
+}: {
+  label: string
+  emptyText: string
+  movements: InventoryMovement[]
+  primaryLabel: (m: InventoryMovement) => string
+}) {
+  const shown = movements.slice(0, 5)
+  return (
+    <div>
+      <p className="mb-1.5 text-xs font-medium text-muted-foreground">{label}</p>
+      <div className="space-y-2">
+        {shown.map((m) => (
+          <div key={m.id} className="flex items-center justify-between gap-2 text-xs">
+            <div className="min-w-0">
+              <p className="truncate font-medium text-foreground">{primaryLabel(m)}</p>
+              <p className="text-muted-foreground">{formatDateTime(m.createdAt)}{m.reference ? ` · ${m.reference}` : ''}</p>
+            </div>
+            <span className={m.quantity >= 0 ? 'shrink-0 text-success-600 font-medium' : 'shrink-0 text-danger-600 font-medium'}>
+              {m.quantity >= 0 ? '+' : ''}{m.quantity}
+            </span>
+          </div>
+        ))}
+        {movements.length === 0 && <p className="text-xs text-muted-foreground">{emptyText}</p>}
+        {movements.length > shown.length && (
+          <p className="text-xs text-muted-foreground">+{movements.length - shown.length} more in Inventory History</p>
+        )}
+      </div>
+    </div>
+  )
+}
 
 export function ProductDetailSheet({ product, open, onOpenChange }: { product: Product | null; open: boolean; onOpenChange: (v: boolean) => void }) {
-  const { movements, adjustStock, vendors, clinicSettings } = useData()
+  const { movements, adjustStock, vendors, labs, patients, batches, cases, clinicSettings } = useData()
   const [adjustDelta, setAdjustDelta] = useState(1)
   const [reason, setReason] = useState('')
   const [pendingSign, setPendingSign] = useState<1 | -1 | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
 
   if (!product) return null
 
-  const productMovements = movements.filter((m) => m.productId === product.id).slice(0, 10)
   const vendor = vendors.find((v) => v.id === product.vendorId)
+  const productMovements = movements.filter((m) => m.productId === product.id)
+  const purchaseHistory = productMovements.filter((m) => m.type === 'inbound')
+  const salesHistory = productMovements.filter((m) => m.type === 'sale')
+  const loanHistory = productMovements.filter((m) => m.type === 'loan-out' || m.type === 'loan-return' || m.type === 'lost')
+  const adjustmentHistory = productMovements.filter((m) => m.type === 'adjustment')
+  const lots = summarizeLots(batches, movements, cases).filter((l) => l.productId === product.id)
+  const status = stockStatus(product)
 
   const handleAdjust = async (sign: 1 | -1) => {
     if (!reason.trim()) {
@@ -43,25 +93,31 @@ export function ProductDetailSheet({ product, open, onOpenChange }: { product: P
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="max-w-lg w-full sm:max-w-lg">
         <SheetHeader>
-          <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: `${product.imageColor}1a`, color: product.imageColor }}>
-              <Package className="h-5 w-5" />
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: `${product.imageColor}1a`, color: product.imageColor }}>
+                <Package className="h-5 w-5" />
+              </div>
+              <div>
+                <SheetTitle>{product.name}</SheetTitle>
+                <SheetDescription className="inline-flex items-center gap-1">
+                  <TermHint term="sku" iconOnly /> {product.sku}
+                </SheetDescription>
+              </div>
             </div>
-            <div>
-              <SheetTitle>{product.name}</SheetTitle>
-              <SheetDescription className="inline-flex items-center gap-1">
-                <TermHint term="sku" iconOnly /> {product.sku}
-              </SheetDescription>
-            </div>
+            <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+              <Pencil className="h-3.5 w-3.5" /> Edit
+            </Button>
           </div>
         </SheetHeader>
 
         <SheetBody className="space-y-6 py-4">
           <div className="flex flex-wrap gap-2">
             <StatusBadge status={product.status} />
+            <Badge variant={STOCK_STATUS_VARIANT[status]}>{STOCK_STATUS_LABEL[status]}</Badge>
             <Badge variant="outline">{product.manufacturer}</Badge>
             <Badge variant="outline">{product.category}</Badge>
-            {product.batchTracked && (
+            {clinicSettings.batchLotTrackingEnabled && product.batchTracked && (
               <Badge variant="accent" className="gap-1">
                 Batch tracked
                 <TermHint term="batchNumber" iconOnly className="text-accent-foreground" />
@@ -75,6 +131,10 @@ export function ProductDetailSheet({ product, open, onOpenChange }: { product: P
               <p className="font-medium tabular-nums text-base">{product.quantityOnHand}</p>
             </div>
             <div>
+              <p className="text-muted-foreground">Available</p>
+              <p className="font-medium tabular-nums text-base">{availableStock(product)}</p>
+            </div>
+            <div>
               <p className="flex items-center gap-1 text-muted-foreground">
                 Reserved <TermHint term="reservedStock" iconOnly />
               </p>
@@ -82,7 +142,7 @@ export function ProductDetailSheet({ product, open, onOpenChange }: { product: P
             </div>
             <div>
               <p className="flex items-center gap-1 text-muted-foreground">
-                Low stock at <TermHint term="lowStock" iconOnly />
+                Reorder level <TermHint term="lowStock" iconOnly />
               </p>
               <p className="font-medium tabular-nums text-base">{product.lowStockThreshold}</p>
             </div>
@@ -166,31 +226,71 @@ export function ProductDetailSheet({ product, open, onOpenChange }: { product: P
 
           <Separator />
 
-          <div>
-            <p className="mb-2 flex items-center gap-1 text-sm font-medium">
-              Recent stock movements <TermHint term="stockMovement" iconOnly />
+          <div className="space-y-4">
+            <p className="flex items-center gap-1 text-sm font-medium">
+              History <TermHint term="stockMovement" iconOnly />
             </p>
-            <div className="space-y-2">
-              {productMovements.map((m) => (
-                <div key={m.id} className="flex items-center justify-between text-xs">
-                  <div>
-                    <p className="font-medium text-foreground">{m.reason}</p>
-                    <p className="text-muted-foreground">{formatDateTime(m.createdAt)} {m.reference ? `· ${m.reference}` : ''}</p>
-                  </div>
-                  <span className={m.quantity >= 0 ? 'text-success-600 font-medium' : 'text-danger-600 font-medium'}>
-                    {m.quantity >= 0 ? '+' : ''}{m.quantity}
-                  </span>
-                </div>
-              ))}
-              {productMovements.length === 0 && <p className="text-xs text-muted-foreground">No stock movements recorded yet for this product.</p>}
-            </div>
+
+            <HistorySection
+              label="Purchase history"
+              emptyText="No purchases received yet."
+              movements={purchaseHistory}
+              primaryLabel={(m) => vendors.find((v) => v.id === m.vendorId)?.name ?? m.reason}
+            />
+            <HistorySection
+              label="Sales history"
+              emptyText="No sales recorded yet."
+              movements={salesHistory}
+              primaryLabel={(m) => {
+                const patient = m.patientId ? patients.find((p) => p.id === m.patientId) : undefined
+                const parts = [patient ? patientFullName(patient) : null, m.doctor].filter(Boolean)
+                return parts.length > 0 ? parts.join(' · ') : m.reason
+              }}
+            />
+            <HistorySection
+              label="Loan history"
+              emptyText="No loans recorded yet."
+              movements={loanHistory}
+              primaryLabel={(m) => labs.find((l) => l.id === m.labId)?.name ?? m.reason}
+            />
+            <HistorySection
+              label="Adjustments"
+              emptyText="No manual adjustments recorded yet."
+              movements={adjustmentHistory}
+              primaryLabel={(m) => m.reason}
+            />
           </div>
+
+          {clinicSettings.batchLotTrackingEnabled && (
+            <>
+              <Separator />
+              <div>
+                <p className="mb-2 flex items-center gap-1 text-sm font-medium">
+                  Lot information <TermHint term="batchNumber" iconOnly />
+                </p>
+                <div className="space-y-2">
+                  {lots.map((lot) => (
+                    <div key={lot.lotNumber} className="flex items-center justify-between text-xs">
+                      <div>
+                        <p className="font-medium text-foreground">{lot.lotNumber}</p>
+                        <p className="text-muted-foreground">{lot.expiryDate ? `Expires ${formatDate(lot.expiryDate)}` : 'No expiry recorded'}</p>
+                      </div>
+                      <span className="font-medium tabular-nums">{lot.remaining} remaining</span>
+                    </div>
+                  ))}
+                  {lots.length === 0 && <p className="text-xs text-muted-foreground">No lots recorded yet for this product.</p>}
+                </div>
+              </div>
+            </>
+          )}
         </SheetBody>
 
         <SheetFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
         </SheetFooter>
       </SheetContent>
+
+      <ProductFormDialog product={product} open={editOpen} onOpenChange={setEditOpen} />
     </Sheet>
   )
 }

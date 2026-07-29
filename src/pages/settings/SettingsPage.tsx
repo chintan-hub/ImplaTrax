@@ -119,6 +119,24 @@ export function SettingsPage() {
 
         <Card>
           <CardHeader>
+            <CardTitle className="flex items-center gap-1">
+              Batch/Lot Tracking <TermHint term="batchLot" iconOnly />
+            </CardTitle>
+            <CardDescription>Application-wide switch — not a per-product setting</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between rounded-lg border border-border p-3">
+              <div>
+                <p className="text-sm font-medium">{form.batchLotTrackingEnabled ? 'On' : 'Off'}</p>
+                <p className="text-xs text-muted-foreground">{MICROCOPY.batchLotTracking}</p>
+              </div>
+              <Switch checked={form.batchLotTrackingEnabled} onCheckedChange={set('batchLotTrackingEnabled')} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Theme</CardTitle>
             <CardDescription>Choose how ImplantDesk looks on this device</CardDescription>
           </CardHeader>

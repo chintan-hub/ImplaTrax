@@ -24,6 +24,8 @@ export interface NavItem {
   icon: LucideIcon
   group: 'Overview' | 'Inventory' | 'Care' | 'Operations' | 'System'
   helpKey?: IconHelpKey
+  /** Only shown when ClinicSettings.batchLotTrackingEnabled is on (PROJECT.md §3) — hidden entirely when off. */
+  requiresBatchLotTracking?: boolean
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -31,7 +33,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Products', to: '/products', icon: Package, group: 'Inventory' },
   { label: 'Inventory', to: '/inventory', icon: Boxes, group: 'Inventory' },
   { label: 'Purchase Orders', to: '/purchase-orders', icon: ClipboardList, group: 'Inventory' },
-  { label: 'Batch / Lot Tracking', to: '/batches', icon: Layers, group: 'Inventory' },
+  { label: 'Batch / Lot Tracking', to: '/batches', icon: Layers, group: 'Inventory', requiresBatchLotTracking: true },
   { label: 'Vendors', to: '/vendors', icon: Truck, group: 'Inventory' },
   { label: 'Patients', to: '/patients', icon: Users, group: 'Care' },
   { label: 'Cases', to: '/cases', icon: FolderKanban, group: 'Care' },

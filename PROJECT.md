@@ -68,18 +68,19 @@ See `DEVELOPMENT_PLAN.md`'s Phase 5 for the concrete implementation strategy and
 These rules are currently implemented in code (mock data generators, `DataContext` actions, and page components) and must not be silently changed. If a rule needs to change, update it here first, then in code, in the same change.
 
 ### Inventory
-- Every product has a `quantityOnHand` and a `quantityReserved`. Reserved stock is allocated to a patient case but not yet used/sold.
-- Every product has a `lowStockThreshold` (a.k.a. "Minimum Stock" in the UI). When `quantityOnHand <= lowStockThreshold`, the product is flagged Low Stock everywhere it appears (Dashboard, Products, the Topbar notification bell).
+- Every product has a `quantityOnHand` and a `quantityReserved`. Reserved stock is allocated to a patient case but not yet used/sold. **`quantityReserved` remains a placeholder (locked 2026-07-29, P1-N): nothing writes to it yet** — it is only ever set at product creation (0 via the real form) and displayed, never mutated by any action. **Available Stock** (`quantityOnHand - quantityReserved`, `src/lib/stock.ts`) is a real, honest calculation from these two existing fields — it is not itself a placeholder, even though one of its inputs currently never changes.
+- Every product has a `lowStockThreshold` (a.k.a. "Minimum Stock"/"Reorder Level" in the UI). When `quantityOnHand <= lowStockThreshold`, the product's **Stock Status** (`src/lib/stock.ts`) is **Low Stock**; at `quantityOnHand === 0` it is **Out of Stock**; otherwise **Normal**. Flagged everywhere it appears (Dashboard, Products, the Topbar notification bell).
+- **Page responsibilities (locked 2026-07-29, P1-N):** Products = one row per product, the product-level stock dashboard (Current/Available/Reserved/Reorder Level/Status). Inventory History (`/inventory`) = one row per movement, the append-only ledger — the source of truth for stock auditing. Product Details (`ProductDetailSheet`) = the complete per-product audit: current stock, categorized Purchase/Sales/Loan/Adjustment history, and Lot information when Batch/Lot Tracking is on. Movement records are never duplicated across these views — each reads the same underlying `movements`/`products` state.
 - Manual stock adjustments **require a reason**. This is enforced in the UI (`AdjustmentDialog`, `ProductDetailSheet`) — the save action is blocked client-side if the reason field is empty, and the same validation exists in intent even though the mock `DataContext.adjustStock` itself does not re-validate (a real backend must validate server-side too).
 - Batch/lot tracking is **optional per product** (`Product.batchTracked: boolean`). When enabled, the product supports a lot number on usage (`CaseImplantUsage.batchLot`, `SaleLine.batchLot`).
 - Barcodes and QR codes are **always auto-generated** on product creation — the user never types or edits them (`DataContext.addProduct` generates `barcode` and `qrPayload` from a sequence).
 - **Available Workflows (permanent, locked 2026-07-28 — not yet implemented, see `DEVELOPMENT_PLAN.md`):** every product must declare which workflow(s) it can be used in — a segmented control labeled "Available Workflows" with exactly three options: **Sale Only**, **Loan Only**, **Sale & Loan**. There is **no default selection** — choosing one is mandatory before a product can be created or saved, not a convenience the user can skip. It must remain editable later from product settings, since a clinic's workflow for a product can change. A short explanation directly under the control must describe in plain language how the selected option affects the product (e.g. whether it can appear when issuing a loan, recording a sale, or both). This is a genuinely new field and business rule — it does not exist in the codebase yet.
 
 ### Stock Movements (Audit History)
-- Every action that changes stock produces one `InventoryMovement` record. Types: `inbound`, `outbound`, `adjustment`, `loan-out`, `loan-return`, `sale`, `lost`.
+- Every action that changes stock produces one `InventoryMovement` record. Types: `inbound`, `outbound`, `adjustment`, `loan-out`, `loan-return`, `sale`, `lost` — `outbound` is a declared type with zero real producers (a dead enum member, excluded from Inventory History's Movement Type filter since it can never match anything).
 - Movements are **append-only** — the mock store never edits or deletes a movement, it only ever adds new ones (see every action in `DataContext.tsx`).
-- A movement's `quantity` is signed (positive = stock increase, negative = decrease), always has a `reason`, always has `performedBy` (the acting user), and has an optional `reference` pointing back to the PO/Loan/Sale/Case that caused it.
-- The Inventory page (`/inventory`) is the canonical, filterable view of this history. The Product Detail sheet shows a per-product slice of the same history.
+- A movement's `quantity` is signed (positive = stock increase, negative = decrease), always has a `reason`, always has `performedBy` (the acting user), always has `quantityBefore`/`quantityAfter` (see "Inventory Movement Engine" below), has an optional `reference` (the PO/Loan/Sale number), and has whichever of `vendorId`/`labId`/`patientId`/`doctor`/`caseId` applies to its type.
+- Inventory History (`/inventory`) is the canonical, filterable view of this history. The Product Detail sheet shows the same history split into per-product Purchase/Sales/Loan/Adjustment sections.
 
 ### Purchasing
 - A Purchase Order (PO) is a record of components ordered from a **Vendor** before they arrive. Lifecycle: `draft → submitted → confirmed → partially-received / received`, or `cancelled` at any point before receipt.
@@ -152,12 +153,52 @@ These rules are currently implemented in code (mock data generators, `DataContex
 
 This is also the reference example for principle 10 (§2) — optional/advanced functionality as a configurable module, not a one-size-fits-all always-on behavior.
 
-### Batch Tracking
-- Optional per product (`Product.batchTracked`). Intended for products where lot-level traceability matters (implant fixtures, bone graft material, membranes are batch-tracked more often than not in the mock generator).
-- When a batch-tracked product is used in a Case or a Sale, the line item can carry a `batchLot` string. There is no dedicated Batch/Lot management screen yet — lots are free-text captured at point of use (see [§10 Future Roadmap](#10-future-roadmap)).
+### Batch/Lot Tracking
+
+**Permanent product rule (locked 2026-07-28, implemented in P1-L):** Batch/Lot Tracking is a single, application-wide setting (`ClinicSettings.batchLotTrackingEnabled`) — **not a per-product setting** — with exactly two states, **OFF (default)** and **ON**, configured once in Settings:
+1. **OFF** — the application behaves as though Batch/Lot Tracking does not exist: no Batch/Lot navigation, no Lot fields, no Lot validation, no Lot selection, no Batch/Lot pages, and no reference to Batch/Lot anywhere in the UI.
+2. **ON** — Batch/Lot Tracking is fully integrated across every relevant workflow: Purchase Orders/Receiving, Sales, Loans, Returns, and Inventory History all show/enforce lot behavior. There is **never a partially-enabled state**. (Reports integration is pending — no Batch/Lot report exists yet at all, tracked separately in `DEVELOPMENT_PLAN.md` P1-I; whenever it's built, it must consume this same setting.)
+3. Toggling this setting never deletes or migrates existing batch/lot data — only what the UI shows changes, matching this codebase's append-only, non-destructive philosophy (§2 principles 1–2).
+4. `Product.batchTracked` survives as a secondary, per-product refinement underneath the global switch (confirmed 2026-07-28): which specific products carry lot numbers is still chosen per product, exactly as before — the global switch only gates whether the feature exists in the app at all. The per-product toggle on the Product form, and every badge showing it, are themselves hidden whenever the global switch is off.
+5. **Exception, PO Receiving (locked 2026-07-29):** Batch/Lot capture at receipt is **not** gated by `Product.batchTracked`. When the global switch is ON, every received line on the PO Receive dialog captures a Lot/Batch number, regardless of whether the product is individually batch-tracked — traceability starts at the point stock enters the business, not at the point a specific product happens to opt in downstream. The Product form itself is unaffected by this rule: `batchTracked` still exists there unchanged, and still gates lot fields in Sales, Loans, and Cases exactly as described in point 4. Batch/Lot belongs to the inventory receipt event, not the product definition.
+
+A dedicated Batch/Lot page (`/batches`) shows every recorded lot and its remaining quantity (built in P1-E, `src/lib/batches.ts`) — unreachable, including by a typed URL, whenever the global switch is off.
+
+### Doctors (Master Data, locked 2026-07-29)
+
+**Permanent product rule:** Doctor is a real, persisted lookup entity (`Doctor { id, name, createdAt, active }`, `src/mocks/doctors.ts` seeds it, `DataContext.doctors`/`addDoctor`), replacing the old hardcoded `DOCTORS` string tuple — but there is **no Doctors management page**, and none is planned. Every Doctor field in the app (currently `Patient.primaryDoctor`, `Case.doctor`) is a searchable, create-on-the-fly combobox (`DoctorCombobox`, wrapping the generic `src/components/ui/combobox.tsx`):
+1. The field always displays/searches with the "Dr." prefix; the user only ever types the bare name. `Doctor.name` is stored **without** the prefix — every display composes `"Dr. " + name`.
+2. Typing filters existing doctors live. If no doctor's name exactly matches what was typed, an `Add "Dr. <typed name>"` option appears alongside any partial matches.
+3. Selecting an existing match, or pressing Enter/clicking Add, immediately resolves to a doctor and closes the picker — creation (when needed) happens inline, never as a separate step or page.
+4. Before ever creating a new record, the exact name (case-insensitive) is checked against existing doctors and reused if found — `DoctorCombobox` enforces this even on the "create" path itself, so the same doctor is never duplicated no matter how it's triggered.
+5. **`Patient.primaryDoctor` and `Case.doctor` remain plain display strings** (e.g. `"Dr. Alan Whitfield"`), not a foreign key to `Doctor.id`. This was a deliberate scope decision: the `Doctor` table's job is search + dedup + inline creation, not referential integrity — promoting these fields to a true FK is a future decision if Doctors ever need real profile data (specialty, license, contact info), at which point every existing display/filter/report site listed here would need updating in the same change.
+
+### Master Data Audit (locked 2026-07-29)
+
+Every dropdown/select in the app was reviewed and classified. Recorded here so the classification isn't silently re-litigated file-by-file later:
+- **True static enums (no change):** `Sex` (Patient), every status enum (`POStatus`, `CaseStatus`, `LoanStatus`), Barcode Format (`ClinicSettings.barcodeFormat`) — these are closed, small, non-clinic-specific value sets.
+- **Manufacturer / Product Category — static, but deduplicated (this change):** both are a fixed, real-world catalog (implant brands, component categories), not per-clinic data, so they stay static rather than becoming a persisted table (doing so would need a management surface, which contradicts "do not add new pages unless absolutely necessary" for something that rarely changes). They *were* independently redeclared in both `ProductsPage.tsx` and `ProductFormDialog.tsx` — a drift risk. Now defined once as `MANUFACTURERS`/`PRODUCT_CATEGORIES` in `src/types/index.ts`, imported by both.
+- **Doctor — promoted to a persisted table (this change):** see the section above. The clearest case of "fake demo data that should be real" found in the audit — unlike Manufacturer/Category, clinics genuinely add their own doctors over time, so a hardcoded list was a real gap, not a legitimate static enum.
+- **`PROCEDURES` (`CaseFormDialog`) and `LAB_SPECIALTIES` (`src/mocks/names.ts`) — flagged, not changed:** both have the same "clinic-specific, grows over time" shape as Doctor and are reasonable candidates for the same combobox-with-inline-create treatment in a future pass. Left alone this round to keep this change's blast radius contained to what was explicitly scoped; `LAB_SPECIALTIES` additionally has no live UI reader today (mock-seeding only), so there's nothing to wire up yet regardless.
+- **Vendor, Lab, Patient (entity pickers, not master-data lists):** already real persisted entities. Their `<Select>` fields in `POFormDialog` (Vendor), `CaseFormDialog` (Patient, Lab) were plain full-list dropdowns with no search — upgraded to the same searchable `Combobox` primitive as UX polish (not a data-model change) since long lists with no filter were a genuine "unnecessary clicking" friction point.
+
+### Inventory Movement Engine (locked 2026-07-29, P1-N)
+
+**Permanent rule: every inventory movement is generated by a business action, never invented, and every record is a self-contained, immutable snapshot — not reconstructed later via a join.** The six supported events are Purchase Order Received, Sale (implant placed in a patient), Loan Out, Loan Return, Manual Stock Adjustment (requires a note/reason), and Product Creation (initial quantity). Recording that an implant was used in a Case (`addImplantToCase`) is **deliberately not a stock-moving event** — it is not in this list; the Sale, optionally case-linked, is what actually moves stock (unchanged from before P1-N; confirmed, not a gap).
+
+Every `InventoryMovement` record carries, captured directly at write time by the action that creates it:
+1. **`quantityBefore`/`quantityAfter`** — the product's stock immediately before and after this exact movement, always present, never optional. Computed by each mutating action from live state at the moment of the transaction — see `makeQtyTracker` in `DataContext.tsx`, which guards against the same product appearing on more than one line within a single transaction (a PO receipt or a sale/loan with duplicate product lines), since reading live `products` state per-line would give every line after the first a stale, pre-transaction value.
+2. **Structured linkage, per movement type** — never a string-matched join through a business-document number:
+   - **Sale**: `patientId`, `caseId`, and `doctor` (a display string, resolved from the linked Case — Sale itself has no doctor field) are all stored.
+   - **Loan Out / Loan Return / Lost**: `labId` is stored. (Loans have no Case link in the data model today, so `caseId`/Doctor/Patient are never populated for loan movements — an honest limitation of the current data model, not a workaround.)
+   - **PO Receive**: `vendorId` is stored. No Doctor/Patient.
+   - **Manual Adjustment**: no Doctor/Patient/Vendor/Lab — nothing in the current UI captures them for an adjustment, so they stay unpopulated rather than fabricated.
+3. **`reference`** — unchanged: the human-readable business-document number (PO/Loan/Sale number), for display only, not used for filtering now that structured links exist.
+
+This is why the Inventory History page's Doctor/Patient/Vendor/Lab filters always work identically regardless of movement type — they read structured fields directly, they don't disappear or behave differently for adjustments/PO receipts/loans the way a derived join would have to.
 
 ### Audit History
-- The Stock Movement log (`/inventory`) is the audit trail for inventory. It is append-only and every entry is attributable to a user and a reason.
+- The Stock Movement log (`/inventory`, now "Inventory History") is the audit trail for inventory and the source of truth for stock auditing — append-only, every entry attributable to a user and a reason, and filterable by Product, Doctor, Patient, Vendor, Lab, Date, and Movement Type.
 - Case Detail pages have their own Timeline (`CaseTimelineEvent[]`) — a separate, clinical audit trail of what happened to a treatment over time (case opened, consultation, surgery, healing checks, restoration delivered), independent of the inventory movement log.
 
 ---
@@ -179,7 +220,7 @@ All types are defined in `src/types/index.ts`. This is the authoritative schema 
 | **Loan** | `loanNumber`, `labId` (required — labs only), `status`, `lines[]` (`LoanLine`: `productId`, `quantityLoaned`, `quantityReturned`, `quantityLost`, `lostReason?`) | belongs to one `Lab`; each line references a `Product`; `issuedBy` references an `AppUser` |
 | **LoanReturnRecord** | `loanId`, `productId`, `quantityReturned`, `quantityLost`, `lostReason?` | *(type exists in `types/index.ts` but the running app derives the Loan Returns page from `InventoryMovement` instead of a separate mutable table of this type — see §3 Returns)* |
 | **AppUser** | `role` (`admin`/`clinician`/`inventory-manager`/`front-desk`), `avatarColor` | referenced by `performedBy`/`issuedBy`/`soldBy`/`receivedBy` fields across other entities |
-| **ClinicSettings** | `clinicName`, `priceVisibilityDefault`, `barcodeFormat`, `lowStockGlobalDefault`, `theme` | singleton — one per clinic, edited on the Settings page |
+| **ClinicSettings** | `clinicName`, `priceVisibilityDefault`, `barcodeFormat`, `lowStockGlobalDefault`, `theme`, `batchLotTrackingEnabled` | singleton — one per clinic, edited on the Settings page |
 
 **Relationship summary (textual ER):**
 ```
@@ -368,9 +409,11 @@ Everything below is **intentional** for this stage of the project — do not "fi
 - **No delete/edit flows.** Products, patients, cases, etc. can be created but not edited or deleted from the UI. The `ICON_HELP` registry documents copy for an "Edit" and a "Delete" icon (Delete explicitly scoped to Super Admin) for when these are built, but no button currently triggers them anywhere.
 - **No real financial rules.** Currency formatting is illustrative (`Intl.NumberFormat`), there's no tax handling, multi-currency is a cosmetic Settings field only.
 - **`LoanReturnRecord` type is unused by the running app.** The Loan Returns page is derived live from `InventoryMovement` records instead (see §3 Returns) — this was a deliberate simplification to avoid two sources of truth for the same data; the type stays in `types/index.ts` for schema completeness but nothing constructs it at runtime.
-- **No batch/lot inventory management screen.** Batch/lot numbers are captured as free text at the point of use (on a Case implant usage or a Sale line) — there's no dedicated place to see "all lots of Product X and their remaining quantities."
+- **Batch/Lot Tracking has no Reports integration yet.** The global ON/OFF setting (§3) is fully implemented for every other named workflow (P1-L), but no Batch/Lot report exists anywhere in Reports at all — that's the separate, not-yet-built `DEVELOPMENT_PLAN.md` P1-I, which must consume this same setting whenever it's built.
 - **Mock/demo data is a development-only scaffold, not production content** (see §2b, Production Data Policy). `src/mocks/*` currently seeds every entity for ease of development and testing; production builds must always start with an empty business database. This is not yet implemented — tracked as a placeholder milestone in `DEVELOPMENT_PLAN.md` (Deferred Infrastructure & Backend Work) so it isn't silently forgotten.
 - **Large single JS chunk on production build** (`npm run build` warns about a ~1.27MB bundle). Acceptable for a demo; would need route-level code-splitting (`React.lazy`) before shipping to real users on slow connections.
+- **`src/mocks/loans.ts` assigns each mock loan line a freshly-random `LOT-XXXXX` lot number** instead of reusing one actually received via a PO (`batchLotByPoLine`, found during P1-N verification). This can make `summarizeLots` show a negative "remaining" for a handful of synthetic mock lots — a mock-data-generation quirk, not a bug in `summarizeLots` itself or in any live `DataContext` action, both of which are correct given complete data. Not fixed as part of P1-N (out of scope); worth fixing if `src/mocks/loans.ts` is ever touched again.
+- **Plain `npx tsc --noEmit` is a no-op in this repo** — the root `tsconfig.json` uses TypeScript project references with `files: []`, so it silently checks zero files and always exits 0. Always use `npx tsc -b --noEmit` (or `npx tsc -b`, matching `npm run build`). Discovered mid-P1-N; every earlier session's "tsc clean" claim used the broken form.
 
 ---
 
@@ -380,7 +423,6 @@ Suggested only — **nothing below is implemented**, and nothing here should be 
 
 ### Prototype (this stage → hardening)
 - Edit/Delete flows for every entity, with the Super Admin gate actually enforced in the UI (even without real auth, gate it behind the mock `currentUser.role`).
-- A dedicated Batch/Lot inventory view (all lots per product, remaining quantity, expiry if applicable).
 - Route-level code-splitting to shrink the initial bundle.
 
 ### MVP (first real backend)

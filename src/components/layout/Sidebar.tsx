@@ -2,6 +2,7 @@ import { NavLink, useMatch } from 'react-router-dom'
 import { Activity } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { IconHelp } from '@/components/ui/help-tooltip'
+import { useData } from '@/store/DataContext'
 import { NAV_ITEMS, NAV_GROUPS, type NavItem } from './nav'
 
 function SidebarLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
@@ -51,6 +52,9 @@ export function SidebarBrand() {
 
 /** The nav link list, shared between the persistent desktop sidebar and the mobile drawer. */
 export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
+  const { clinicSettings } = useData()
+  const visibleItems = NAV_ITEMS.filter((item) => !item.requiresBatchLotTracking || clinicSettings.batchLotTrackingEnabled)
+
   return (
     <nav className="flex-1 overflow-y-auto scrollbar-thin px-3 py-4 space-y-5">
       {NAV_GROUPS.map((group) => (
@@ -59,7 +63,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
             {group}
           </p>
           <div className="space-y-0.5">
-            {NAV_ITEMS.filter((item) => item.group === group).map((item) => (
+            {visibleItems.filter((item) => item.group === group).map((item) => (
               <SidebarLink key={item.to} item={item} onNavigate={onNavigate} />
             ))}
           </div>

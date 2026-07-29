@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Search } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -22,10 +22,18 @@ const STATUSES: POStatus[] = ['draft', 'submitted', 'confirmed', 'partially-rece
 export function PurchaseOrdersPage() {
   const { purchaseOrders, vendors } = useData()
   const navigate = useNavigate()
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
-  const [formOpen, setFormOpen] = useState(params.get('new') === '1')
+  const [formOpen, setFormOpen] = useState(false)
+
+  useEffect(() => {
+    if (params.get('new') === '1') {
+      setFormOpen(true)
+      params.delete('new')
+      setParams(params, { replace: true })
+    }
+  }, [params, setParams])
 
   const vendorById = useMemo(() => new Map(vendors.map((v) => [v.id, v])), [vendors])
 

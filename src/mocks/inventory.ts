@@ -4,6 +4,7 @@ import { users } from './users'
 import { purchaseOrders } from './purchaseOrders'
 import { loans } from './loans'
 import { sales } from './sales'
+import { cases } from './cases'
 import { batchLotByPoLine } from './batches'
 import { ri, pick, chance, iso, daysAgo } from './rng'
 
@@ -17,12 +18,15 @@ const ADJUSTMENT_REASONS = [
   'Transferred from satellite clinic',
 ]
 
-const movements: InventoryMovement[] = []
-let seq = 1
+type DraftMovement = Omit<InventoryMovement, 'id' | 'quantityBefore' | 'quantityAfter'>
 
-function addMovement(m: Omit<InventoryMovement, 'id'>) {
-  movements.push({ id: `mv_${seq++}`, ...m })
+const movements: DraftMovement[] = []
+
+function addMovement(m: DraftMovement) {
+  movements.push(m)
 }
+
+const caseById = new Map(cases.map((c) => [c.id, c]))
 
 // Movements derived from received / partially-received POs
 purchaseOrders
@@ -39,6 +43,7 @@ purchaseOrders
           performedBy: pick(users).id,
           createdAt: po.receivedAt ?? po.eta,
           batchLot: batchLotByPoLine.get(line.id),
+          vendorId: po.vendorId,
         })
       }
     })
@@ -56,6 +61,7 @@ loans.forEach((loan) => {
       performedBy: loan.issuedBy,
       createdAt: loan.issuedAt,
       batchLot: line.batchLot,
+      labId: loan.labId,
     })
     if (line.quantityReturned > 0) {
       addMovement({
@@ -67,6 +73,7 @@ loans.forEach((loan) => {
         performedBy: loan.issuedBy,
         createdAt: loan.closedAt ?? iso(daysAgo(ri(0, 60))),
         batchLot: line.batchLot,
+        labId: loan.labId,
       })
     }
     if (line.quantityLost > 0) {
@@ -79,13 +86,16 @@ loans.forEach((loan) => {
         performedBy: loan.issuedBy,
         createdAt: loan.closedAt ?? iso(daysAgo(ri(0, 60))),
         batchLot: line.batchLot,
+        labId: loan.labId,
       })
     }
   })
 })
 
-// Movements derived from sales
+// Movements derived from sales — Doctor is only ever knowable via a case
+// link (Sale itself has no doctor field), matching PROJECT.md §3.
 sales.forEach((sale) => {
+  const doctor = sale.caseId ? caseById.get(sale.caseId)?.doctor : undefined
   sale.lines.forEach((line) => {
     addMovement({
       productId: line.productId,
@@ -96,6 +106,9 @@ sales.forEach((sale) => {
       performedBy: sale.soldBy,
       createdAt: sale.createdAt,
       batchLot: line.batchLot,
+      patientId: sale.patientId,
+      caseId: sale.caseId,
+      doctor,
     })
   })
 })
@@ -117,10 +130,25 @@ while (movements.length < targetTotal) {
   })
 }
 
-movements.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-movements.forEach((m, i) => (m.id = `mv_${i + 1}`))
+// Backfill quantityBefore/quantityAfter as a self-consistent running balance
+// per product, computed purely from this mock movement sequence (ascending
+// by date) — mirrors what every live DataContext action computes at write
+// time, but reconstructed here since mock POs/loans/sales/adjustments are
+// each generated independently and aren't guaranteed to sum to a product's
+// separately-seeded quantityOnHand (demo-data characteristic, not a bug).
+const runningByProduct = new Map<string, number>()
+const chronological = [...movements].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+const withBalances: InventoryMovement[] = chronological.map((m) => {
+  const before = runningByProduct.get(m.productId) ?? 0
+  const after = Math.max(0, before + m.quantity)
+  runningByProduct.set(m.productId, after)
+  return { id: '', ...m, quantityBefore: before, quantityAfter: after }
+})
 
-export const inventoryMovements = movements
+withBalances.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+withBalances.forEach((m, i) => (m.id = `mv_${i + 1}`))
+
+export const inventoryMovements = withBalances
 
 export function movementsForProduct(productId: string) {
   return inventoryMovements.filter((m) => m.productId === productId)

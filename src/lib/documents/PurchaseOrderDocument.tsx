@@ -18,7 +18,8 @@ export function PurchaseOrderDocument({ data }: { data: PurchaseOrderDocumentDat
         <thead>
           <tr className="border-b border-border text-left">
             <th className="py-2 font-medium">Product</th>
-            <th className="py-2 text-right font-medium">Qty</th>
+            <th className="py-2 text-right font-medium">Ordered</th>
+            <th className="py-2 text-right font-medium">Received</th>
             <th className="py-2 text-right font-medium">Unit Cost</th>
             <th className="py-2 text-right font-medium">Line Total</th>
           </tr>
@@ -31,6 +32,7 @@ export function PurchaseOrderDocument({ data }: { data: PurchaseOrderDocumentDat
                 <p className="text-xs text-muted-foreground">{line.sku}</p>
               </td>
               <td className="py-2 text-right tabular-nums">{line.quantityOrdered}</td>
+              <td className="py-2 text-right tabular-nums">{line.quantityReceived}</td>
               <td className="py-2 text-right tabular-nums">{formatCurrency(line.unitCost)}</td>
               <td className="py-2 text-right tabular-nums">{formatCurrency(line.lineTotal)}</td>
             </tr>
