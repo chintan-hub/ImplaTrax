@@ -271,7 +271,9 @@
 - **Estimated complexity:** Small-Medium.
 - **Acceptance criteria:** Clicking a vendor opens a detail view showing its PO history and supplied products; no dead clicks remain on the Vendors page.
 
-### P2-B — Lab Detail: Cases Drill-Down
+### P2-B — Lab Detail: Cases Drill-Down ✅ Complete
+*Status update (2026-07-30): added a "Cases Involving This Lab" card to `LabDetailPage.tsx`, each row linking to `/cases/:id`. Also fixed a real wasted-click bug found in the same file while implementing this: the existing Loan History card's rows linked to `/loans` (the list page) instead of that specific loan's own detail page — fixed to `/loans/:id`.*
+
 - **Objective:** The "Cases Involving Lab" stat card currently shows a count with no list — add the list, matching the Loan History card's existing pattern on the same page.
 - **Files affected:** `src/pages/labs/LabDetailPage.tsx`.
 - **Risks:** Very low.
