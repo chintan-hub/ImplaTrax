@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, ArrowRight, XCircle, Plus, CheckCircle2, FolderKanban, MessageCircle, Printer, FileText } from 'lucide-react'
+import { ArrowLeft, ArrowRight, XCircle, Plus, CheckCircle2, FolderKanban, MessageCircle, Printer } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -306,9 +306,6 @@ export function CaseDetailPage() {
                 </Button>
                 <Button variant="outline" size="sm" onClick={handlePrint}>
                   <Printer className="h-3.5 w-3.5" /> Print
-                </Button>
-                <Button variant="outline" size="sm" className="col-span-2" onClick={handlePrint}>
-                  <FileText className="h-3.5 w-3.5" /> Generate PDF
                 </Button>
               </div>
             </CardContent>

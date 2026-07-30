@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, Receipt, MessageCircle, Printer, FileText, Truck } from 'lucide-react'
+import { ArrowLeft, Receipt, MessageCircle, Printer, Truck } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -163,17 +163,14 @@ export function SaleDetailPage() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" size="sm" onClick={handleCopyWhatsApp}>
+                <Button variant="outline" size="sm" className="col-span-2" onClick={handleCopyWhatsApp}>
                   <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => handlePrint('invoice')}>
-                  <Printer className="h-3.5 w-3.5" /> Print
+                  <Printer className="h-3.5 w-3.5" /> Print Invoice
                 </Button>
-                <Button variant="outline" size="sm" className="col-span-2" onClick={() => handlePrint('invoice')}>
-                  <FileText className="h-3.5 w-3.5" /> Generate PDF
-                </Button>
-                <Button variant="outline" size="sm" className="col-span-2" onClick={() => handlePrint('challan')}>
-                  <Truck className="h-3.5 w-3.5" /> Delivery Challan
+                <Button variant="outline" size="sm" onClick={() => handlePrint('challan')}>
+                  <Truck className="h-3.5 w-3.5" /> Print Challan
                 </Button>
               </div>
             </CardContent>

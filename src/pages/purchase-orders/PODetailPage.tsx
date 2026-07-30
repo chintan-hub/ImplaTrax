@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, ClipboardList, MessageCircle, Printer, FileText, Camera, X } from 'lucide-react'
+import { ArrowLeft, ClipboardList, MessageCircle, Printer, Camera, X } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -224,11 +224,6 @@ export function PODetailPage() {
                 <IconHelp helpKey="printPO">
                   <Button variant="outline" size="sm" onClick={handlePrint}>
                     <Printer className="h-3.5 w-3.5" /> Print
-                  </Button>
-                </IconHelp>
-                <IconHelp helpKey="generatePdfPO">
-                  <Button variant="outline" size="sm" className="col-span-2" onClick={handlePrint}>
-                    <FileText className="h-3.5 w-3.5" /> Generate PDF
                   </Button>
                 </IconHelp>
               </div>
