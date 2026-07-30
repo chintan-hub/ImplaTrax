@@ -1,10 +1,13 @@
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { Plus, ShieldCheck, Download } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { UserFormDialog } from '@/components/users/UserFormDialog'
 import { useData } from '@/store/DataContext'
@@ -12,6 +15,8 @@ import { formatDate, initials } from '@/lib/utils'
 import { exportToCsv } from '@/lib/documents/csv'
 import { PAGE_INTROS } from '@/content/helpText'
 import type { UserRole } from '@/types'
+
+const ROLES: UserRole[] = ['admin', 'clinician', 'inventory-manager', 'front-desk']
 
 const ROLE_LABEL: Record<UserRole, string> = {
   admin: 'Admin',
@@ -37,8 +42,18 @@ const PERMISSIONS: { area: string; admin: boolean; clinician: boolean; inventory
 ]
 
 export function UsersPage() {
-  const { users } = useData()
+  const { users, updateUserRole, setUserActive } = useData()
   const [formOpen, setFormOpen] = useState(false)
+
+  const handleRoleChange = (userId: string, name: string, role: UserRole) => {
+    updateUserRole(userId, role)
+    toast.success(`${name}'s role updated to ${ROLE_LABEL[role]}`)
+  }
+
+  const handleActiveToggle = (userId: string, name: string, active: boolean) => {
+    setUserActive(userId, active)
+    toast.success(`${name} is now ${active ? 'active' : 'inactive'}`)
+  }
 
   const handleExportCsv = () => {
     const rows = users.map((u) => ({
@@ -92,8 +107,24 @@ export function UsersPage() {
                     </div>
                   </div>
                 </TableCell>
-                <TableCell><Badge variant={ROLE_VARIANT[u.role]}>{ROLE_LABEL[u.role]}</Badge></TableCell>
-                <TableCell><Badge variant={u.active ? 'success' : 'secondary'}>{u.active ? 'Active' : 'Inactive'}</Badge></TableCell>
+                <TableCell>
+                  <Select value={u.role} onValueChange={(v) => handleRoleChange(u.id, u.name, v as UserRole)}>
+                    <SelectTrigger className="h-8 w-44">
+                      <SelectValue>
+                        <Badge variant={ROLE_VARIANT[u.role]}>{ROLE_LABEL[u.role]}</Badge>
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ROLES.map((r) => <SelectItem key={r} value={r}>{ROLE_LABEL[r]}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <Switch checked={u.active} onCheckedChange={(v) => handleActiveToggle(u.id, u.name, v)} aria-label={`Toggle ${u.name} active status`} />
+                    <Badge variant={u.active ? 'success' : 'secondary'}>{u.active ? 'Active' : 'Inactive'}</Badge>
+                  </div>
+                </TableCell>
                 <TableCell className="text-muted-foreground whitespace-nowrap">{formatDate(u.createdAt)}</TableCell>
               </TableRow>
             ))}

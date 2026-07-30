@@ -279,7 +279,9 @@
 - **Estimated complexity:** Small.
 - **Acceptance criteria:** The cases count on Lab Detail is backed by a real, clickable list below it.
 
-### P2-C — Users: Role Editing
+### P2-C — Users: Role Editing ✅ Complete
+*Status update (2026-07-30): scoped `updateUserRole(id, role)` and `setUserActive(id, active)` actions added to `DataContext.tsx` (deliberately narrow, matching the plan's own note — not a generic `updateUser`). `UsersPage.tsx`'s Role column is now a `<Select>` and the Status column has a `<Switch>`, both wired live with toast confirmation. Verified live: changing a role and toggling active/inactive both update immediately and persist across a reload.*
+
 - **Objective:** Scoped edit capability for Users — change role, toggle active/inactive — closing the gap that the Role Permissions matrix is currently pure documentation with no enforcement anywhere in the app. (Full auth/session enforcement is out of scope here — that's Phase 9/M14 — but the *data* should be editable, and this is the natural place to start wiring `currentUser.role` checks into at least one real gate, e.g. delete actions once they exist.)
 - **Files affected:** `src/store/DataContext.tsx` (new scoped `updateUserRole`/`setUserActive`), `src/pages/users/UsersPage.tsx`.
 - **Risks:** Low-medium — first real use of role data for anything beyond documentation; keep scope narrow (this is not full auth).
