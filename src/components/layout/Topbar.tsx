@@ -63,7 +63,7 @@ export function Topbar({ onOpenSearch }: { onOpenSearch: () => void }) {
         >
           <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span className="flex-1 truncate text-left">
-            <span className="hidden sm:inline">Search SKU, barcode, patient, case ID...</span>
+            <span className="hidden sm:inline">Search products, patients, cases, vendors, sales, loans, POs...</span>
             <span className="sm:hidden">Search...</span>
           </span>
           <kbd className="hidden sm:inline-flex items-center gap-0.5 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium">
