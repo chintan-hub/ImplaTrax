@@ -1,9 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Package, Users, FolderKanban, FlaskConical, Barcode as BarcodeIcon } from 'lucide-react'
+import { Package, Users, FolderKanban, FlaskConical, Barcode as BarcodeIcon, Plus, ClipboardList, HandCoins, Receipt } from 'lucide-react'
 import { CommandDialog, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command'
 import { useData } from '@/store/DataContext'
 import { patientFullName } from '@/mocks/patients'
+
+// Mirrors Topbar.tsx's "New" dropdown exactly — the palette should never
+// offer a different set of quick-create destinations than the button does.
+const ACTIONS = [
+  { id: 'new-product', label: 'New Product', path: '/products?new=1', icon: Package },
+  { id: 'new-purchase-order', label: 'New Purchase Order', path: '/purchase-orders?new=1', icon: ClipboardList },
+  { id: 'new-patient', label: 'New Patient', path: '/patients?new=1', icon: Users },
+  { id: 'new-case', label: 'New Case', path: '/cases?new=1', icon: FolderKanban },
+  { id: 'new-loan', label: 'New Loan', path: '/loans?new=1', icon: HandCoins },
+  { id: 'new-sale', label: 'New Sale', path: '/sales?new=1', icon: Receipt },
+] as const
 
 export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { products, patients, cases, labs } = useData()
@@ -44,18 +55,35 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
     [labs, q],
   )
 
+  const matchedActions = useMemo(
+    () => (q.length === 0 ? ACTIONS : ACTIONS.filter((a) => a.label.toLowerCase().includes(q))),
+    [q],
+  )
+
   const go = (path: string) => {
     navigate(path)
     onOpenChange(false)
   }
 
-  const hasResults = matchedProducts.length + matchedPatients.length + matchedCases.length + matchedLabs.length > 0
+  const hasResults =
+    matchedProducts.length + matchedPatients.length + matchedCases.length + matchedLabs.length + matchedActions.length > 0
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
       <CommandInput placeholder="Search SKU, barcode, patient, case ID, product..." value={query} onValueChange={setQuery} />
       <CommandList>
         {!hasResults && <CommandEmpty>No results found.</CommandEmpty>}
+
+        {matchedActions.length > 0 && (
+          <CommandGroup heading="Actions">
+            {matchedActions.map((a) => (
+              <CommandItem key={a.id} value={a.id} onSelect={() => go(a.path)}>
+                <Plus className="text-muted-foreground" />
+                <span>{a.label}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
 
         {matchedProducts.length > 0 && (
           <CommandGroup heading="Products">

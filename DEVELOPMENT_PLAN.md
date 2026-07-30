@@ -393,13 +393,15 @@
 - **Estimated complexity:** Large (broad, one page at a time).
 - **Acceptance criteria:** Each rolled-out page supports multi-select and at least one real, guarded bulk action; a sticky bulk-action bar appears exactly when selection is non-empty and nowhere else.
 
-### P4-D — Keyboard Shortcuts + Command Palette Actions
+### P4-D — Keyboard Shortcuts + Command Palette Actions ✅ Complete
 - **Objective:** Replace the one-off `⌘K` `addEventListener` with a real registered shortcut layer; extend the command palette to run actions ("New Loan", "New Purchase Order"), not just find records.
 - **Files affected:** `src/layouts/AppLayout.tsx`, `src/components/layout/GlobalSearch.tsx`.
 - **Risks:** Low-medium.
 - **Dependencies:** None blocking, but naturally lands last since it's the lowest-urgency item in the whole reordered plan.
 - **Estimated complexity:** Medium.
 - **Acceptance criteria:** At least `⌘K`/new-record/escape-to-close are handled through one consistent registration mechanism, not scattered `addEventListener` calls; the palette can execute at least 3 real actions.
+
+*Status update (2026-07-30): New `src/hooks/useKeyboardShortcuts.tsx` — a `KeyboardShortcutsProvider` (one real `window.addEventListener('keydown', ...)`, mounted once) plus a `useKeyboardShortcut({ key, mod?, handler })` hook every consumer registers into instead of adding its own listener. `AppLayout.tsx`'s one-off `⌘K` listener now goes through it. Escape-to-close needed no new code — the command palette's `CommandDialog` already wraps the app's own `Dialog` (Radix), which closes on Escape by default; verified this is genuinely already working, not assumed. Added an "Actions" `CommandGroup` to `GlobalSearch.tsx` with 6 real actions (New Product/Purchase Order/Patient/Case/Loan/Sale, double the required minimum of 3) — deliberately mirroring `Topbar.tsx`'s existing "New" dropdown's exact same 6 destinations and `?new=1` navigation pattern already used by 6 list pages, rather than inventing a parallel action set. Actions show first on a cold `⌘K` open and filter by label as you type, matching the existing manual-filter pattern the palette already used for entity search (`shouldFilter={false}` on the underlying `cmdk` primitive). New Vitest suite (`useKeyboardShortcuts.test.tsx`, 3 tests) covers mod-required vs. bare-key firing and cleanup-on-unmount. Verified live: `⌘K` still opens/closes the palette through the new registry, "New Loan" navigates to `/loans` and opens its create dialog, and Escape closes the palette.*
 
 ---
 

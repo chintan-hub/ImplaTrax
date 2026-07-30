@@ -1,24 +1,23 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { Topbar } from '@/components/layout/Topbar'
 import { GlobalSearch } from '@/components/layout/GlobalSearch'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { KeyboardShortcutsProvider, useKeyboardShortcut } from '@/hooks/useKeyboardShortcuts'
 
-export function AppLayout() {
+function AppLayoutContent() {
   const [searchOpen, setSearchOpen] = useState(false)
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault()
-        setSearchOpen((v) => !v)
-      }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [])
+  useKeyboardShortcut({
+    key: 'k',
+    mod: true,
+    handler: (e) => {
+      e.preventDefault()
+      setSearchOpen((v) => !v)
+    },
+  })
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -36,5 +35,13 @@ export function AppLayout() {
       <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} />
       <Toaster position="bottom-right" />
     </TooltipProvider>
+  )
+}
+
+export function AppLayout() {
+  return (
+    <KeyboardShortcutsProvider>
+      <AppLayoutContent />
+    </KeyboardShortcutsProvider>
   )
 }
