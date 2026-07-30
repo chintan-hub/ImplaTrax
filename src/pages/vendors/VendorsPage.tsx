@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Mail, Phone, MapPin, Star } from 'lucide-react'
+import { Plus, Search, Mail, Phone, MapPin, Star, Download } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StickyToolbar } from '@/components/shared/StickyToolbar'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { VendorFormDialog } from '@/components/vendors/VendorFormDialog'
 import { useData } from '@/store/DataContext'
+import { exportToCsv } from '@/lib/documents/csv'
 import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
 
 export function VendorsPage() {
@@ -29,6 +30,21 @@ export function VendorsPage() {
     return vendors.filter((v) => !q || v.name.toLowerCase().includes(q) || v.contactName.toLowerCase().includes(q))
   }, [vendors, search])
 
+  const handleExportCsv = () => {
+    const rows = filtered.map((v) => ({
+      Vendor: v.name,
+      Contact: v.contactName,
+      Email: v.email,
+      Phone: v.phone,
+      Country: v.country,
+      Manufacturers: v.manufacturers.join('; '),
+      'On-Time Rate': `${Math.round(v.onTimeRate * 100)}%`,
+      'Purchase Orders': poCountByVendor.get(v.id) ?? 0,
+      'Lifetime Purchase Orders': v.totalOrders,
+    }))
+    exportToCsv(rows, `vendors-${new Date().toISOString().slice(0, 10)}.csv`)
+  }
+
   return (
     <div>
       <PageHeader
@@ -36,9 +52,14 @@ export function VendorsPage() {
         description={`${PAGE_INTROS.vendors.description} ${vendors.length} vendors in your directory.`}
         helpTerm="vendor"
         actions={
-          <Button onClick={() => setFormOpen(true)}>
-            <Plus className="h-4 w-4" /> Add Vendor
-          </Button>
+          <>
+            <Button variant="outline" onClick={handleExportCsv} disabled={filtered.length === 0}>
+              <Download className="h-4 w-4" /> Export CSV
+            </Button>
+            <Button onClick={() => setFormOpen(true)}>
+              <Plus className="h-4 w-4" /> Add Vendor
+            </Button>
+          </>
         }
       />
 

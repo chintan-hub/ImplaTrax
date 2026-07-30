@@ -160,6 +160,7 @@ interface DataContextValue {
   adjustStock: (productId: string, delta: number, reason: string, note?: string) => void
   addProduct: (input: Omit<Product, 'id' | 'sku' | 'barcode' | 'qrPayload' | 'createdAt' | 'updatedAt'>) => Product
   updateProduct: (id: string, patch: Partial<Product>) => void
+  importProducts: (inputs: Omit<Product, 'id' | 'sku' | 'barcode' | 'qrPayload' | 'createdAt' | 'updatedAt'>[]) => Product[]
 
   createPurchaseOrder: (vendorId: string, lines: { productId: string; quantityOrdered: number; unitCost: number }[], eta: string, notes?: string) => PurchaseOrder
   submitPurchaseOrder: (poId: string) => void
@@ -250,6 +251,41 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const updateProduct = useCallback((id: string, patch: Partial<Product>) => {
     setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch, updatedAt: new Date().toISOString() } : p)))
   }, [])
+
+  /**
+   * Bulk-import counterpart to addProduct — same SKU/barcode/vendor-match
+   * formula, applied to every row in a single setState call so the whole
+   * batch commits atomically (no product from this import can land while
+   * another silently fails). The caller (ProductImportDialog) has already
+   * validated every row and only ever passes the ones with zero errors —
+   * this function does not re-validate, matching how every other DataContext
+   * action trusts its caller to have applied UI-level validation first.
+   */
+  const importProducts = useCallback<DataContextValue['importProducts']>((inputs) => {
+    const now = new Date().toISOString()
+    const created: Product[] = inputs.map((input) => {
+      const id = nextInternalId('prd')
+      const seq = nextProductSeq()
+      const vendor = vendors.find((v) => v.manufacturers.includes(input.manufacturer)) ?? vendors[0]
+      return {
+        ...input,
+        id,
+        vendorId: vendor?.id ?? input.vendorId,
+        sku: `${input.manufacturer.slice(0, 3).toUpperCase()}-${input.system.slice(0, 4).toUpperCase()}-${pad(seq, 3)}`,
+        barcode: `890${pad(2000000 + seq, 9)}`,
+        qrPayload: `IMPD:PRD:${id}`,
+        createdAt: now,
+        updatedAt: now,
+      }
+    })
+    setProducts((prev) => [...created, ...prev])
+    created.forEach((product) => {
+      if (product.quantityOnHand > 0) {
+        addMovement({ productId: product.id, type: 'inbound', quantity: product.quantityOnHand, quantityBefore: 0, quantityAfter: product.quantityOnHand, reason: 'Initial stock on bulk import' })
+      }
+    })
+    return created
+  }, [vendors, addMovement])
 
   const poEvent = useCallback((poId: string, label: string, description: string, date: string): PurchaseOrderEvent => {
     return { id: nextInternalId('poevt'), poId, label, description, date, actor: currentUser.name }
@@ -716,6 +752,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       adjustStock,
       addProduct,
       updateProduct,
+      importProducts,
       createPurchaseOrder,
       submitPurchaseOrder,
       confirmPurchaseOrder,
@@ -754,6 +791,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       adjustStock,
       addProduct,
       updateProduct,
+      importProducts,
       createPurchaseOrder,
       submitPurchaseOrder,
       confirmPurchaseOrder,

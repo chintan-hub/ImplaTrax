@@ -8,7 +8,7 @@ import {
   createColumnHelper,
   type SortingState,
 } from '@tanstack/react-table'
-import { LayoutGrid, List, Plus, ArrowUpDown, Search } from 'lucide-react'
+import { LayoutGrid, List, Plus, ArrowUpDown, Search, Download, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StickyToolbar } from '@/components/shared/StickyToolbar'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -21,9 +21,11 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ProductCard } from '@/components/products/ProductCard'
 import { ProductFormDialog } from '@/components/products/ProductFormDialog'
 import { ProductDetailSheet } from '@/components/products/ProductDetailSheet'
+import { ProductImportDialog } from '@/components/products/ProductImportDialog'
 import { IconHelp } from '@/components/ui/help-tooltip'
 import { useData } from '@/store/DataContext'
 import { formatCurrency } from '@/lib/utils'
+import { exportToCsv } from '@/lib/documents/csv'
 import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
 import { MANUFACTURERS, PRODUCT_CATEGORIES } from '@/types'
 import type { Product } from '@/types'
@@ -42,6 +44,7 @@ export function ProductsPage() {
   const [category, setCategory] = useState<string>('all')
   const [stockFilter, setStockFilter] = useState<string>('all')
   const [formOpen, setFormOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [sorting, setSorting] = useState<SortingState>([])
 
@@ -131,6 +134,25 @@ export function ProductsPage() {
     getSortedRowModel: getSortedRowModel(),
   })
 
+  const handleExportCsv = () => {
+    const rows = filtered.map((p) => ({
+      SKU: p.sku,
+      Product: p.name,
+      Manufacturer: p.manufacturer,
+      Category: p.category,
+      System: p.system,
+      'Qty On Hand': p.quantityOnHand,
+      Available: availableStock(p),
+      Reserved: p.quantityReserved,
+      'Reorder Level': p.lowStockThreshold,
+      'Stock Status': STOCK_STATUS_LABEL[stockStatus(p)],
+      'Unit Cost': p.unitCost,
+      'Unit Price': p.priceVisible ? p.unitPrice : '',
+      Status: p.status,
+    }))
+    exportToCsv(rows, `products-${new Date().toISOString().slice(0, 10)}.csv`)
+  }
+
   return (
     <div>
       <PageHeader
@@ -148,6 +170,12 @@ export function ProductsPage() {
                 </IconHelp>
               </TabsList>
             </Tabs>
+            <Button variant="outline" onClick={handleExportCsv} disabled={filtered.length === 0}>
+              <Download className="h-4 w-4" /> Export CSV
+            </Button>
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Upload className="h-4 w-4" /> Import CSV
+            </Button>
             <IconHelp helpKey="quickAdd">
               <Button
                 onClick={() => {
@@ -243,6 +271,7 @@ export function ProductsPage() {
       )}
 
       <ProductFormDialog open={formOpen} onOpenChange={setFormOpen} />
+      <ProductImportDialog open={importOpen} onOpenChange={setImportOpen} />
       <ProductDetailSheet product={selected} open={!!selected} onOpenChange={(v) => !v && setSelectedId(null)} />
     </div>
   )
