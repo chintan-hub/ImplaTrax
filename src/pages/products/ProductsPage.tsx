@@ -8,7 +8,7 @@ import {
   createColumnHelper,
   type SortingState,
 } from '@tanstack/react-table'
-import { LayoutGrid, List, Plus, ArrowUpDown, Search } from 'lucide-react'
+import { LayoutGrid, List, Plus, ArrowUpDown, Search, Download } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StickyToolbar } from '@/components/shared/StickyToolbar'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -24,6 +24,7 @@ import { ProductDetailSheet } from '@/components/products/ProductDetailSheet'
 import { IconHelp } from '@/components/ui/help-tooltip'
 import { useData } from '@/store/DataContext'
 import { formatCurrency } from '@/lib/utils'
+import { exportToCsv } from '@/lib/documents/csv'
 import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
 import { MANUFACTURERS, PRODUCT_CATEGORIES } from '@/types'
 import type { Product } from '@/types'
@@ -131,6 +132,25 @@ export function ProductsPage() {
     getSortedRowModel: getSortedRowModel(),
   })
 
+  const handleExportCsv = () => {
+    const rows = filtered.map((p) => ({
+      SKU: p.sku,
+      Product: p.name,
+      Manufacturer: p.manufacturer,
+      Category: p.category,
+      System: p.system,
+      'Qty On Hand': p.quantityOnHand,
+      Available: availableStock(p),
+      Reserved: p.quantityReserved,
+      'Reorder Level': p.lowStockThreshold,
+      'Stock Status': STOCK_STATUS_LABEL[stockStatus(p)],
+      'Unit Cost': p.unitCost,
+      'Unit Price': p.priceVisible ? p.unitPrice : '',
+      Status: p.status,
+    }))
+    exportToCsv(rows, `products-${new Date().toISOString().slice(0, 10)}.csv`)
+  }
+
   return (
     <div>
       <PageHeader
@@ -148,6 +168,9 @@ export function ProductsPage() {
                 </IconHelp>
               </TabsList>
             </Tabs>
+            <Button variant="outline" onClick={handleExportCsv} disabled={filtered.length === 0}>
+              <Download className="h-4 w-4" /> Export CSV
+            </Button>
             <IconHelp helpKey="quickAdd">
               <Button
                 onClick={() => {

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, ShieldCheck } from 'lucide-react'
+import { Plus, ShieldCheck, Download } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { UserFormDialog } from '@/components/users/UserFormDialog'
 import { useData } from '@/store/DataContext'
 import { formatDate, initials } from '@/lib/utils'
+import { exportToCsv } from '@/lib/documents/csv'
 import { PAGE_INTROS } from '@/content/helpText'
 import type { UserRole } from '@/types'
 
@@ -39,15 +40,31 @@ export function UsersPage() {
   const { users } = useData()
   const [formOpen, setFormOpen] = useState(false)
 
+  const handleExportCsv = () => {
+    const rows = users.map((u) => ({
+      Name: u.name,
+      Email: u.email,
+      Role: ROLE_LABEL[u.role],
+      Status: u.active ? 'Active' : 'Inactive',
+      Joined: formatDate(u.createdAt),
+    }))
+    exportToCsv(rows, `users-${new Date().toISOString().slice(0, 10)}.csv`)
+  }
+
   return (
     <div>
       <PageHeader
         title={PAGE_INTROS.users.title}
         description={`${PAGE_INTROS.users.description} ${users.length} team members with access.`}
         actions={
-          <Button onClick={() => setFormOpen(true)}>
-            <Plus className="h-4 w-4" /> Add User
-          </Button>
+          <>
+            <Button variant="outline" onClick={handleExportCsv} disabled={users.length === 0}>
+              <Download className="h-4 w-4" /> Export CSV
+            </Button>
+            <Button onClick={() => setFormOpen(true)}>
+              <Plus className="h-4 w-4" /> Add User
+            </Button>
+          </>
         }
       />
 

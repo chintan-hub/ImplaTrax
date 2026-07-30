@@ -230,15 +230,16 @@
   - [x] Every Reports tab has a working export.
   - [x] Stock Valuation, Batch/Lot, Expiry (if kept), Doctor-wise, and Manufacturer-wise reports all exist and are reachable from Reports.
 
-### P1-J — Print Everywhere + List-Page Export
+### P1-J — Print Everywhere + List-Page Export ✅ Complete
+*Status update (2026-07-30): Inventory's audit-trail export already existed (P1-N). Added a matching "Export CSV" button, following the exact same `exportToCsv` pattern, to the remaining six list pages: Products, Vendors, Patients, Cases, Labs, Users — each exports its current filtered view (verified live: filtering Products to one manufacturer produces a CSV with only that manufacturer's rows, 18 of 100). "Print" was scoped out for these pages — list pages are working-set/browsing views a user filters and re-filters, not something meant to be handed to someone as a physical page (unlike Sales/Loans/POs/Cases, which already got real print/PDF documents in P1-G because they represent a single transaction someone hands off); CSV export is the correct "take this data with you" action for a filterable list, and Reports (P1-I) already covers the printable/presentational angle for aggregate views.*
 - **Objective:** Extend P1-F's print/CSV foundation to every list page (Products, Inventory, Vendors, Patients, Cases, Labs, Users) — a "Print" and/or "Export CSV" action per list, plus the Inventory audit-trail export specifically named as missing.
 - **Files affected:** Every list page under `src/pages/`.
 - **Risks:** Low — mechanical once P1-F exists.
 - **Dependencies:** P1-F.
 - **Estimated complexity:** Medium (mechanical, broad).
 - **Acceptance criteria:**
-  - [ ] Every list page has a working CSV export of its current (filtered) view.
-  - [ ] Inventory specifically has a working audit-trail export.
+  - [x] Every list page has a working CSV export of its current (filtered) view.
+  - [x] Inventory specifically has a working audit-trail export.
 
 ### P1-K — Import
 - **Objective:** Scoped deliberately separately from Export (real data-integrity risk). At minimum, bulk Product import (the highest-value case) with validation (SKU/barcode collision handling, required-field checks) and a clear preview-before-commit step — never a silent bulk write.
@@ -459,4 +460,4 @@
 
 **Open decisions needed before/during implementation** (full detail in `AUDIT.md`): case-transition scope, oversell hard-block vs. warning, Proforma modeling, Payment Receipt data fields, `quantityReserved`/`expiryDate` fate, click-select-vs-open for multi-select. **P1-L's two decisions (per-product field fate, sequencing vs. P1-G) were confirmed 2026-07-28 — see P1-L above.**
 
-**Recommended immediate next step:** ~~P1-A (Case Lifecycle Completion)~~ — superseded. Status as of 2026-07-30: P1-A through P1-N, P1-G, P1-I, P2-A, P2-D, and P2-E are all complete (see status notes on each milestone above). **P1-H remains explicitly blocked** on the two open product decisions in `AUDIT.md` (Proforma modeling, Payment Receipt fields) — do not start it without those. The next unblocked, not-yet-built milestone is **P1-J (Print Everywhere + List-Page Export)** — a "Print" and/or "Export CSV" action per list page (Products, Inventory, Vendors, Patients, Cases, Labs, Users), plus the Inventory audit-trail export specifically named as missing. After that: P1-K (Import), then P2-B (Lab cases drill-down — confirmed still just a count with no list) and P2-C (Users role editing — confirmed still display-only, no edit capability).
+**Recommended immediate next step:** ~~P1-A (Case Lifecycle Completion)~~ — superseded. Status as of 2026-07-30: P1-A through P1-N, P1-G, P1-I, P1-J, P2-A, P2-D, and P2-E are all complete (see status notes on each milestone above). **P1-H remains explicitly blocked** on the two open product decisions in `AUDIT.md` (Proforma modeling, Payment Receipt fields) — do not start it without those. The next unblocked, not-yet-built milestone is **P1-K (Import)** — bulk Product import with a mandatory preview-before-commit step, sequenced last within P1 since it's the highest data-integrity-risk item. After that: P2-B (Lab cases drill-down — confirmed still just a count with no list) and P2-C (Users role editing — confirmed still display-only, no edit capability).

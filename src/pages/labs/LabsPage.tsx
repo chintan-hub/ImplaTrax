@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Star, Clock } from 'lucide-react'
+import { Plus, Search, Star, Clock, Download } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StickyToolbar } from '@/components/shared/StickyToolbar'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { LabFormDialog } from '@/components/labs/LabFormDialog'
 import { useData } from '@/store/DataContext'
 import { openLoanValue } from '@/mocks/loans'
+import { exportToCsv } from '@/lib/documents/csv'
 import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
 
 export function LabsPage() {
@@ -30,6 +31,20 @@ export function LabsPage() {
     return labs.filter((l) => !q || l.name.toLowerCase().includes(q))
   }, [labs, search])
 
+  const handleExportCsv = () => {
+    const rows = filtered.map((lab) => ({
+      Lab: lab.name,
+      Contact: lab.contactName,
+      Email: lab.email,
+      Phone: lab.phone,
+      Specialties: lab.specialties.join('; '),
+      Rating: lab.rating.toFixed(1),
+      'Turnaround Days': lab.turnaroundDays,
+      'Outstanding Loan Items': outstandingByLab.get(lab.id) ?? 0,
+    }))
+    exportToCsv(rows, `labs-${new Date().toISOString().slice(0, 10)}.csv`)
+  }
+
   return (
     <div>
       <PageHeader
@@ -37,9 +52,14 @@ export function LabsPage() {
         helpTerm="lab"
         description={`${PAGE_INTROS.labs.description} ${labs.length} partner labs.`}
         actions={
-          <Button onClick={() => setFormOpen(true)}>
-            <Plus className="h-4 w-4" /> Add Lab
-          </Button>
+          <>
+            <Button variant="outline" onClick={handleExportCsv} disabled={filtered.length === 0}>
+              <Download className="h-4 w-4" /> Export CSV
+            </Button>
+            <Button onClick={() => setFormOpen(true)}>
+              <Plus className="h-4 w-4" /> Add Lab
+            </Button>
+          </>
         }
       />
 

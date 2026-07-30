@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Search } from 'lucide-react'
+import { Plus, Search, Download } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StickyToolbar } from '@/components/shared/StickyToolbar'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -13,6 +13,7 @@ import { PatientFormDialog } from '@/components/patients/PatientFormDialog'
 import { useData } from '@/store/DataContext'
 import { patientFullName } from '@/mocks/patients'
 import { formatDate, initials } from '@/lib/utils'
+import { exportToCsv } from '@/lib/documents/csv'
 import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
 
 export function PatientsPage() {
@@ -41,6 +42,21 @@ export function PatientsPage() {
     return patients.filter((p) => !q || patientFullName(p).toLowerCase().includes(q) || p.patientCode.toLowerCase().includes(q) || p.primaryDoctor.toLowerCase().includes(q))
   }, [patients, search])
 
+  const handleExportCsv = () => {
+    const rows = filtered.map((p) => ({
+      Patient: patientFullName(p),
+      Code: p.patientCode,
+      Sex: p.sex === 'female' ? 'Female' : 'Male',
+      'Primary Doctor': p.primaryDoctor,
+      Cases: caseCountByPatient.get(p.id) ?? 0,
+      Phone: p.phone,
+      Email: p.email,
+      DOB: formatDate(p.dob),
+      Added: formatDate(p.createdAt),
+    }))
+    exportToCsv(rows, `patients-${new Date().toISOString().slice(0, 10)}.csv`)
+  }
+
   return (
     <div>
       <PageHeader
@@ -48,9 +64,14 @@ export function PatientsPage() {
         helpTerm="patient"
         description={`${PAGE_INTROS.patients.description} ${patients.length} patients on record.`}
         actions={
-          <Button onClick={() => setFormOpen(true)}>
-            <Plus className="h-4 w-4" /> Add Patient
-          </Button>
+          <>
+            <Button variant="outline" onClick={handleExportCsv} disabled={filtered.length === 0}>
+              <Download className="h-4 w-4" /> Export CSV
+            </Button>
+            <Button onClick={() => setFormOpen(true)}>
+              <Plus className="h-4 w-4" /> Add Patient
+            </Button>
+          </>
         }
       />
 

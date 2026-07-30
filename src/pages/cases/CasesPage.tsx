@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Search } from 'lucide-react'
+import { Plus, Search, Download } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StickyToolbar } from '@/components/shared/StickyToolbar'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -15,6 +15,7 @@ import { TermHint } from '@/components/ui/help-tooltip'
 import { useData } from '@/store/DataContext'
 import { patientFullName } from '@/mocks/patients'
 import { formatDate } from '@/lib/utils'
+import { exportToCsv } from '@/lib/documents/csv'
 import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
 import type { CaseStatus } from '@/types'
 
@@ -53,6 +54,23 @@ export function CasesPage() {
     })
   }, [cases, search, status, doctor, labFilter, patientById])
 
+  const handleExportCsv = () => {
+    const rows = filtered.map((c) => {
+      const patient = patientById.get(c.patientId)
+      const lab = c.labId ? labById.get(c.labId) : undefined
+      return {
+        'Case ID': c.caseId,
+        Patient: patient ? patientFullName(patient) : '',
+        Procedure: c.procedure,
+        Doctor: c.doctor,
+        Lab: lab?.name ?? '',
+        Status: c.status,
+        Created: formatDate(c.createdAt),
+      }
+    })
+    exportToCsv(rows, `cases-${new Date().toISOString().slice(0, 10)}.csv`)
+  }
+
   return (
     <div>
       <PageHeader
@@ -60,9 +78,14 @@ export function CasesPage() {
         helpTerm="case"
         description={`${PAGE_INTROS.cases.description} ${cases.length} cases tracked.`}
         actions={
-          <Button onClick={() => setFormOpen(true)}>
-            <Plus className="h-4 w-4" /> New Case
-          </Button>
+          <>
+            <Button variant="outline" onClick={handleExportCsv} disabled={filtered.length === 0}>
+              <Download className="h-4 w-4" /> Export CSV
+            </Button>
+            <Button onClick={() => setFormOpen(true)}>
+              <Plus className="h-4 w-4" /> New Case
+            </Button>
+          </>
         }
       />
 

@@ -103,7 +103,8 @@ Full detail in `PROJECT.md` §2/§2a. Summary:
 | *(post-P1-N, several commits)* | **P2-A: Vendor Detail Page** — `/vendors/:id` mirroring `LabDetailPage.tsx`: contact card + PO history with stat cards (total/pending POs, total spend). Plus in the same round: `localStorage` persistence (`src/store/persistence.ts`), the Vendor-manufacturers-always-`[]` bug fix, `updateProduct`/`updatePatient` wired to real edit UI (P2-D/P2-E), and Reports CSV export per-tab. |
 | *(same round)* | **P1-G groundwork: Sale/Loan/Case document generation** — `src/lib/documents/sale.ts`+`SaleDocument.tsx`, `loan.ts`+`LoanDocument.tsx`, `case.ts`+`CaseDocument.tsx`, each with a WhatsApp-summary builder, wired into a "Share & Export" card (WhatsApp/Print/Generate PDF) on `SaleDetailPage`/`LoanDetailPage`/`CaseDetailPage.tsx`. Purchase Order document gained a "Received" quantity column (the GRN-coverage decision — see P1-G's status note in `DEVELOPMENT_PLAN.md`). |
 | `bb3b676` | **P1-G close-out: Sales Delivery Challan** — `src/lib/documents/DeliveryChallanDocument.tsx`, reusing `buildSaleDocumentData` (no new data-shaping code) but rendering without pricing and with a "Received By" signature line, distinguishing a goods-movement record from the tax-invoice-shaped Sales Invoice. `SaleDetailPage.tsx` gained a `printMode` toggle so the same `hidden print:block` container renders whichever document was requested. Live-verified: Invoice and Challan both render correctly, switching between them doesn't regress either, no page errors. This closes P1-G — see `DEVELOPMENT_PLAN.md`'s P1-G status note for which of the six named documents are separate components vs. deliberately merged into an existing one. Opened as PR #2 against `main` (PR #1 had already merged). |
-| *(today, 2026-07-30)* | **P1-I: Reports — Export + New Report Types** — five new Reports tabs: Stock Valuation (per-SKU table, sorted by value), Manufacturer-wise (kept on the Dashboard too), Doctor-wise (cases + case-linked sales revenue per doctor, derived by resolving each Sale's linked Case), and Batch/Lot + Expiry (both gated on `clinicSettings.batchLotTrackingEnabled`, reusing `src/lib/batches.ts`'s `summarizeLots` — zero new aggregation logic, same pattern `BatchesPage.tsx` already uses). All five export CSV via the existing `ExportCsvButton`. Live-verified: every new tab renders correct data and its export fires a real download; the two batch/lot tabs are correctly absent when the global setting is off and appear/work when turned on; all four pre-existing tabs (Inventory/Sales/Loans/Purchases) still work unchanged. 77/77 tests still pass (no data-layer changes — this was a pure `ReportsPage.tsx` addition, `DataContext.tsx` untouched). |
+| `ed120f9` | **P1-I: Reports — Export + New Report Types** — five new Reports tabs: Stock Valuation (per-SKU table, sorted by value), Manufacturer-wise (kept on the Dashboard too), Doctor-wise (cases + case-linked sales revenue per doctor, derived by resolving each Sale's linked Case), and Batch/Lot + Expiry (both gated on `clinicSettings.batchLotTrackingEnabled`, reusing `src/lib/batches.ts`'s `summarizeLots` — zero new aggregation logic, same pattern `BatchesPage.tsx` already uses). All five export CSV via the existing `ExportCsvButton`. Live-verified: every new tab renders correct data and its export fires a real download; the two batch/lot tabs are correctly absent when the global setting is off and appear/work when turned on; all four pre-existing tabs (Inventory/Sales/Loans/Purchases) still work unchanged. 77/77 tests still pass (no data-layer changes — this was a pure `ReportsPage.tsx` addition, `DataContext.tsx` untouched). |
+| *(today, 2026-07-30)* | **P1-J: Print Everywhere + List-Page Export** — Inventory's audit-trail CSV export already existed (P1-N); added a matching "Export CSV" button (same `exportToCsv` utility, same pattern) to the six remaining list pages: `ProductsPage.tsx`, `VendorsPage.tsx`, `PatientsPage.tsx`, `CasesPage.tsx`, `LabsPage.tsx`, `UsersPage.tsx`. Each exports its current filtered view, not the unfiltered full list. "Print" was deliberately scoped out for list pages — see `DEVELOPMENT_PLAN.md`'s P1-J status note for the reasoning (the milestone's own acceptance criteria only requires CSV export; "Print" in the objective text was explicitly "and/or"). Live-verified: all 6 new export buttons fire a real download with zero page errors; verified on Products specifically that filtering to one manufacturer (Straumann) produces a CSV with only that manufacturer's 18 rows, not all 100 — confirming exports genuinely respect active filters, not just the raw data array. 77/77 tests still pass (`DataContext.tsx` untouched). |
 
 **Reports for completed phases**: `PHASE1_REPORT.md`, `PHASE2_REPORT.md`, `PHASE3_REPORT.md`, `BUGFIX_REPORT.md`. No PHASE4+ report exists — P1-A through P1-E were reported directly in-conversation, not as separate files (this is fine, not a gap to fix).
 
@@ -127,8 +128,8 @@ The roadmap is ordered **Priority 1 → 4 by business value**, not by implementa
 | P1-G — Core Transactional Documents ✅ | Done — see `DEVELOPMENT_PLAN.md`'s P1-G status note (GRN and Loan Return Receipt deliberately merged into existing documents; Delivery Challan closed it out 2026-07-30). | P1-F ✅, P1-L ✅, P1-C ✅, P1-D ✅ |
 | P1-H — Proforma Invoice & Payment Receipt | Still blocked on two open product decisions (see below) — do not start without them | P1-F, P1-D ✅, your decisions |
 | P1-I — Reports: Export + New Report Types ✅ | Done 2026-07-30 — see §5. Stock Valuation, Manufacturer-wise, Doctor-wise, Batch/Lot, Expiry all added. | P1-F ✅, P1-E ✅ |
-| **P1-J — Print Everywhere + List-Page Export** ← **NEXT** | A "Print" and/or "Export CSV" action per list page (Products, Inventory, Vendors, Patients, Cases, Labs, Users) + the Inventory audit-trail export specifically named as missing | P1-F ✅ |
-| P1-K — Import | Bulk Product import with mandatory preview-before-commit (sequenced last — highest data-integrity risk in P1) | — |
+| P1-J — Print Everywhere + List-Page Export ✅ | Done 2026-07-30 — see §5. CSV export added to all 6 remaining list pages; Inventory's already existed. | P1-F ✅ |
+| **P1-K — Import** ← **NEXT** | Bulk Product import with mandatory preview-before-commit (sequenced last — highest data-integrity risk in P1) | — |
 
 ### Priority 2 — missing screens/detail pages
 P2-A Vendor Detail Page ✅ (done — see §5) · **P2-B Lab Cases Drill-Down** (confirmed still open: `LabDetailPage.tsx`'s `labCases` is computed but only used for a stat-card count, no list rendered) · **P2-C Users Role Editing** (confirmed still open: `UsersPage.tsx` is still display-only, no edit capability, the Role Permissions matrix is still pure documentation) · P2-D Product Edit ✅ (done — see §5) · P2-E Patient Edit ✅ (done — see §5).
@@ -168,30 +169,30 @@ This has been enforced strictly, milestone by milestone, for the entire P1 serie
 
 ---
 
-## 8. Exact next milestone: P1-J — Print Everywhere + List-Page Export
+## 8. Exact next milestone: P1-K — Import
 
-P1-G and P1-I are both done (see §5/§6). Copied verbatim from `DEVELOPMENT_PLAN.md` so this document is self-contained — but re-read the live file too, in case it has been updated since this handoff was written:
+P1-G, P1-I, and P1-J are all done (see §5/§6). Copied verbatim from `DEVELOPMENT_PLAN.md` so this document is self-contained — but re-read the live file too, in case it has been updated since this handoff was written:
 
-> **Objective:** Extend P1-F's print/CSV foundation to every list page (Products, Inventory, Vendors, Patients, Cases, Labs, Users) — a "Print" and/or "Export CSV" action per list, plus the Inventory audit-trail export specifically named as missing.
+> **Objective:** Scoped deliberately separately from Export (real data-integrity risk). At minimum, bulk Product import (the highest-value case) with validation (SKU/barcode collision handling, required-field checks) and a clear preview-before-commit step — never a silent bulk write.
 >
-> **Files affected:** Every list page under `src/pages/`.
+> **Files affected:** New import UI (likely a dialog on `ProductsPage.tsx`), `src/store/DataContext.tsx` (a batch-safe creation path).
 >
-> **Risks:** Low — mechanical once P1-F exists.
+> **Risks:** Medium-high — the one item in this whole Priority 1 list with real data-integrity stakes if done carelessly. Recommend a preview/confirm step is non-negotiable, not a nice-to-have.
 >
-> **Dependencies:** P1-F ✅ (done — see §5).
+> **Dependencies:** None technically, but sequenced last within P1 since it's the highest-risk item and everything else de-risks the codebase it lands on.
 >
-> **Estimated complexity:** Medium (mechanical, broad).
+> **Estimated complexity:** Medium-Large.
 >
 > **Acceptance criteria:**
-> - Every list page has a working CSV export of its current (filtered) view.
-> - Inventory specifically has a working audit-trail export.
+> - A CSV of products can be imported with a mandatory preview step showing exactly what will be created and flagging any row that fails validation, before anything is committed.
+> - No partial/silent writes — either the whole valid batch commits or nothing does.
 
-**Before writing any P1-J code**, a new session should:
-1. Read `DEVELOPMENT_PLAN.md`'s P1-J section fresh (in case it changed).
-2. Read `src/lib/documents/csv.ts`'s `exportToCsv` — the one shared utility every list page's export button should call, no per-page reimplementation.
-3. Check whether `src/pages/inventory/InventoryPage.tsx` already has a CSV export — P1-N's own acceptance criteria mentioned "CSV export extended to match" for the Batch/Lot column, so verify current state with a fresh read rather than assuming either way.
-4. Decide and apply one consistent placement/pattern for the export action across list pages (e.g. next to the search/filter toolbar, mirroring `ReportsPage.tsx`'s `ExportCsvButton` pattern) — every page should feel the same, not seven different one-off implementations.
-5. Present scope + file list + business rules/edge cases, and wait for approval, per §7 above — nothing about P1-J has been pre-approved in any prior conversation.
+**Before writing any P1-K code**, a new session should:
+1. Read `DEVELOPMENT_PLAN.md`'s P1-K section fresh (in case it changed).
+2. Read `src/components/products/ProductFormDialog.tsx`'s Zod schema and `DataContext.tsx`'s `addProduct` — the import path needs the same required-field rules applied per-row, not a looser bulk-only validation.
+3. Check `src/lib/idGenerator.ts` and `addProduct`'s SKU/barcode generation for how collision-safe ID generation currently works for a single product, and decide how that extends to a batch (e.g. does an imported row supply its own SKU, or is one always generated?).
+4. Decide the CSV column schema (which Product fields are required vs. optional for import) and how validation errors are surfaced per-row in the preview step.
+5. Present scope + file list + business rules/edge cases, and wait for approval, per §7 above. Given this is flagged as the highest-risk P1 item, err toward confirming the import contract (required columns, duplicate handling, partial-failure behavior) with the user before writing code, not just before finishing.
 
 ---
 
