@@ -12,10 +12,11 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts'
-import { DollarSign, AlertTriangle, HandCoins, ClipboardList, FolderKanban, TrendingUp } from 'lucide-react'
+import { DollarSign, AlertTriangle, HandCoins, ClipboardList, FolderKanban, TrendingUp, Activity, CheckCircle2 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatCard } from '@/components/shared/StatCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { EmptyState } from '@/components/shared/EmptyState'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -184,7 +185,7 @@ export function DashboardPage() {
                 </div>
               )
             })}
-            {recentMovements.length === 0 && <p className="text-sm text-muted-foreground">No recent activity yet.</p>}
+            {recentMovements.length === 0 && <EmptyState compact icon={Activity} title="No recent activity yet." />}
           </CardContent>
         </Card>
 
@@ -205,7 +206,7 @@ export function DashboardPage() {
                 </Badge>
               </div>
             ))}
-            {stats.lowStock.length === 0 && <p className="text-sm text-muted-foreground">All products are well stocked.</p>}
+            {stats.lowStock.length === 0 && <EmptyState compact icon={CheckCircle2} title="All products are well stocked." />}
           </CardContent>
         </Card>
 
@@ -227,7 +228,7 @@ export function DashboardPage() {
                 </div>
               )
             })}
-            {stats.openLoans.length === 0 && <p className="text-sm text-muted-foreground">No open loans.</p>}
+            {stats.openLoans.length === 0 && <EmptyState compact icon={HandCoins} title="No open loans." />}
           </CardContent>
         </Card>
       </div>
