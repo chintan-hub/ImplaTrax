@@ -95,10 +95,10 @@ export function PurchaseOrdersPage() {
                 <TableHead>PO Number</TableHead>
                 <TableHead>Vendor</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Receiving Progress</TableHead>
-                <TableHead>ETA</TableHead>
-                <TableHead className="text-right">Total Cost</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="hidden lg:table-cell">Receiving Progress</TableHead>
+                <TableHead className="hidden md:table-cell">ETA</TableHead>
+                <TableHead className="hidden sm:table-cell text-right">Total Cost</TableHead>
+                <TableHead className="hidden md:table-cell text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -113,15 +113,15 @@ export function PurchaseOrdersPage() {
                     <TableCell className="font-medium font-mono">{po.poNumber}</TableCell>
                     <TableCell>{vendor?.name}</TableCell>
                     <TableCell><StatusBadge status={po.status} /></TableCell>
-                    <TableCell className="w-40">
+                    <TableCell className="hidden lg:table-cell w-40">
                       <div className="flex items-center gap-2">
                         <Progress value={progress} className="h-1.5" />
                         <span className="text-xs text-muted-foreground w-8 shrink-0">{progress}%</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground whitespace-nowrap">{formatDate(po.eta)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatCurrency(totalCost)}</TableCell>
-                    <TableCell className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                    <TableCell className="hidden md:table-cell text-muted-foreground whitespace-nowrap">{formatDate(po.eta)}</TableCell>
+                    <TableCell className="hidden sm:table-cell text-right tabular-nums">{formatCurrency(totalCost)}</TableCell>
+                    <TableCell className="hidden md:table-cell text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <POStatusActions po={po} size="sm" />
                     </TableCell>
                   </TableRow>

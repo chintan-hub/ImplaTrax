@@ -329,13 +329,15 @@
 - **Estimated complexity:** Medium.
 - **Acceptance criteria:** On every page using `<Table>`, column headers stay visible while scrolling through rows; horizontal scroll for wide tables still works correctly; verified on Products (table view) and Purchase Orders specifically as the widest tables in the app.
 
-### P3-C — Responsive List Pages
+### P3-C — Responsive List Pages ✅ Complete
 - **Objective:** Tables currently have zero mobile accommodation beyond horizontal scroll (confirmed in audit). Add either column-priority hiding (hide less-critical columns below a breakpoint) or a card-view fallback on the widest/most-used tables.
 - **Files affected:** `src/components/ui/table.tsx` and/or individual list pages (Products, Purchase Orders, Cases, Loans at minimum).
 - **Risks:** Medium — real design decisions about which columns matter most per page; needs verification on an actual narrow viewport, not just code review.
 - **Dependencies:** P3-B (don't want to solve responsive layout twice).
 - **Estimated complexity:** Medium-Large.
 - **Acceptance criteria:** The 3-4 highest-traffic tables are genuinely usable (not just technically scrollable) at a 375px viewport width, verified with a real browser resize + screenshot, not assumed.
+
+*Status update (2026-07-30): Went with column-priority hiding (Tailwind responsive `hidden md:table-cell` / `lg:table-cell` / `xl:table-cell` on the least-essential columns), applied to all 4 named tables — Products (table view), Purchase Orders, Cases, Loans — plus their matching `<TableHead>`s. Each table keeps its identifying column(s) + status always visible, folding in secondary columns (dates, secondary counts, financials) as the viewport widens. Verified with Playwright at 375px: Cases fit with zero overflow out of the box; Products, Purchase Orders, and Loans still had a little residual overflow after the first pass because their "Actions" column (inline status-transition buttons) is inherently wide — fixed by also hiding Actions below `md` on Purchase Orders and Loans, since every row is already a full click-through to its detail page (which has the same actions), so hiding the inline shortcut on narrow screens loses nothing. All 4 tables now measure `scrollWidth === clientWidth` (zero horizontal overflow) at 375px, confirmed with real screenshots, not just computed styles. Desktop widths (1280px, re-screenshotted) are visually unchanged — every hidden column reappears at its breakpoint.*
 
 ### P3-D — "No Wasted Clicks" Final Audit Pass
 - **Objective:** After P1/P2 close the major detail-view gaps, do a full pass confirming every remaining clickable-looking element does something — specifically: make Inventory movement rows link to their referenced record (PO/Sale/Loan/Case) since the data already supports it, and re-verify Loan Returns.
