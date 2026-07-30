@@ -241,15 +241,21 @@
   - [x] Every list page has a working CSV export of its current (filtered) view.
   - [x] Inventory specifically has a working audit-trail export.
 
-### P1-K — Import
+### P1-K — Import ✅ Complete
+*Status update (2026-07-30): bulk Product import shipped, closing out all of Priority 1 except the explicitly-blocked P1-H. Architecture decisions made without needing to ask, all directly inferable from existing conventions:*
+  - *SKU/barcode/QR are never user-supplied on import, exactly like manual product creation (`ProductFormDialog`'s `Omit<Product, 'id'|'sku'|'barcode'|'qrPayload'|...>` signature already establishes this) — every imported row gets the same auto-generated SKU (`MFR-SYS-###`), barcode, and QR payload as a manually-created product, eliminating the "SKU collision" risk category entirely rather than needing to handle it.*
+  - *Vendor is auto-resolved per row by manufacturer match, mirroring `ProductFormDialog`'s exact `vendors.find(v => v.manufacturers.includes(manufacturer)) ?? vendors[0]` logic — no vendor column in the CSV.*
+  - *Required columns match `ProductFormDialog`'s Zod schema exactly (Product, Manufacturer, Category, System, Qty On Hand, Reorder Level, Unit Cost, Unit Price) so bulk import is never a looser validation path than the one-at-a-time UI; optional columns (Diameter, Length, Platform, Description, Batch Tracked) match too.*
+  - *Duplicate product names warn (shown in the preview, informational) rather than block — a clinic may legitimately stock two batches of a product under variant descriptions; only structurally invalid rows (missing/malformed required fields, unrecognized Manufacturer/Category) are hard errors that exclude a row from the importable set.*
+  - *"No partial/silent writes" is satisfied two ways: validation happens entirely client-side in the preview step (nothing is ever committed speculatively), and the actual commit (`DataContext.importProducts`) creates every valid row in one `setState` call, not a loop of N individual `addProduct` calls — the whole valid batch lands atomically in one render.*
 - **Objective:** Scoped deliberately separately from Export (real data-integrity risk). At minimum, bulk Product import (the highest-value case) with validation (SKU/barcode collision handling, required-field checks) and a clear preview-before-commit step — never a silent bulk write.
 - **Files affected:** New import UI (likely a dialog on `ProductsPage.tsx`), `src/store/DataContext.tsx` (a batch-safe creation path).
 - **Risks:** Medium-high — the one item in this whole Priority 1 list with real data-integrity stakes if done carelessly. Recommend a preview/confirm step is non-negotiable, not a nice-to-have.
 - **Dependencies:** None technically, but sequence last within P1 since it's the highest-risk item and everything else de-risks the codebase it lands on.
 - **Estimated complexity:** Medium-Large.
 - **Acceptance criteria:**
-  - [ ] A CSV of products can be imported with a mandatory preview step showing exactly what will be created and flagging any row that fails validation, before anything is committed.
-  - [ ] No partial/silent writes — either the whole valid batch commits or nothing does.
+  - [x] A CSV of products can be imported with a mandatory preview step showing exactly what will be created and flagging any row that fails validation, before anything is committed.
+  - [x] No partial/silent writes — either the whole valid batch commits or nothing does.
 
 ---
 
@@ -460,4 +466,4 @@
 
 **Open decisions needed before/during implementation** (full detail in `AUDIT.md`): case-transition scope, oversell hard-block vs. warning, Proforma modeling, Payment Receipt data fields, `quantityReserved`/`expiryDate` fate, click-select-vs-open for multi-select. **P1-L's two decisions (per-product field fate, sequencing vs. P1-G) were confirmed 2026-07-28 — see P1-L above.**
 
-**Recommended immediate next step:** ~~P1-A (Case Lifecycle Completion)~~ — superseded. Status as of 2026-07-30: P1-A through P1-N, P1-G, P1-I, P1-J, P2-A, P2-D, and P2-E are all complete (see status notes on each milestone above). **P1-H remains explicitly blocked** on the two open product decisions in `AUDIT.md` (Proforma modeling, Payment Receipt fields) — do not start it without those. The next unblocked, not-yet-built milestone is **P1-K (Import)** — bulk Product import with a mandatory preview-before-commit step, sequenced last within P1 since it's the highest data-integrity-risk item. After that: P2-B (Lab cases drill-down — confirmed still just a count with no list) and P2-C (Users role editing — confirmed still display-only, no edit capability).
+**Recommended immediate next step:** ~~P1-A (Case Lifecycle Completion)~~ — superseded. Status as of 2026-07-30: **all of Priority 1 is complete except P1-H**, which remains explicitly blocked on the two open product decisions in `AUDIT.md` (Proforma modeling, Payment Receipt fields) — do not start it without those. P2-A, P2-D, and P2-E are also complete. The next unblocked, not-yet-built work is **Priority 2's remaining two items**: P2-B (Lab cases drill-down — confirmed still just a count with no list) and P2-C (Users role editing — confirmed still display-only, no edit capability). After that, Priority 3 (UX polish) and Priority 4 (reusable interaction primitives) remain entirely unstarted.

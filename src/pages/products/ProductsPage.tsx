@@ -8,7 +8,7 @@ import {
   createColumnHelper,
   type SortingState,
 } from '@tanstack/react-table'
-import { LayoutGrid, List, Plus, ArrowUpDown, Search, Download } from 'lucide-react'
+import { LayoutGrid, List, Plus, ArrowUpDown, Search, Download, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StickyToolbar } from '@/components/shared/StickyToolbar'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -21,6 +21,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ProductCard } from '@/components/products/ProductCard'
 import { ProductFormDialog } from '@/components/products/ProductFormDialog'
 import { ProductDetailSheet } from '@/components/products/ProductDetailSheet'
+import { ProductImportDialog } from '@/components/products/ProductImportDialog'
 import { IconHelp } from '@/components/ui/help-tooltip'
 import { useData } from '@/store/DataContext'
 import { formatCurrency } from '@/lib/utils'
@@ -43,6 +44,7 @@ export function ProductsPage() {
   const [category, setCategory] = useState<string>('all')
   const [stockFilter, setStockFilter] = useState<string>('all')
   const [formOpen, setFormOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [sorting, setSorting] = useState<SortingState>([])
 
@@ -171,6 +173,9 @@ export function ProductsPage() {
             <Button variant="outline" onClick={handleExportCsv} disabled={filtered.length === 0}>
               <Download className="h-4 w-4" /> Export CSV
             </Button>
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Upload className="h-4 w-4" /> Import CSV
+            </Button>
             <IconHelp helpKey="quickAdd">
               <Button
                 onClick={() => {
@@ -266,6 +271,7 @@ export function ProductsPage() {
       )}
 
       <ProductFormDialog open={formOpen} onOpenChange={setFormOpen} />
+      <ProductImportDialog open={importOpen} onOpenChange={setImportOpen} />
       <ProductDetailSheet product={selected} open={!!selected} onOpenChange={(v) => !v && setSelectedId(null)} />
     </div>
   )
