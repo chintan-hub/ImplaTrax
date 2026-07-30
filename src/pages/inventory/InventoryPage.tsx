@@ -186,7 +186,7 @@ export function InventoryPage() {
           }
         />
       ) : (
-        <div className="rounded-xl border border-border bg-card overflow-x-auto">
+        <div className="rounded-xl border border-border bg-card">
           <Table>
             <TableHeader>
               <TableRow>
