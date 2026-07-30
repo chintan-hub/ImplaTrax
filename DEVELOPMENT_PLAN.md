@@ -337,13 +337,15 @@
 - **Estimated complexity:** Medium-Large.
 - **Acceptance criteria:** The 3-4 highest-traffic tables are genuinely usable (not just technically scrollable) at a 375px viewport width, verified with a real browser resize + screenshot, not assumed.
 
-### P3-D — "No Wasted Clicks" Final Audit Pass
+### P3-D — "No Wasted Clicks" Final Audit Pass ✅ Complete
 - **Objective:** After P1/P2 close the major detail-view gaps, do a full pass confirming every remaining clickable-looking element does something — specifically: make Inventory movement rows link to their referenced record (PO/Sale/Loan/Case) since the data already supports it, and re-verify Loan Returns.
 - **Files affected:** `src/pages/inventory/InventoryPage.tsx`, spot-checks across the app.
 - **Risks:** Low.
 - **Dependencies:** P1-C, P1-D (need Loan/Sale detail pages to link to).
 - **Estimated complexity:** Small.
 - **Acceptance criteria:** Every clickable-styled element in the app (hover state, cursor-pointer) does something meaningful when clicked — verified by an explicit pass, not assumed.
+
+*Status update (2026-07-30): `InventoryPage.tsx`'s Reference column now resolves `movement.reference` against `purchaseOrders`/`sales`/`loans` (matched by number field, keyed off `movement.type`) and renders a real link to the matching PO/Sale/Loan detail page instead of plain text; a "View case" link was added to the Linked To column whenever `movement.caseId` is set. `LoanReturnsPage.tsx`'s Loan column had the same gap — it already resolved the `Loan` record for filtering but only ever displayed its number as plain text — now links to `/loans/:id`. Beyond the two named files, grepped every `cursor-pointer` usage across the codebase (15 files) as the explicit audit pass the acceptance criteria calls for: every list-page row, `ProductCard`, `StatCard` (conditional on `onClick` being passed), and lab/vendor cards all already had a real, working `onClick`/navigation — no other dead clickable-looking elements found. Verified all 4 new link types (PO/Sale/Loan/Case) resolve and navigate correctly with Playwright.*
 
 ### P3-E — Empty/Loading/Error State Consistency + Root Error Boundary
 - **Objective:** Fix the Dashboard widgets' hand-rolled empty states (route through `EmptyState`), add empty-state handling to Users and Reports, and — the single highest-leverage item in this milestone — add a root-level `ErrorBoundary` around the app so a render-phase exception degrades to a recoverable screen instead of blanking the whole app.

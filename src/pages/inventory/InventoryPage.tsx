@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { ArrowDownToLine, ArrowUpFromLine, SlidersHorizontal, Plus, Search, Download } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StickyToolbar } from '@/components/shared/StickyToolbar'
@@ -43,7 +44,7 @@ const TYPE_VARIANT: Record<MovementType, 'success' | 'danger' | 'warning' | 'acc
 const FILTERABLE_TYPES: MovementType[] = ['inbound', 'adjustment', 'loan-out', 'loan-return', 'sale', 'lost']
 
 export function InventoryPage() {
-  const { movements, products, users, vendors, labs, patients, doctors, clinicSettings } = useData()
+  const { movements, products, users, vendors, labs, patients, doctors, clinicSettings, purchaseOrders, sales, loans } = useData()
   const [typeFilter, setTypeFilter] = useState('all')
   const [productFilter, setProductFilter] = useState('all')
   const [doctorFilter, setDoctorFilter] = useState('all')
@@ -60,6 +61,26 @@ export function InventoryPage() {
   const vendorById = useMemo(() => new Map(vendors.map((v) => [v.id, v])), [vendors])
   const labById = useMemo(() => new Map(labs.map((l) => [l.id, l])), [labs])
   const patientById = useMemo(() => new Map(patients.map((p) => [p.id, p])), [patients])
+  const poByNumber = useMemo(() => new Map(purchaseOrders.map((po) => [po.poNumber, po])), [purchaseOrders])
+  const saleByNumber = useMemo(() => new Map(sales.map((s) => [s.saleNumber, s])), [sales])
+  const loanByNumber = useMemo(() => new Map(loans.map((l) => [l.loanNumber, l])), [loans])
+
+  function referenceLink(m: (typeof movements)[number]): { to: string; label: string } | null {
+    if (!m.reference) return null
+    if (m.type === 'inbound') {
+      const po = poByNumber.get(m.reference)
+      if (po) return { to: `/purchase-orders/${po.id}`, label: m.reference }
+    }
+    if (m.type === 'sale') {
+      const sale = saleByNumber.get(m.reference)
+      if (sale) return { to: `/sales/${sale.id}`, label: m.reference }
+    }
+    if (m.type === 'loan-out' || m.type === 'loan-return') {
+      const loan = loanByNumber.get(m.reference)
+      if (loan) return { to: `/loans/${loan.id}`, label: m.reference }
+    }
+    return null
+  }
 
   const stats = useMemo(() => {
     const inbound = movements.filter((m) => m.quantity > 0).reduce((s, m) => s + m.quantity, 0)
@@ -205,6 +226,7 @@ export function InventoryPage() {
               {filtered.slice(0, 100).map((m) => {
                 const product = productById.get(m.productId)
                 const user = userById.get(m.performedBy)
+                const refLink = referenceLink(m)
                 return (
                   <TableRow key={m.id}>
                     <TableCell>
@@ -221,9 +243,22 @@ export function InventoryPage() {
                       </span>
                     </TableCell>
                     {clinicSettings.batchLotTrackingEnabled && <TableCell className="text-muted-foreground">{m.batchLot ?? '—'}</TableCell>}
-                    <TableCell className="max-w-[200px] truncate text-muted-foreground">{linkedTo(m)}</TableCell>
+                    <TableCell className="max-w-[200px] truncate text-muted-foreground">
+                      {linkedTo(m)}
+                      {m.caseId && (
+                        <Link to={`/cases/${m.caseId}`} className="block text-xs text-primary hover:underline">
+                          View case
+                        </Link>
+                      )}
+                    </TableCell>
                     <TableCell className="max-w-[200px] truncate">{m.reason}</TableCell>
-                    <TableCell className="text-muted-foreground">{m.reference ?? '—'}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {refLink ? (
+                        <Link to={refLink.to} className="text-primary hover:underline">{refLink.label}</Link>
+                      ) : (
+                        m.reference ?? '—'
+                      )}
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{user?.name ?? '—'}</TableCell>
                     <TableCell className="text-muted-foreground whitespace-nowrap">{formatDateTime(m.createdAt)}</TableCell>
                   </TableRow>
