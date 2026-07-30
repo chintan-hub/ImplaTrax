@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, Receipt, MessageCircle, Printer, FileText } from 'lucide-react'
+import { ArrowLeft, Receipt, MessageCircle, Printer, FileText, Truck } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -11,11 +12,16 @@ import { patientFullName } from '@/mocks/patients'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
 import { buildSaleSummaryText, buildSaleDocumentData } from '@/lib/documents/sale'
 import { SaleDocument } from '@/lib/documents/SaleDocument'
+import { DeliveryChallanDocument } from '@/lib/documents/DeliveryChallanDocument'
+
+type PrintMode = 'invoice' | 'challan'
 
 export function SaleDetailPage() {
   const { saleId } = useParams()
   const navigate = useNavigate()
   const { sales, patients, cases, products, users, clinicSettings } = useData()
+
+  const [printMode, setPrintMode] = useState<PrintMode>('invoice')
 
   const sale = sales.find((s) => s.id === saleId)
 
@@ -38,15 +44,19 @@ export function SaleDetailPage() {
     }
   }
 
-  const handlePrint = () => {
+  const handlePrint = (mode: PrintMode) => {
+    setPrintMode(mode)
     const previousTitle = document.title
-    document.title = sale.saleNumber
+    document.title = mode === 'challan' ? `Delivery Challan ${sale.saleNumber}` : sale.saleNumber
     const restoreTitle = () => {
       document.title = previousTitle
       window.removeEventListener('afterprint', restoreTitle)
     }
     window.addEventListener('afterprint', restoreTitle)
-    window.print()
+    // The printable container renders whichever document matches printMode —
+    // wait a tick for that state update to flush before the browser
+    // snapshots the page for printing.
+    requestAnimationFrame(() => window.print())
   }
 
   return (
@@ -156,11 +166,14 @@ export function SaleDetailPage() {
                 <Button variant="outline" size="sm" onClick={handleCopyWhatsApp}>
                   <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
                 </Button>
-                <Button variant="outline" size="sm" onClick={handlePrint}>
+                <Button variant="outline" size="sm" onClick={() => handlePrint('invoice')}>
                   <Printer className="h-3.5 w-3.5" /> Print
                 </Button>
-                <Button variant="outline" size="sm" className="col-span-2" onClick={handlePrint}>
+                <Button variant="outline" size="sm" className="col-span-2" onClick={() => handlePrint('invoice')}>
                   <FileText className="h-3.5 w-3.5" /> Generate PDF
+                </Button>
+                <Button variant="outline" size="sm" className="col-span-2" onClick={() => handlePrint('challan')}>
+                  <Truck className="h-3.5 w-3.5" /> Delivery Challan
                 </Button>
               </div>
             </CardContent>
@@ -170,7 +183,11 @@ export function SaleDetailPage() {
       </div>
 
       <div className="hidden print:block">
-        <SaleDocument data={buildSaleDocumentData(sale, patient, caseRecord, soldBy?.name ?? 'Unknown', productById, clinicSettings.batchLotTrackingEnabled)} />
+        {printMode === 'challan' ? (
+          <DeliveryChallanDocument data={buildSaleDocumentData(sale, patient, caseRecord, soldBy?.name ?? 'Unknown', productById, clinicSettings.batchLotTrackingEnabled)} />
+        ) : (
+          <SaleDocument data={buildSaleDocumentData(sale, patient, caseRecord, soldBy?.name ?? 'Unknown', productById, clinicSettings.batchLotTrackingEnabled)} />
+        )}
       </div>
     </div>
   )

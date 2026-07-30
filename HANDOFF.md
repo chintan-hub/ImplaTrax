@@ -14,10 +14,10 @@ Full product framing, business rules, data model, and terminology: **`PROJECT.md
 
 ## 2. Current repo state (verify before trusting this — it's a snapshot)
 
-- **Branch:** `claude/p1-f-doc-generation-scope-dtee4y`, open as **PR #1** against `main` on `chintan-hub/ImplaTrax` (not yet merged — confirm current PR/merge state before assuming `main` reflects any of this).
-- **Latest commit:** `28bb87e` — "P1-N: real inventory engine — structured movements, Inventory History, Product Details"
-- **Remote:** `origin` → `https://github.com/chintan-hub/ImplaTrax.git`. Everything through P1-N (P1-L, the PO-receipt-hang and refresh-404 bugfixes, P1-M, and P1-N) is pushed to the PR branch.
-- **Working tree:** clean.
+- **Branch:** `claude/p1-f-doc-generation-scope-dtee4y`. **PR #1 was merged into `main` on 2026-07-30** — the branch continues to accumulate work post-merge (per this session's standing instructions, a merged PR is never reopened/reused; follow-up work opens a new PR from this same branch name). Confirm current PR/merge state with `git log origin/main` before assuming anything below is on `main` yet.
+- **Latest commit:** see `git log -1` — as of this update, everything through P1-N, P2-A (Vendor Detail Page), Sale/Loan/Case document generation (P1-G's Sales Invoice/Loan Slip/Case Summary), and today's P1-G close-out (Sales Delivery Challan) is committed.
+- **Remote:** `origin` → `https://github.com/chintan-hub/ImplaTrax.git`.
+- **Working tree:** clean as of the last commit — verify with `git status` before trusting this.
 - **⚠️ Tooling gotcha, read before trusting any "typecheck clean" claim in older commit messages:** this repo's root `tsconfig.json` uses TypeScript project references with an empty `files: []`. Running plain `npx tsc --noEmit` silently checks **zero files** and always exits 0 — it is not a real typecheck. Discovered mid-P1-N. **Always use `npx tsc -b --noEmit`** (or `npx tsc -b`, matching the real `npm run build` script). Every prior session's "tsc clean" claim used the broken plain form — treat that history as unverified, not as proof nothing was ever broken.
 - **Verification status as of the last commit:** `npx tsc -b --noEmit` clean (the real check — see gotcha above), `npx eslint .` 0 errors (4 pre-existing `react-refresh/only-export-components` warnings, not new), `npx vitest run` → **77/77 passing** (71 prior + 6 new P1-N tests), `npm run build` succeeds (one pre-existing chunk-size warning, not an error). P1-N was additionally verified live in a browser: every Inventory History filter against real seeded data, Products' new Available/Reorder/Status columns, Product Details' new Purchase/Sales/Loan/Adjustment/Lot sections, PO Receive/Sale/Loan/Adjustment all still completing end-to-end, and refresh-survival on every route.
 - Always re-run these four checks yourself before trusting "current state" — don't assume they still pass without checking, and make sure you're running the real `tsc -b` form.
@@ -100,6 +100,10 @@ Full detail in `PROJECT.md` §2/§2a. Summary:
 | `b033ae0` | **P1-M: Doctor Master Data + Combobox UX Polish** — see `DEVELOPMENT_PLAN.md`'s P1-M entry for full detail. New persisted `Doctor` entity (`DataContext.doctors`/`addDoctor`) replaces the hardcoded `DOCTORS` tuple; every Doctor field (`PatientFormDialog`, `CaseFormDialog`, `CasesPage` filter) is now a searchable create-inline combobox (`DoctorCombobox` on a new generic `src/components/ui/combobox.tsx` primitive) — no Doctors management page. `Patient.primaryDoctor`/`Case.doctor` deliberately stay plain display strings, not a `Doctor.id` FK (see `PROJECT.md` §3 for the rationale). Full master-data audit recorded in `PROJECT.md` §3: Sex/status enums confirmed static; `MANUFACTURERS`/`PRODUCT_CATEGORIES` deduplicated into one source (`src/types/index.ts`) but kept static; `PROCEDURES`/`LAB_SPECIALTIES` flagged as future candidates, not touched. As bounded UX polish, Vendor (`POFormDialog`), Patient and Lab (`CaseFormDialog`) plain `<Select>`s were upgraded to the same combobox. Verified live: doctor search/reuse/create (click and Enter), PO creation via the new Vendor combobox through to PO Receive, and refresh-survival on every route. All 71 tests pass unchanged. |
 | `28bb87e` | **P1-N: Inventory Engine — Structured Movements, Inventory History, Product Details** — see `DEVELOPMENT_PLAN.md`'s P1-N entry and `PROJECT.md` §3's "Inventory Movement Engine" for full detail. `InventoryMovement` now carries required `quantityBefore`/`quantityAfter` (computed live at write time via a new `makeQtyTracker` helper, correct even when a transaction has the same product on multiple lines) plus structured `vendorId`/`labId`/`patientId`/`doctor`/`caseId` (populated per movement type by `receivePurchaseOrder`/`createLoan`/`returnLoanLines`/`createSale`) — no more reconstructing these via a string-matched join through a PO/Loan/Sale number. Confirmed during audit: all six supported events already called `addMovement`; `addImplantToCase` correctly still doesn't move stock (not one of the six events, unchanged design). Inventory (`/inventory`) rebuilt as a real Inventory History page with Product/Doctor/Patient/Vendor/Lab/Date/Movement Type filters, new Balance and Linked-to columns. Products gains Available Stock/Reorder Level/Stock Status (`src/lib/stock.ts`, new). Product Details replaces its generic movement slice with categorized Purchase/Sales/Loan/Adjustment history plus a Lot Information section (reusing `summarizeLots`). Six new `DataContext` tests, 77/77 passing. Also fixed a tooling bug discovered mid-milestone: plain `tsc --noEmit` was silently checking zero files all session (root `tsconfig.json` project-references setup) — see §2's gotcha callout, always use `tsc -b --noEmit` going forward. Verified live in a browser: every new filter, every new column/section, and a full PO Receive/Sale/Loan/Adjustment/refresh regression pass. |
 
+| *(post-P1-N, several commits)* | **P2-A: Vendor Detail Page** — `/vendors/:id` mirroring `LabDetailPage.tsx`: contact card + PO history with stat cards (total/pending POs, total spend). Plus in the same round: `localStorage` persistence (`src/store/persistence.ts`), the Vendor-manufacturers-always-`[]` bug fix, `updateProduct`/`updatePatient` wired to real edit UI (P2-D/P2-E), and Reports CSV export per-tab. |
+| *(same round)* | **P1-G groundwork: Sale/Loan/Case document generation** — `src/lib/documents/sale.ts`+`SaleDocument.tsx`, `loan.ts`+`LoanDocument.tsx`, `case.ts`+`CaseDocument.tsx`, each with a WhatsApp-summary builder, wired into a "Share & Export" card (WhatsApp/Print/Generate PDF) on `SaleDetailPage`/`LoanDetailPage`/`CaseDetailPage.tsx`. Purchase Order document gained a "Received" quantity column (the GRN-coverage decision — see P1-G's status note in `DEVELOPMENT_PLAN.md`). |
+| *(today, 2026-07-30)* | **P1-G close-out: Sales Delivery Challan** — `src/lib/documents/DeliveryChallanDocument.tsx`, reusing `buildSaleDocumentData` (no new data-shaping code) but rendering without pricing and with a "Received By" signature line, distinguishing a goods-movement record from the tax-invoice-shaped Sales Invoice. `SaleDetailPage.tsx` gained a `printMode` toggle so the same `hidden print:block` container renders whichever document was requested. Live-verified: Invoice and Challan both render correctly, switching between them doesn't regress either, no page errors. This closes P1-G — see `DEVELOPMENT_PLAN.md`'s P1-G status note for which of the six named documents are separate components vs. deliberately merged into an existing one. |
+
 **Reports for completed phases**: `PHASE1_REPORT.md`, `PHASE2_REPORT.md`, `PHASE3_REPORT.md`, `BUGFIX_REPORT.md`. No PHASE4+ report exists — P1-A through P1-E were reported directly in-conversation, not as separate files (this is fine, not a gap to fix).
 
 ---
@@ -119,14 +123,14 @@ The roadmap is ordered **Priority 1 → 4 by business value**, not by implementa
 | P1-L — Global Batch/Lot Tracking Setting ✅ | Done — see §5. | — |
 | P1-M — Doctor Master Data + Combobox UX Polish ✅ | Done — see §5. Out-of-band cross-cutting polish, not a P1-G dependency. | — |
 | P1-N — Inventory Engine: Structured Movements + History + Product Details ✅ | Done — see §5. Out-of-band, not a P1-G dependency. | — |
-| **P1-G — Core Transactional Documents** ← **NEXT** | Real PO PDF, GRN, Sales Invoice, Delivery Challan, Loan Out Slip, Loan Return Receipt | P1-F ✅, P1-L ✅, P1-C ✅, P1-D ✅ |
-| P1-H — Proforma Invoice & Payment Receipt | Blocked on two open product decisions (see below) | P1-F, P1-D ✅, your decisions |
-| P1-I — Reports: Export + New Report Types | Export on every Reports tab + Stock Valuation/Batch-Lot/Expiry/Doctor-wise/Manufacturer-wise reports | P1-F, P1-E ✅ |
+| P1-G — Core Transactional Documents ✅ | Done — see `DEVELOPMENT_PLAN.md`'s P1-G status note (GRN and Loan Return Receipt deliberately merged into existing documents; Delivery Challan closed it out 2026-07-30). | P1-F ✅, P1-L ✅, P1-C ✅, P1-D ✅ |
+| P1-H — Proforma Invoice & Payment Receipt | Still blocked on two open product decisions (see below) — do not start without them | P1-F, P1-D ✅, your decisions |
+| **P1-I — Reports: Export + New Report Types** ← **NEXT** | CSV export already exists per-tab on every current Reports tab (done in an earlier round). Still missing: Stock Valuation (per-SKU table), Batch/Lot report, Expiry report, Doctor-wise report, Manufacturer-wise report (currently Dashboard-only) | P1-F ✅, P1-E ✅ |
 | P1-J — Print Everywhere + List-Page Export | CSV export on every list page + Inventory audit-trail export | P1-F |
 | P1-K — Import | Bulk Product import with mandatory preview-before-commit (sequenced last — highest data-integrity risk in P1) | — |
 
 ### Priority 2 — missing screens/detail pages
-P2-A Vendor Detail Page · P2-B Lab Cases Drill-Down · P2-C Users Role Editing · P2-D Product Edit (wire up already-existing dead `updateProduct`) · P2-E Patient Edit.
+P2-A Vendor Detail Page ✅ (done — see §5) · **P2-B Lab Cases Drill-Down** (confirmed still open: `LabDetailPage.tsx`'s `labCases` is computed but only used for a stat-card count, no list rendered) · **P2-C Users Role Editing** (confirmed still open: `UsersPage.tsx` is still display-only, no edit capability, the Role Permissions matrix is still pure documentation) · P2-D Product Edit ✅ (done — see §5) · P2-E Patient Edit ✅ (done — see §5).
 
 ### Priority 3 — UX polish
 P3-A Sticky Page Headers · P3-B Sticky Table Headers (fixes a confirmed `Table.tsx` bug — nested `overflow-auto` traps vertical scroll) · P3-C Responsive List Pages · P3-D No-Wasted-Clicks Final Audit Pass · P3-E Empty/Loading/Error States + root `ErrorBoundary` (cheap, could be done opportunistically any time per its own risk note) · P3-F Search & Filter Consistency.
@@ -163,31 +167,30 @@ This has been enforced strictly, milestone by milestone, for the entire P1 serie
 
 ---
 
-## 8. Exact next milestone: P1-G — Core Transactional Documents
+## 8. Exact next milestone: P1-I — Reports: Export + New Report Types
 
-Copied verbatim from `DEVELOPMENT_PLAN.md` so this document is self-contained — but re-read the live file too, in case it has been updated since this handoff was written:
+P1-G is done (see §5/§6). Copied verbatim from `DEVELOPMENT_PLAN.md` so this document is self-contained — but re-read the live file too, in case it has been updated since this handoff was written:
 
-> **Objective:** Using the P1-F foundation: a real Purchase Order PDF (replacing the "coming soon" stub), a Goods Received Note (from a PO's receiving event), a Sales Invoice and Delivery Challan (from Sale Detail, P1-D), and a Loan Out Slip + Loan Return Receipt (from Loan Detail, P1-C).
+> **Objective:** Add export (PDF/CSV via P1-F) to every existing Reports tab, plus the three genuinely missing report types found in the audit: a proper per-SKU Stock Valuation table (the existing chart is by-category only), a Batch/Lot report (reuses P1-E's data), an Expiry report (`Product.expiryDate` was kept, not removed — see P1-E's status note), a Doctor-wise report, and a Manufacturer-wise report (currently only on the Dashboard — decide whether to keep it there, move it, or show it in both places).
 >
-> **Files affected:** New per-document components under the P1-F layer; "Generate PDF"/"Print"/"Export" buttons added to `PODetailPage.tsx`, the new `SaleDetailPage.tsx`, and the new `LoanDetailPage.tsx`.
+> **Files affected:** `src/pages/reports/ReportsPage.tsx`.
 >
-> **Risks:** Low once P1-F/C/D exist — this is mostly template-authoring work at that point, not new architecture.
+> **Risks:** Low — additive to an existing, working page. **Note:** CSV export already exists per-tab (`ExportCsvButton`, built in an earlier round) — don't re-build that part, only the new report types are actually missing.
 >
-> **Dependencies:** P1-F ✅, P1-L ✅ (both done — see §5), P1-C ✅, P1-D ✅.
+> **Dependencies:** P1-F ✅, P1-E ✅ (both done — see §5).
 >
-> **Estimated complexity:** Medium (six document types, but templated).
+> **Estimated complexity:** Medium.
 >
 > **Acceptance criteria:**
-> - Each of the six documents can be generated (print/PDF) from its correct source record, with accurate data (verified against the source record, not just "renders without error").
-> - The old "Generate PDF — coming soon" stub is gone, replaced by a working button. **Note: this specific bullet is already satisfied** — P1-F replaced that stub as part of proving its document-component pattern. Re-verify it still holds, but it isn't new work for P1-G.
-> - **New consideration from P1-L:** the GRN template (and any other P1-G document derived from a receiving event) should show the lot number when Batch/Lot Tracking is on, and nothing lot-related when it's off — the same `clinicSettings.batchLotTrackingEnabled` gate P1-L wired everywhere else. Confirm this reads naturally in the template rather than retrofitting it after the fact.
+> - Every Reports tab has a working export. **Already satisfied** for the four existing tabs (Inventory/Sales/Loans/Purchases) — verify it still holds, extend it to whatever new tabs this milestone adds.
+> - Stock Valuation, Batch/Lot, Expiry (if kept — it was), Doctor-wise, and Manufacturer-wise reports all exist and are reachable from Reports.
 
-**Before writing any P1-G code**, a new session should:
-1. Read `DEVELOPMENT_PLAN.md`'s P1-G section fresh (in case it changed).
-2. Read `src/lib/documents/` fresh — `DocumentLayout.tsx`, `purchaseOrder.ts`/`PurchaseOrderDocument.tsx` are the reference pattern this milestone mirrors five more times (GRN, Sales Invoice, Delivery Challan, Loan Out Slip, Loan Return Receipt).
-3. Read `src/pages/purchase-orders/PODetailPage.tsx` fresh for the `hidden print:block` + `window.print()` wiring pattern this milestone reuses on `SaleDetailPage.tsx` and `LoanDetailPage.tsx`.
-4. Read `clinicSettings.batchLotTrackingEnabled`'s usage in `src/lib/documents/purchaseOrder.ts`/`PurchaseOrderDocument.tsx` if it's referenced there by the time this starts, and in `POReceiveDialog.tsx`/`InventoryPage.tsx` for the established gating pattern (P1-L) — the GRN template needs to follow it too.
-5. Present scope + file list + business rules/edge cases, and wait for approval, per §7 above — nothing about P1-G has been pre-approved in any prior conversation.
+**Before writing any P1-I code**, a new session should:
+1. Read `DEVELOPMENT_PLAN.md`'s P1-I section fresh (in case it changed).
+2. Read `src/pages/reports/ReportsPage.tsx` fresh — it currently has 4 tabs (Inventory/Sales/Loans/Purchases), each with `StatCard`s, a chart, and an `ExportCsvButton`; new report types should follow that same per-tab shape.
+3. Read `src/lib/batches.ts`'s `summarizeLots` (P1-E) — the Batch/Lot and Expiry reports should reuse it, not duplicate lot-aggregation logic.
+4. Check `clinicSettings.batchLotTrackingEnabled` — the Batch/Lot and Expiry report tabs should only appear when it's on, matching every other P1-L-gated touchpoint in the app.
+5. Present scope + file list + business rules/edge cases, and wait for approval, per §7 above — nothing about P1-I has been pre-approved in any prior conversation.
 
 ---
 

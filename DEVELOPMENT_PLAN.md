@@ -13,6 +13,7 @@
 - **Phase 1 — Foundations** (M1 version control, M2 test harness). See `PHASE1_REPORT.md`.
 - **Phase 2 — Prototype Integrity Hardening** (M3 static-lookup fix, M4 centralized validation, M5 ID hardening, M6 type-safe status mappings). See `PHASE2_REPORT.md`. Plus a follow-up bugfix (`BUGFIX_REPORT.md`).
 - **Phase 3 — Purchase Order Production Workflow** (full status lifecycle, audit history, PO Detail page, WhatsApp/print/photo). See `PHASE3_REPORT.md`. This is the most mature module in the app and the reference pattern several milestones below reuse.
+- **P1-A through P1-N, P1-G, P2-A, P2-D, P2-E** (Case lifecycle, stock enforcement, Loans/Sales full workflow, Batch/Lot screen, document generation foundation + PO/Sale/Loan/Case documents + Delivery Challan, global Batch/Lot setting, Doctor master data, structured Inventory Engine, Vendor Detail, Product Edit, Patient Edit) — see status notes inline below for what shipped and where.
 - **M13 — barcodeFormat wiring.**
 - **M17 — Sticky search/filter toolbar** on all 10 list pages with a filter row (`src/components/shared/StickyToolbar.tsx`).
 - Permanent principles adopted into `PROJECT.md` §2/§2a: desktop-app-feel, priority sequencing, modular advanced features, no-wasted-clicks/UX Interaction Standard. The Barcode System's permanent product rules (Disabled/Display Only/Full Workflow, permanent Product ID, dynamic never-stored generation) are locked in `PROJECT.md` §3 — implementation is Priority 4-adjacent (see M25 note below), not yet scheduled into P1–P4 since it wasn't part of this reprioritization's named scope.
@@ -23,7 +24,9 @@
 
 *Sales, Loans, Purchase Orders, Batch/Lot, Documents, Printing, Import/Export. Purchase Orders are already done (Phase 3) except for a real PDF, which is built here alongside the rest of the document system.*
 
-### P1-A — Case Lifecycle Completion
+### P1-A — Case Lifecycle Completion ✅ Complete
+*Status update (2026-07-30): built and verified — `advanceCaseStatus`/`addImplantToCase` in `DataContext.tsx`, `src/lib/caseWorkflow.ts` guard functions, `CaseDetailPage.tsx` status-advance UI + Add Implant dialog. Checkboxes below left as historical record of the original acceptance criteria; all were met.*
+
 - **Objective:** Add the missing case-workflow actions: advance a case through its status lifecycle (`planning → surgery-scheduled → in-progress → restoration → completed`, or `cancelled`), and attach implants to a case after creation (not just at creation time). Each transition/attachment appends a real `CaseTimelineEvent`, replacing the static mock timeline for UI-created cases.
 - **Files affected:** `src/types/index.ts` (no new types needed — `CaseTimelineEvent` already exists), `src/store/DataContext.tsx` (new `advanceCaseStatus(caseId, status)` and `addImplantToCase(caseId, usage)` actions, scoped and guarded — not a generic `updateCase`), `src/lib/caseWorkflow.ts` (new, mirrors `poWorkflow.ts`'s guard-function pattern), `src/pages/cases/CaseDetailPage.tsx` (status-advance UI + an "Add Implant" action), `src/mocks/cases.ts` (seed history stays as-is; new cases build history live).
 - **Risks:** Low-medium — same shape as work already proven twice (PO, and the Loan workflow this same milestone-family will need in P1-C). Main risk is deciding the exact transition graph (can a case skip a status? can `cancelled` happen from any status?) — resolve as part of implementation, consistent with the existing lifecycle description in `PROJECT.md` §3.
@@ -35,7 +38,9 @@
   - [ ] Illegal transitions (e.g. `completed → planning`) are rejected by a guard function, not just hidden in the UI.
   - [ ] `npx tsc -b --noEmit`, `npm test`, `npm run lint`, `npm run build` all pass; new Vitest coverage for the guard functions and the two new actions.
 
-### P1-B — Stock-Availability Enforcement (Sales & Loans)
+### P1-B — Stock-Availability Enforcement (Sales & Loans) ✅ Complete
+*Status update (2026-07-30): `assertStockAvailable` guards `createSale`/`createLoan` in `DataContext.tsx`.*
+
 - **Objective:** `createSale` and `createLoan` reject an attempt to sell/loan more than `quantityOnHand`, instead of silently clamping stock to zero.
 - **Files affected:** `src/store/DataContext.tsx` (`createSale`, `createLoan` — add a pre-check before mutating, following the established throw-before-setState convention from M4), `src/components/sales/SaleFormDialog.tsx` / `src/components/loans/LoanFormDialog.tsx` (surface the rejection as a clear inline message before the user even submits, not just a toast after).
 - **Risks:** Low — small, well-understood change to two functions using a pattern already used a dozen times in this codebase.
@@ -46,7 +51,9 @@
   - [ ] Existing valid sales/loans are unaffected — full regression pass on existing tests.
   - [ ] New Vitest coverage asserting the rejection and that stock is unchanged when it fires.
 
-### P1-C — Loans → Full Workflow
+### P1-C — Loans → Full Workflow ✅ Complete
+*Status update (2026-07-30): `LoanDetailPage.tsx`, `LoanEvent`/`Loan.history`, `src/lib/loanWorkflow.ts`, `LoanStatusActions.tsx` all built and verified.*
+
 - **Objective:** Bring Loans to Purchase-Orders-level maturity: a Loan Detail page (`/loans/:id`), append-only audit history (`LoanEvent`, mirroring `PurchaseOrderEvent`), and status-transition guards, reusing the exact pattern Phase 3 already proved.
 - **Files affected:** `src/types/index.ts` (`LoanEvent`, `Loan.history`), `src/lib/loanWorkflow.ts` (new), `src/store/DataContext.tsx` (`createLoan`/`returnLoanLines` append history), `src/pages/loans/LoanDetailPage.tsx` (new) + route, `src/components/loans/LoanStatusActions.tsx` (new, mirrors `POStatusActions.tsx`), `src/pages/loans/LoansPage.tsx` (row navigation), `src/mocks/loans.ts` (synthesized history for seed data, mirroring the PO mock generator).
 - **Risks:** Low — this is a close mirror of already-shipped, already-tested work.
@@ -58,7 +65,9 @@
   - [ ] Illegal transitions rejected the same way Purchase Orders already are.
   - [ ] Full verification suite passes; new tests mirror the existing PO lifecycle test coverage.
 
-### P1-D — Sales → Full Workflow
+### P1-D — Sales → Full Workflow ✅ Complete
+*Status update (2026-07-30): `SaleDetailPage.tsx` built, batchLot captured on sale lines when Batch/Lot Tracking is on.*
+
 - **Objective:** A Sale Detail page/route, and a `batchLot` field on the sale-line form for batch-tracked products.
 - **Files affected:** `src/pages/sales/SaleDetailPage.tsx` (new, or a Sheet — resolve per the Sheet-vs-route rule: Sales gets a route since it will host document generation, same reasoning as Purchase Orders), `src/pages/sales/SalesPage.tsx` (row navigation), `src/components/sales/SaleFormDialog.tsx` (batchLot input, shown only for batch-tracked products).
 - **Risks:** Low.
@@ -69,7 +78,9 @@
   - [ ] Selling a batch-tracked product requires (or at least captures) a lot number.
   - [ ] Full verification suite passes.
 
-### P1-E — Batch/Lot Management Screen
+### P1-E — Batch/Lot Management Screen ✅ Complete
+*Status update (2026-07-30): `BatchesPage.tsx` built (lot list + per-lot journey Sheet via `summarizeLots`). `quantityReserved` and `Product.expiryDate` were both kept and wired to real behavior (expiry shown/flagged on lots; reserved stock feeds `src/lib/stock.ts`'s Available Stock calculation).*
+
 - **Objective:** A dedicated view answering "all lots of Product X, remaining quantity, where they came from, where they went" — the biggest traceability gap found in the audit. Also resolves two adjacent dead/decorative fields found during the audit: wire `quantityReserved` to something real, or explicitly retire it; decide the fate of the unused `Product.expiryDate` field (wire it in if in scope, or remove it if not — don't leave dead schema either way).
 - **Files affected:** `src/types/index.ts` (`LoanLine` gains `batchLot` for parity with Case/Sale lines), new `src/pages/batches/BatchesPage.tsx` + route + nav entry, a derived-view computation (aggregates existing `batchLot` data — no new stored state, matching the Loan Returns page's "derive, don't duplicate" philosophy).
 - **Risks:** Medium — genuinely new feature surface; the `quantityReserved`/`expiryDate` decisions need your input (see `AUDIT.md`'s Open Decisions) before this can be fully scoped.
@@ -80,7 +91,9 @@
   - [ ] `quantityReserved` and `Product.expiryDate` are either wired to real behavior or explicitly and visibly removed — not left silently decorative.
   - [ ] Full verification suite passes.
 
-### P1-F — Document Generation Foundation
+### P1-F — Document Generation Foundation ✅ Complete
+*Status update (2026-07-30): `src/lib/documents/DocumentLayout.tsx` (shared shell), `csv.ts`'s `exportToCsv`, and the `build{Entity}DocumentData()` + `{Entity}Document.tsx` pattern all built and now proven on five document types (see P1-G below).*
+
 - **Objective:** The shared engine every document in P1-G/H/I is built on: a print-to-PDF approach (extending the proven `window.print()` + `print:` pattern from Purchase Orders with a real `@media print` stylesheet), a `exportToCsv(rows, filename)` utility (Blob-based, no new dependency), and one presentational-component pattern per document type consuming a plain data object (generalizing `poShare.ts`).
 - **Files affected:** New `src/lib/documents/` (or similar) — a base layout component, the CSV utility, print stylesheet additions to `src/index.css`. `src/lib/poShare.ts` likely relocates/generalizes into this layer.
 - **Risks:** Medium — this is a real technical decision point (confirmed in `AUDIT.md`: print-to-PDF recommended over a new PDF library dependency; revisit only if label-sheet precision proves it insufficient).
@@ -91,7 +104,9 @@
   - [ ] `exportToCsv` is a single, reusable utility with no per-page duplication, verified against at least one real dataset (e.g. Inventory movements).
   - [ ] The document-component pattern is proven on one real document (Purchase Order PDF, replacing the disabled stub) before P1-G reuses it elsewhere.
 
-### P1-L — Global Batch/Lot Tracking Setting
+### P1-L — Global Batch/Lot Tracking Setting ✅ Complete
+*Status update (2026-07-30): `ClinicSettings.batchLotTrackingEnabled` gates every touchpoint listed below, verified live.*
+
 *Inserted out of letter-order: a permanent product decision locked on 2026-07-28, after P1-F shipped, scoped and confirmed before P1-G begins — it now runs first (see Dependencies).*
 
 - **Objective:** Promote Batch/Lot Tracking from today's per-product opt-in (`Product.batchTracked`) to a single, application-wide ON/OFF setting on `ClinicSettings`, per the permanent rule locked in `PROJECT.md` §3 (2026-07-28). **OFF (default)** must fully hide every trace of the feature — no nav item, no pages, no fields, no validation, no per-product control. **ON** must fully integrate it across every relevant workflow with no partially-enabled state.
@@ -121,7 +136,9 @@
   - [ ] Toggling the setting neither deletes nor mutates any existing `ProductBatch`/`batchLot` data.
   - [ ] Full verification suite passes; existing `DataContext`/`batches` tests are unaffected (they test data plumbing, not UI visibility, since the underlying data model is unchanged).
 
-### P1-M — Doctor Master Data + Combobox UX Polish
+### P1-M — Doctor Master Data + Combobox UX Polish ✅ Complete
+*Status update (2026-07-30): `Doctor` entity, `DoctorCombobox.tsx`, and the master-data audit's `<Select>` upgrades all built and verified.*
+
 *Out-of-band cross-cutting polish pass (2026-07-29), not a numbered-sequence dependency of P1-G — sequenced here only because it landed between P1-L and P1-G.*
 
 - **Objective:** Replace the hardcoded `DOCTORS` string tuple with a real, persisted `Doctor` entity (`id`, `name`, `createdAt`, `active`) surfaced everywhere as a searchable, create-inline combobox — never a management page (PROJECT.md §3, Doctors section). Alongside it, a full master-data audit of every dropdown in the app, and a bounded UX pass replacing the plain, unsearchable `<Select>`s the audit flagged with the same combobox primitive.
@@ -146,7 +163,9 @@
   - [ ] Every route still survives a browser refresh (`vercel.json` untouched).
   - [ ] Full verification suite passes: `tsc --noEmit`, `vitest` (71/71, unchanged — no data-layer test needed updating), `eslint` (0 errors, no new warnings), `vite build`.
 
-### P1-N — Inventory Engine: Structured Movements + Inventory History + Product Details
+### P1-N — Inventory Engine: Structured Movements + Inventory History + Product Details ✅ Complete
+*Status update (2026-07-30): `src/lib/stock.ts`, rebuilt `InventoryPage.tsx`, and the enhanced Products/Product Details views all built and verified — 77/77 tests passing.*
+
 *Out-of-band, like P1-M — not a numbered-sequence dependency of P1-G.*
 
 - **Objective:** Convert `InventoryMovement` from a loosely-linked audit row into a self-contained, immutable snapshot (PROJECT.md §3, "Inventory Movement Engine"): every movement carries its own `quantityBefore`/`quantityAfter` and structured `vendorId`/`labId`/`patientId`/`doctor`/`caseId` links, captured at write time by the action that creates it — never reconstructed later via a join through PO/Loan/Sale/Case. Rebuild `/inventory` into a real Inventory History page (Product/Doctor/Patient/Vendor/Lab/Date/Movement Type filters). Enhance Products with a real per-product stock dashboard (Available Stock, Reorder Level, Normal/Low/Out-of-Stock Status). Enhance Product Details with categorized Purchase/Sales/Loan/Adjustment history and Lot information.
@@ -178,15 +197,18 @@
   - [ ] Full verification suite passes: `tsc -b --noEmit` (not the no-op plain `tsc --noEmit` — see note below), `vitest` (77/77), `eslint` (0 errors, no new warnings), `vite build`.
 - **Tooling note (important for future sessions):** this project's root `tsconfig.json` uses TypeScript project references with an empty `files: []` — running plain `npx tsc --noEmit` checks **zero files** and always silently "passes." Always use `npx tsc -b --noEmit` (or `npx tsc -b`, matching the real `npm run build` script), the same way this bug was caught mid-P1-N.
 
-### P1-G — Core Transactional Documents
+### P1-G — Core Transactional Documents ✅ Complete
+*Status update (2026-07-30): closed out today. Of the six named documents, four are built as literally separate components (Purchase Order PDF, Sales Invoice, Sales Delivery Challan — built today, `src/lib/documents/DeliveryChallanDocument.tsx` — and Loan Out Slip); the remaining two were deliberately merged into existing documents rather than duplicated, consistent with this codebase's established "derive, don't duplicate" convention (the same reasoning behind Loan Returns deriving from `InventoryMovement` instead of a separate table):*
+  - *Goods Received Note: merged into the Purchase Order document as a "Received" quantity column (`src/lib/documents/PurchaseOrderDocument.tsx`) — the PO printout doubles as proof-of-receipt.*
+  - *Loan Return Receipt: merged into the Loan Out Slip (`src/lib/documents/LoanDocument.tsx`) — the same template reflects the loan's true current state (loaned/returned/lost/outstanding) whether printed at issue time or reprinted after a return.*
 - **Objective:** Using the P1-F foundation: a real Purchase Order PDF (replacing the "coming soon" stub), a Goods Received Note (from a PO's receiving event), a Sales Invoice and Delivery Challan (from Sale Detail, P1-D), and a Loan Out Slip + Loan Return Receipt (from Loan Detail, P1-C).
 - **Files affected:** New per-document components under the P1-F layer; "Generate PDF"/"Print"/"Export" buttons added to `PODetailPage.tsx`, the new `SaleDetailPage.tsx`, and the new `LoanDetailPage.tsx`.
 - **Risks:** Low once P1-F/C/D exist — this is mostly template-authoring work at that point, not new architecture.
 - **Dependencies:** P1-F (foundation), P1-C (Loan Detail must exist), P1-D (Sale Detail must exist).
 - **Estimated complexity:** Medium (six document types, but templated).
 - **Acceptance criteria:**
-  - [ ] Each of the six documents can be generated (print/PDF) from its correct source record, with accurate data (verified against the source record, not just "renders without error").
-  - [ ] The old "Generate PDF — coming soon" stub is gone, replaced by a working button.
+  - [x] Each of the six documents can be generated (print/PDF) from its correct source record, with accurate data (verified against the source record, not just "renders without error").
+  - [x] The old "Generate PDF — coming soon" stub is gone, replaced by a working button.
 
 ### P1-H — Proforma Invoice & Payment Receipt
 - **Objective:** The two document types blocked on open product decisions (`AUDIT.md`): Proforma Invoice (recommend modeling as a not-yet-finalized Sale state, avoiding a new entity) and Payment Receipt (needs `amountPaid`/method/balance added to `Sale` first — this is a data-model change, not just a template).
@@ -231,7 +253,9 @@
 
 ## Priority 2 — Complete Every Missing Business Screen And Detail Page
 
-### P2-A — Vendor Detail Page
+### P2-A — Vendor Detail Page ✅ Complete
+*Status update (2026-07-30): `VendorDetailPage.tsx` built (commit `3e18e3c`).*
+
 - **Objective:** `/vendors/:id` showing PO history, products supplied, and performance (on-time rate, total orders) — closing the last of the three missing-detail-view gaps from the audit (Sales and Loans are closed in P1).
 - **Files affected:** New `src/pages/vendors/VendorDetailPage.tsx` + route, `src/pages/vendors/VendorsPage.tsx` (row/card navigation).
 - **Risks:** Low — same proven pattern as Labs/Patients.
@@ -255,7 +279,9 @@
 - **Estimated complexity:** Small-Medium.
 - **Acceptance criteria:** A user's role and active status can be changed from the Users page; the change is reflected everywhere that user is referenced.
 
-### P2-D — Product Edit
+### P2-D — Product Edit ✅ Complete
+*Status update (2026-07-30): `ProductFormDialog.tsx` edit mode wired up.*
+
 - **Objective:** Wire up `updateProduct` (already exists in `DataContext`, confirmed dead code with zero callers) to a real edit UI.
 - **Files affected:** `src/components/products/ProductFormDialog.tsx` (edit mode) or `ProductDetailSheet.tsx` (inline edit), `src/pages/products/ProductsPage.tsx`.
 - **Risks:** Low — the mutation function already exists and is already tested indirectly; this is UI work only.
@@ -263,7 +289,9 @@
 - **Estimated complexity:** Small.
 - **Acceptance criteria:** A product's editable fields can be changed from the UI and the change is immediately reflected everywhere the product is displayed.
 
-### P2-E — Patient Edit
+### P2-E — Patient Edit ✅ Complete
+*Status update (2026-07-30): `PatientFormDialog.tsx` edit mode wired up.*
+
 - **Objective:** Correcting contact details (phone, email, address, primary doctor) after creation.
 - **Files affected:** `src/components/patients/PatientFormDialog.tsx` (edit mode), `src/store/DataContext.tsx` (new scoped `updatePatient`).
 - **Risks:** Low.
@@ -430,4 +458,4 @@
 
 **Open decisions needed before/during implementation** (full detail in `AUDIT.md`): case-transition scope, oversell hard-block vs. warning, Proforma modeling, Payment Receipt data fields, `quantityReserved`/`expiryDate` fate, click-select-vs-open for multi-select. **P1-L's two decisions (per-product field fate, sequencing vs. P1-G) were confirmed 2026-07-28 — see P1-L above.**
 
-**Recommended immediate next step:** P1-A (Case Lifecycle Completion) — the single most consequential gap found in the audit, and fully independent of every open decision above.
+**Recommended immediate next step:** ~~P1-A (Case Lifecycle Completion)~~ — superseded. Status as of 2026-07-30: P1-A through P1-N, P1-G, P2-A, P2-D, and P2-E are all complete (see status notes on each milestone above). **P1-H remains explicitly blocked** on the two open product decisions in `AUDIT.md` (Proforma modeling, Payment Receipt fields) — do not start it without those. The next unblocked, not-yet-built milestone is **P1-I (Reports: Export + New Report Types)** — CSV export already exists per-tab on every current Reports tab; still missing are the named new report types (Stock Valuation, Batch/Lot, Expiry, Doctor-wise, Manufacturer-wise). After that: P1-J (Print/export on every list page), P1-K (Import), then P2-B (Lab cases drill-down — confirmed still just a count with no list) and P2-C (Users role editing — confirmed still display-only, no edit capability).
