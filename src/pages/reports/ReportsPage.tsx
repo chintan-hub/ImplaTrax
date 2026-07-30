@@ -10,12 +10,13 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { StatCard } from '@/components/shared/StatCard'
+import { EmptyState } from '@/components/shared/EmptyState'
 import { useData } from '@/store/DataContext'
 import { useChartColors } from '@/lib/chartColors'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { exportToCsv } from '@/lib/documents/csv'
 import { summarizeLots } from '@/lib/batches'
-import { PAGE_INTROS } from '@/content/helpText'
+import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
 import { DollarSign, TrendingUp, HandCoins, ClipboardList, Package, AlertTriangle, Download, Boxes, Stethoscope, Factory, CalendarClock } from 'lucide-react'
 
 const EXPIRY_WARNING_DAYS = 90
@@ -312,33 +313,37 @@ export function ReportsPage() {
               />
             </CardHeader>
             <CardContent>
-              <div className="max-h-[500px] overflow-y-auto rounded-lg border border-border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Manufacturer</TableHead>
-                      <TableHead className="text-right">Qty</TableHead>
-                      <TableHead className="text-right">Unit Cost</TableHead>
-                      <TableHead className="text-right">Value</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {stockValuation.map((r) => (
-                      <TableRow key={r.sku}>
-                        <TableCell>
-                          <p className="font-medium">{r.name}</p>
-                          <p className="text-xs text-muted-foreground">{r.sku}</p>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{r.manufacturer}</TableCell>
-                        <TableCell className="text-right tabular-nums">{r.quantityOnHand}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatCurrency(r.unitCost)}</TableCell>
-                        <TableCell className="text-right tabular-nums font-medium">{formatCurrency(r.value)}</TableCell>
+              {stockValuation.length === 0 ? (
+                <EmptyState icon={Boxes} title={EMPTY_STATES.stockValuation.title} description={EMPTY_STATES.stockValuation.description} />
+              ) : (
+                <div className="max-h-[500px] overflow-y-auto rounded-lg border border-border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Product</TableHead>
+                        <TableHead>Manufacturer</TableHead>
+                        <TableHead className="text-right">Qty</TableHead>
+                        <TableHead className="text-right">Unit Cost</TableHead>
+                        <TableHead className="text-right">Value</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>
+                      {stockValuation.map((r) => (
+                        <TableRow key={r.sku}>
+                          <TableCell>
+                            <p className="font-medium">{r.name}</p>
+                            <p className="text-xs text-muted-foreground">{r.sku}</p>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{r.manufacturer}</TableCell>
+                          <TableCell className="text-right tabular-nums">{r.quantityOnHand}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatCurrency(r.unitCost)}</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium">{formatCurrency(r.value)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -391,27 +396,30 @@ export function ReportsPage() {
               />
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Doctor</TableHead>
-                    <TableHead className="text-right">Cases</TableHead>
-                    <TableHead className="text-right">Linked Sales</TableHead>
-                    <TableHead className="text-right">Revenue</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {doctorStats.map((r) => (
-                    <TableRow key={r.doctor}>
-                      <TableCell className="font-medium">{r.doctor}</TableCell>
-                      <TableCell className="text-right tabular-nums">{r.caseCount}</TableCell>
-                      <TableCell className="text-right tabular-nums">{r.salesCount}</TableCell>
-                      <TableCell className="text-right tabular-nums font-medium">{formatCurrency(r.revenue)}</TableCell>
+              {doctorStats.length === 0 ? (
+                <EmptyState icon={Stethoscope} title={EMPTY_STATES.doctorWise.title} description={EMPTY_STATES.doctorWise.description} />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Doctor</TableHead>
+                      <TableHead className="text-right">Cases</TableHead>
+                      <TableHead className="text-right">Linked Sales</TableHead>
+                      <TableHead className="text-right">Revenue</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              {doctorStats.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">No cases recorded yet.</p>}
+                  </TableHeader>
+                  <TableBody>
+                    {doctorStats.map((r) => (
+                      <TableRow key={r.doctor}>
+                        <TableCell className="font-medium">{r.doctor}</TableCell>
+                        <TableCell className="text-right tabular-nums">{r.caseCount}</TableCell>
+                        <TableCell className="text-right tabular-nums">{r.salesCount}</TableCell>
+                        <TableCell className="text-right tabular-nums font-medium">{formatCurrency(r.revenue)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -434,35 +442,39 @@ export function ReportsPage() {
                 />
               </CardHeader>
               <CardContent>
-                <div className="max-h-[500px] overflow-y-auto rounded-lg border border-border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Product</TableHead>
-                        <TableHead>Lot Number</TableHead>
-                        <TableHead className="text-right">Received</TableHead>
-                        <TableHead className="text-right">Remaining</TableHead>
-                        <TableHead>Expiry</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {lots.map((l) => (
-                        <TableRow key={`${l.productId}::${l.lotNumber}`}>
-                          <TableCell>
-                            <p className="font-medium">{productById.get(l.productId)?.name ?? 'Unknown product'}</p>
-                            <p className="text-xs text-muted-foreground">{productById.get(l.productId)?.sku}</p>
-                          </TableCell>
-                          <TableCell className="font-mono text-sm">{l.lotNumber}</TableCell>
-                          <TableCell className="text-right tabular-nums">{l.totalReceived}</TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            <span className={l.remaining < 0 ? 'text-danger-600 font-medium' : undefined}>{l.remaining}</span>
-                          </TableCell>
-                          <TableCell>{l.expiryDate ? formatDate(l.expiryDate) : <span className="text-muted-foreground">—</span>}</TableCell>
+                {lots.length === 0 ? (
+                  <EmptyState icon={Boxes} title={EMPTY_STATES.batches.title} description={EMPTY_STATES.batches.description} />
+                ) : (
+                  <div className="max-h-[500px] overflow-y-auto rounded-lg border border-border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Product</TableHead>
+                          <TableHead>Lot Number</TableHead>
+                          <TableHead className="text-right">Received</TableHead>
+                          <TableHead className="text-right">Remaining</TableHead>
+                          <TableHead>Expiry</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                      </TableHeader>
+                      <TableBody>
+                        {lots.map((l) => (
+                          <TableRow key={`${l.productId}::${l.lotNumber}`}>
+                            <TableCell>
+                              <p className="font-medium">{productById.get(l.productId)?.name ?? 'Unknown product'}</p>
+                              <p className="text-xs text-muted-foreground">{productById.get(l.productId)?.sku}</p>
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">{l.lotNumber}</TableCell>
+                            <TableCell className="text-right tabular-nums">{l.totalReceived}</TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              <span className={l.remaining < 0 ? 'text-danger-600 font-medium' : undefined}>{l.remaining}</span>
+                            </TableCell>
+                            <TableCell>{l.expiryDate ? formatDate(l.expiryDate) : <span className="text-muted-foreground">—</span>}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -491,34 +503,37 @@ export function ReportsPage() {
                 />
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Lot Number</TableHead>
-                      <TableHead className="text-right">Remaining</TableHead>
-                      <TableHead>Expiry</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {expiringLots.map((l) => (
-                      <TableRow key={`${l.productId}::${l.lotNumber}`}>
-                        <TableCell>
-                          <p className="font-medium">{productById.get(l.productId)?.name ?? 'Unknown product'}</p>
-                          <p className="text-xs text-muted-foreground">{productById.get(l.productId)?.sku}</p>
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">{l.lotNumber}</TableCell>
-                        <TableCell className="text-right tabular-nums">{l.remaining}</TableCell>
-                        <TableCell>{formatDate(l.expiryDate!)}</TableCell>
-                        <TableCell>
-                          <Badge variant={l.expired ? 'danger' : l.soon ? 'warning' : 'secondary'}>{l.expired ? 'Expired' : l.soon ? 'Expiring Soon' : 'OK'}</Badge>
-                        </TableCell>
+                {expiringLots.length === 0 ? (
+                  <EmptyState icon={CalendarClock} title={EMPTY_STATES.expiry.title} description={EMPTY_STATES.expiry.description} />
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Product</TableHead>
+                        <TableHead>Lot Number</TableHead>
+                        <TableHead className="text-right">Remaining</TableHead>
+                        <TableHead>Expiry</TableHead>
+                        <TableHead>Status</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {expiringLots.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">No lots with a recorded expiry date yet.</p>}
+                    </TableHeader>
+                    <TableBody>
+                      {expiringLots.map((l) => (
+                        <TableRow key={`${l.productId}::${l.lotNumber}`}>
+                          <TableCell>
+                            <p className="font-medium">{productById.get(l.productId)?.name ?? 'Unknown product'}</p>
+                            <p className="text-xs text-muted-foreground">{productById.get(l.productId)?.sku}</p>
+                          </TableCell>
+                          <TableCell className="font-mono text-sm">{l.lotNumber}</TableCell>
+                          <TableCell className="text-right tabular-nums">{l.remaining}</TableCell>
+                          <TableCell>{formatDate(l.expiryDate!)}</TableCell>
+                          <TableCell>
+                            <Badge variant={l.expired ? 'danger' : l.soon ? 'warning' : 'secondary'}>{l.expired ? 'Expired' : l.soon ? 'Expiring Soon' : 'OK'}</Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

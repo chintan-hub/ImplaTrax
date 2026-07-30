@@ -332,6 +332,23 @@ export const EMPTY_STATES = {
     title: 'No Batch/Lot Data Yet',
     description: 'Lots appear here once a batch-tracked product is received with a lot number. Go to Purchase Orders and receive one to get started.',
   },
+  users: {
+    title: 'No Team Members Yet',
+    description: 'Add the people who use ImplantDesk at your clinic, and set what they can access.',
+    actionLabel: 'Add User',
+  },
+  stockValuation: {
+    title: 'No Stock to Value',
+    description: 'This report values every product currently in stock. Add products or receive a purchase order to see data here.',
+  },
+  doctorWise: {
+    title: 'No Doctor Activity Yet',
+    description: 'This report tracks cases and linked sales per doctor. Create a case with a doctor assigned to see data here.',
+  },
+  expiry: {
+    title: 'No Expiring Lots',
+    description: 'This report flags batch-tracked lots nearing or past their expiry date. Nothing to review right now.',
+  },
 } as const satisfies Record<string, EmptyStateEntry>
 
 export type EmptyStateKey = keyof typeof EMPTY_STATES
