@@ -102,7 +102,8 @@ Full detail in `PROJECT.md` §2/§2a. Summary:
 
 | *(post-P1-N, several commits)* | **P2-A: Vendor Detail Page** — `/vendors/:id` mirroring `LabDetailPage.tsx`: contact card + PO history with stat cards (total/pending POs, total spend). Plus in the same round: `localStorage` persistence (`src/store/persistence.ts`), the Vendor-manufacturers-always-`[]` bug fix, `updateProduct`/`updatePatient` wired to real edit UI (P2-D/P2-E), and Reports CSV export per-tab. |
 | *(same round)* | **P1-G groundwork: Sale/Loan/Case document generation** — `src/lib/documents/sale.ts`+`SaleDocument.tsx`, `loan.ts`+`LoanDocument.tsx`, `case.ts`+`CaseDocument.tsx`, each with a WhatsApp-summary builder, wired into a "Share & Export" card (WhatsApp/Print/Generate PDF) on `SaleDetailPage`/`LoanDetailPage`/`CaseDetailPage.tsx`. Purchase Order document gained a "Received" quantity column (the GRN-coverage decision — see P1-G's status note in `DEVELOPMENT_PLAN.md`). |
-| *(today, 2026-07-30)* | **P1-G close-out: Sales Delivery Challan** — `src/lib/documents/DeliveryChallanDocument.tsx`, reusing `buildSaleDocumentData` (no new data-shaping code) but rendering without pricing and with a "Received By" signature line, distinguishing a goods-movement record from the tax-invoice-shaped Sales Invoice. `SaleDetailPage.tsx` gained a `printMode` toggle so the same `hidden print:block` container renders whichever document was requested. Live-verified: Invoice and Challan both render correctly, switching between them doesn't regress either, no page errors. This closes P1-G — see `DEVELOPMENT_PLAN.md`'s P1-G status note for which of the six named documents are separate components vs. deliberately merged into an existing one. |
+| `bb3b676` | **P1-G close-out: Sales Delivery Challan** — `src/lib/documents/DeliveryChallanDocument.tsx`, reusing `buildSaleDocumentData` (no new data-shaping code) but rendering without pricing and with a "Received By" signature line, distinguishing a goods-movement record from the tax-invoice-shaped Sales Invoice. `SaleDetailPage.tsx` gained a `printMode` toggle so the same `hidden print:block` container renders whichever document was requested. Live-verified: Invoice and Challan both render correctly, switching between them doesn't regress either, no page errors. This closes P1-G — see `DEVELOPMENT_PLAN.md`'s P1-G status note for which of the six named documents are separate components vs. deliberately merged into an existing one. Opened as PR #2 against `main` (PR #1 had already merged). |
+| *(today, 2026-07-30)* | **P1-I: Reports — Export + New Report Types** — five new Reports tabs: Stock Valuation (per-SKU table, sorted by value), Manufacturer-wise (kept on the Dashboard too), Doctor-wise (cases + case-linked sales revenue per doctor, derived by resolving each Sale's linked Case), and Batch/Lot + Expiry (both gated on `clinicSettings.batchLotTrackingEnabled`, reusing `src/lib/batches.ts`'s `summarizeLots` — zero new aggregation logic, same pattern `BatchesPage.tsx` already uses). All five export CSV via the existing `ExportCsvButton`. Live-verified: every new tab renders correct data and its export fires a real download; the two batch/lot tabs are correctly absent when the global setting is off and appear/work when turned on; all four pre-existing tabs (Inventory/Sales/Loans/Purchases) still work unchanged. 77/77 tests still pass (no data-layer changes — this was a pure `ReportsPage.tsx` addition, `DataContext.tsx` untouched). |
 
 **Reports for completed phases**: `PHASE1_REPORT.md`, `PHASE2_REPORT.md`, `PHASE3_REPORT.md`, `BUGFIX_REPORT.md`. No PHASE4+ report exists — P1-A through P1-E were reported directly in-conversation, not as separate files (this is fine, not a gap to fix).
 
@@ -125,8 +126,8 @@ The roadmap is ordered **Priority 1 → 4 by business value**, not by implementa
 | P1-N — Inventory Engine: Structured Movements + History + Product Details ✅ | Done — see §5. Out-of-band, not a P1-G dependency. | — |
 | P1-G — Core Transactional Documents ✅ | Done — see `DEVELOPMENT_PLAN.md`'s P1-G status note (GRN and Loan Return Receipt deliberately merged into existing documents; Delivery Challan closed it out 2026-07-30). | P1-F ✅, P1-L ✅, P1-C ✅, P1-D ✅ |
 | P1-H — Proforma Invoice & Payment Receipt | Still blocked on two open product decisions (see below) — do not start without them | P1-F, P1-D ✅, your decisions |
-| **P1-I — Reports: Export + New Report Types** ← **NEXT** | CSV export already exists per-tab on every current Reports tab (done in an earlier round). Still missing: Stock Valuation (per-SKU table), Batch/Lot report, Expiry report, Doctor-wise report, Manufacturer-wise report (currently Dashboard-only) | P1-F ✅, P1-E ✅ |
-| P1-J — Print Everywhere + List-Page Export | CSV export on every list page + Inventory audit-trail export | P1-F |
+| P1-I — Reports: Export + New Report Types ✅ | Done 2026-07-30 — see §5. Stock Valuation, Manufacturer-wise, Doctor-wise, Batch/Lot, Expiry all added. | P1-F ✅, P1-E ✅ |
+| **P1-J — Print Everywhere + List-Page Export** ← **NEXT** | A "Print" and/or "Export CSV" action per list page (Products, Inventory, Vendors, Patients, Cases, Labs, Users) + the Inventory audit-trail export specifically named as missing | P1-F ✅ |
 | P1-K — Import | Bulk Product import with mandatory preview-before-commit (sequenced last — highest data-integrity risk in P1) | — |
 
 ### Priority 2 — missing screens/detail pages
@@ -167,30 +168,30 @@ This has been enforced strictly, milestone by milestone, for the entire P1 serie
 
 ---
 
-## 8. Exact next milestone: P1-I — Reports: Export + New Report Types
+## 8. Exact next milestone: P1-J — Print Everywhere + List-Page Export
 
-P1-G is done (see §5/§6). Copied verbatim from `DEVELOPMENT_PLAN.md` so this document is self-contained — but re-read the live file too, in case it has been updated since this handoff was written:
+P1-G and P1-I are both done (see §5/§6). Copied verbatim from `DEVELOPMENT_PLAN.md` so this document is self-contained — but re-read the live file too, in case it has been updated since this handoff was written:
 
-> **Objective:** Add export (PDF/CSV via P1-F) to every existing Reports tab, plus the three genuinely missing report types found in the audit: a proper per-SKU Stock Valuation table (the existing chart is by-category only), a Batch/Lot report (reuses P1-E's data), an Expiry report (`Product.expiryDate` was kept, not removed — see P1-E's status note), a Doctor-wise report, and a Manufacturer-wise report (currently only on the Dashboard — decide whether to keep it there, move it, or show it in both places).
+> **Objective:** Extend P1-F's print/CSV foundation to every list page (Products, Inventory, Vendors, Patients, Cases, Labs, Users) — a "Print" and/or "Export CSV" action per list, plus the Inventory audit-trail export specifically named as missing.
 >
-> **Files affected:** `src/pages/reports/ReportsPage.tsx`.
+> **Files affected:** Every list page under `src/pages/`.
 >
-> **Risks:** Low — additive to an existing, working page. **Note:** CSV export already exists per-tab (`ExportCsvButton`, built in an earlier round) — don't re-build that part, only the new report types are actually missing.
+> **Risks:** Low — mechanical once P1-F exists.
 >
-> **Dependencies:** P1-F ✅, P1-E ✅ (both done — see §5).
+> **Dependencies:** P1-F ✅ (done — see §5).
 >
-> **Estimated complexity:** Medium.
+> **Estimated complexity:** Medium (mechanical, broad).
 >
 > **Acceptance criteria:**
-> - Every Reports tab has a working export. **Already satisfied** for the four existing tabs (Inventory/Sales/Loans/Purchases) — verify it still holds, extend it to whatever new tabs this milestone adds.
-> - Stock Valuation, Batch/Lot, Expiry (if kept — it was), Doctor-wise, and Manufacturer-wise reports all exist and are reachable from Reports.
+> - Every list page has a working CSV export of its current (filtered) view.
+> - Inventory specifically has a working audit-trail export.
 
-**Before writing any P1-I code**, a new session should:
-1. Read `DEVELOPMENT_PLAN.md`'s P1-I section fresh (in case it changed).
-2. Read `src/pages/reports/ReportsPage.tsx` fresh — it currently has 4 tabs (Inventory/Sales/Loans/Purchases), each with `StatCard`s, a chart, and an `ExportCsvButton`; new report types should follow that same per-tab shape.
-3. Read `src/lib/batches.ts`'s `summarizeLots` (P1-E) — the Batch/Lot and Expiry reports should reuse it, not duplicate lot-aggregation logic.
-4. Check `clinicSettings.batchLotTrackingEnabled` — the Batch/Lot and Expiry report tabs should only appear when it's on, matching every other P1-L-gated touchpoint in the app.
-5. Present scope + file list + business rules/edge cases, and wait for approval, per §7 above — nothing about P1-I has been pre-approved in any prior conversation.
+**Before writing any P1-J code**, a new session should:
+1. Read `DEVELOPMENT_PLAN.md`'s P1-J section fresh (in case it changed).
+2. Read `src/lib/documents/csv.ts`'s `exportToCsv` — the one shared utility every list page's export button should call, no per-page reimplementation.
+3. Check whether `src/pages/inventory/InventoryPage.tsx` already has a CSV export — P1-N's own acceptance criteria mentioned "CSV export extended to match" for the Batch/Lot column, so verify current state with a fresh read rather than assuming either way.
+4. Decide and apply one consistent placement/pattern for the export action across list pages (e.g. next to the search/filter toolbar, mirroring `ReportsPage.tsx`'s `ExportCsvButton` pattern) — every page should feel the same, not seven different one-off implementations.
+5. Present scope + file list + business rules/edge cases, and wait for approval, per §7 above — nothing about P1-J has been pre-approved in any prior conversation.
 
 ---
 

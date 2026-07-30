@@ -7,13 +7,18 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { StatCard } from '@/components/shared/StatCard'
 import { useData } from '@/store/DataContext'
 import { useChartColors } from '@/lib/chartColors'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatDate } from '@/lib/utils'
 import { exportToCsv } from '@/lib/documents/csv'
+import { summarizeLots } from '@/lib/batches'
 import { PAGE_INTROS } from '@/content/helpText'
-import { DollarSign, TrendingUp, HandCoins, ClipboardList, Package, AlertTriangle, Download } from 'lucide-react'
+import { DollarSign, TrendingUp, HandCoins, ClipboardList, Package, AlertTriangle, Download, Boxes, Stethoscope, Factory, CalendarClock } from 'lucide-react'
+
+const EXPIRY_WARNING_DAYS = 90
 
 function ExportCsvButton({ rows, filename }: { rows: Record<string, string | number>[]; filename: string }) {
   return (
@@ -24,7 +29,7 @@ function ExportCsvButton({ rows, filename }: { rows: Record<string, string | num
 }
 
 export function ReportsPage() {
-  const { products, sales, loans, purchaseOrders, movements, vendors } = useData()
+  const { products, sales, loans, purchaseOrders, movements, vendors, cases, batches, clinicSettings } = useData()
   const colors = useChartColors()
 
   const inventoryByCategory = useMemo(() => {
@@ -77,16 +82,78 @@ export function ReportsPage() {
   const totalPOSpend = purchaseOrders.reduce((s, po) => s + po.lines.reduce((a, l) => a + l.unitCost * l.quantityOrdered, 0), 0)
   const lostUnits = movements.filter((m) => m.type === 'lost').reduce((s, m) => s + Math.abs(m.quantity), 0)
 
+  const stockValuation = useMemo(
+    () =>
+      products
+        .map((p) => ({
+          sku: p.sku,
+          name: p.name,
+          category: p.category,
+          manufacturer: p.manufacturer,
+          quantityOnHand: p.quantityOnHand,
+          unitCost: p.unitCost,
+          value: p.quantityOnHand * p.unitCost,
+        }))
+        .sort((a, b) => b.value - a.value),
+    [products],
+  )
+
+  const manufacturerValue = useMemo(() => {
+    const map = new Map<string, number>()
+    products.forEach((p) => map.set(p.manufacturer, (map.get(p.manufacturer) ?? 0) + p.quantityOnHand * p.unitCost))
+    return Array.from(map.entries()).map(([name, value]) => ({ name, value: Math.round(value) })).sort((a, b) => b.value - a.value)
+  }, [products])
+
+  const doctorStats = useMemo(() => {
+    const map = new Map<string, { doctor: string; caseCount: number; salesCount: number; revenue: number }>()
+    const ensure = (doctor: string) => {
+      let s = map.get(doctor)
+      if (!s) {
+        s = { doctor, caseCount: 0, salesCount: 0, revenue: 0 }
+        map.set(doctor, s)
+      }
+      return s
+    }
+    cases.forEach((c) => {
+      ensure(c.doctor).caseCount += 1
+    })
+    sales.forEach((s) => {
+      if (!s.caseId) return
+      const caseRecord = cases.find((c) => c.id === s.caseId)
+      if (!caseRecord) return
+      const stat = ensure(caseRecord.doctor)
+      stat.salesCount += 1
+      stat.revenue += s.total
+    })
+    return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue)
+  }, [cases, sales])
+
+  const lots = useMemo(() => summarizeLots(batches, movements, cases), [batches, movements, cases])
+  const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products])
+
+  const expiringLots = useMemo(() => {
+    const soon = Date.now() + EXPIRY_WARNING_DAYS * 86400000
+    return lots
+      .filter((l) => l.expiryDate && l.remaining > 0)
+      .map((l) => ({ ...l, expired: new Date(l.expiryDate!).getTime() < Date.now(), soon: new Date(l.expiryDate!).getTime() <= soon }))
+      .sort((a, b) => new Date(a.expiryDate!).getTime() - new Date(b.expiryDate!).getTime())
+  }, [lots])
+
   return (
     <div>
       <PageHeader title={PAGE_INTROS.reports.title} description={PAGE_INTROS.reports.description} />
 
       <Tabs defaultValue="inventory">
-        <TabsList>
+        <TabsList className="h-auto flex-wrap justify-start">
           <TabsTrigger value="inventory">Inventory</TabsTrigger>
           <TabsTrigger value="sales">Sales</TabsTrigger>
           <TabsTrigger value="loans">Loans</TabsTrigger>
           <TabsTrigger value="purchases">Purchases</TabsTrigger>
+          <TabsTrigger value="stock-valuation">Stock Valuation</TabsTrigger>
+          <TabsTrigger value="manufacturers">Manufacturer-wise</TabsTrigger>
+          <TabsTrigger value="doctors">Doctor-wise</TabsTrigger>
+          {clinicSettings.batchLotTrackingEnabled && <TabsTrigger value="batch-lot">Batch/Lot</TabsTrigger>}
+          {clinicSettings.batchLotTrackingEnabled && <TabsTrigger value="expiry">Expiry</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="inventory">
@@ -227,6 +294,235 @@ export function ReportsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="stock-valuation">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-4">
+            <StatCard label="Total Stock Value" value={formatCurrency(inventoryValue)} icon={DollarSign} />
+            <StatCard label="SKUs Valued" value={String(stockValuation.length)} icon={Boxes} />
+          </div>
+          <Card>
+            <CardHeader className="flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle>Stock Valuation by SKU</CardTitle>
+                <CardDescription>Every product's on-hand quantity valued at cost, highest value first</CardDescription>
+              </div>
+              <ExportCsvButton
+                rows={stockValuation.map((r) => ({ SKU: r.sku, Product: r.name, Category: r.category, Manufacturer: r.manufacturer, 'Qty On Hand': r.quantityOnHand, 'Unit Cost': r.unitCost, 'Value at Cost': r.value }))}
+                filename={`stock-valuation-${new Date().toISOString().slice(0, 10)}.csv`}
+              />
+            </CardHeader>
+            <CardContent>
+              <div className="max-h-[500px] overflow-y-auto rounded-lg border border-border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Product</TableHead>
+                      <TableHead>Manufacturer</TableHead>
+                      <TableHead className="text-right">Qty</TableHead>
+                      <TableHead className="text-right">Unit Cost</TableHead>
+                      <TableHead className="text-right">Value</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {stockValuation.map((r) => (
+                      <TableRow key={r.sku}>
+                        <TableCell>
+                          <p className="font-medium">{r.name}</p>
+                          <p className="text-xs text-muted-foreground">{r.sku}</p>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{r.manufacturer}</TableCell>
+                        <TableCell className="text-right tabular-nums">{r.quantityOnHand}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatCurrency(r.unitCost)}</TableCell>
+                        <TableCell className="text-right tabular-nums font-medium">{formatCurrency(r.value)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="manufacturers">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-4">
+            <StatCard label="Total Stock Value" value={formatCurrency(inventoryValue)} icon={DollarSign} />
+            <StatCard label="Manufacturers Stocked" value={String(manufacturerValue.length)} icon={Factory} />
+          </div>
+          <Card>
+            <CardHeader className="flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle>Inventory Value by Manufacturer</CardTitle>
+                <CardDescription>Current stock valuation at cost, by manufacturer (also shown on the Dashboard)</CardDescription>
+              </div>
+              <ExportCsvButton
+                rows={manufacturerValue.map((r) => ({ Manufacturer: r.name, 'Value at Cost': r.value }))}
+                filename={`inventory-value-by-manufacturer-${new Date().toISOString().slice(0, 10)}.csv`}
+              />
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={340}>
+                <BarChart data={manufacturerValue} layout="vertical" margin={{ left: 8, right: 16 }}>
+                  <CartesianGrid stroke={colors.chrome.grid} horizontal={false} />
+                  <XAxis type="number" stroke={colors.chrome.muted} fontSize={11} tickLine={false} axisLine={false} hide />
+                  <YAxis type="category" dataKey="name" stroke={colors.chrome.muted} fontSize={11} tickLine={false} axisLine={false} width={110} />
+                  <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ background: colors.chrome.surface, border: `1px solid ${colors.chrome.grid}`, borderRadius: 10, fontSize: 12 }} />
+                  <Bar dataKey="value" radius={[0, 4, 4, 0]} fill={colors.categorical[0]} barSize={18} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="doctors">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-4">
+            <StatCard label="Doctors With Cases" value={String(doctorStats.length)} icon={Stethoscope} />
+            <StatCard label="Total Cases" value={String(cases.length)} icon={ClipboardList} />
+            <StatCard label="Attributed Revenue" value={formatCurrency(doctorStats.reduce((s, d) => s + d.revenue, 0))} icon={DollarSign} tone="success" />
+          </div>
+          <Card>
+            <CardHeader className="flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle>Doctor-wise Activity</CardTitle>
+                <CardDescription>Cases and case-linked sales revenue per doctor, highest revenue first</CardDescription>
+              </div>
+              <ExportCsvButton
+                rows={doctorStats.map((r) => ({ Doctor: r.doctor, Cases: r.caseCount, 'Linked Sales': r.salesCount, Revenue: r.revenue }))}
+                filename={`doctor-wise-report-${new Date().toISOString().slice(0, 10)}.csv`}
+              />
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Doctor</TableHead>
+                    <TableHead className="text-right">Cases</TableHead>
+                    <TableHead className="text-right">Linked Sales</TableHead>
+                    <TableHead className="text-right">Revenue</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {doctorStats.map((r) => (
+                    <TableRow key={r.doctor}>
+                      <TableCell className="font-medium">{r.doctor}</TableCell>
+                      <TableCell className="text-right tabular-nums">{r.caseCount}</TableCell>
+                      <TableCell className="text-right tabular-nums">{r.salesCount}</TableCell>
+                      <TableCell className="text-right tabular-nums font-medium">{formatCurrency(r.revenue)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {doctorStats.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">No cases recorded yet.</p>}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {clinicSettings.batchLotTrackingEnabled && (
+          <TabsContent value="batch-lot">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-4">
+              <StatCard label="Lots Tracked" value={String(lots.length)} icon={Boxes} />
+              <StatCard label="Units Currently On Hand" value={String(lots.reduce((s, l) => s + Math.max(0, l.remaining), 0))} icon={Package} tone="success" />
+            </div>
+            <Card>
+              <CardHeader className="flex-row items-center justify-between space-y-0">
+                <div>
+                  <CardTitle>Batch / Lot Report</CardTitle>
+                  <CardDescription>Every lot ever recorded, across receiving, sales, loans, and case usage</CardDescription>
+                </div>
+                <ExportCsvButton
+                  rows={lots.map((l) => ({ Product: productById.get(l.productId)?.name ?? 'Unknown product', SKU: productById.get(l.productId)?.sku ?? '—', Lot: l.lotNumber, 'Total Received': l.totalReceived, Remaining: l.remaining, Expiry: l.expiryDate ? formatDate(l.expiryDate) : '—' }))}
+                  filename={`batch-lot-report-${new Date().toISOString().slice(0, 10)}.csv`}
+                />
+              </CardHeader>
+              <CardContent>
+                <div className="max-h-[500px] overflow-y-auto rounded-lg border border-border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Product</TableHead>
+                        <TableHead>Lot Number</TableHead>
+                        <TableHead className="text-right">Received</TableHead>
+                        <TableHead className="text-right">Remaining</TableHead>
+                        <TableHead>Expiry</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {lots.map((l) => (
+                        <TableRow key={`${l.productId}::${l.lotNumber}`}>
+                          <TableCell>
+                            <p className="font-medium">{productById.get(l.productId)?.name ?? 'Unknown product'}</p>
+                            <p className="text-xs text-muted-foreground">{productById.get(l.productId)?.sku}</p>
+                          </TableCell>
+                          <TableCell className="font-mono text-sm">{l.lotNumber}</TableCell>
+                          <TableCell className="text-right tabular-nums">{l.totalReceived}</TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            <span className={l.remaining < 0 ? 'text-danger-600 font-medium' : undefined}>{l.remaining}</span>
+                          </TableCell>
+                          <TableCell>{l.expiryDate ? formatDate(l.expiryDate) : <span className="text-muted-foreground">—</span>}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+
+        {clinicSettings.batchLotTrackingEnabled && (
+          <TabsContent value="expiry">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-4">
+              <StatCard label="Lots With an Expiry Date" value={String(expiringLots.length)} icon={CalendarClock} />
+              <StatCard
+                label="Expired or Expiring Soon"
+                value={String(expiringLots.filter((l) => l.expired || l.soon).length)}
+                icon={AlertTriangle}
+                tone={expiringLots.some((l) => l.expired || l.soon) ? 'danger' : 'default'}
+              />
+            </div>
+            <Card>
+              <CardHeader className="flex-row items-center justify-between space-y-0">
+                <div>
+                  <CardTitle>Expiry Report</CardTitle>
+                  <CardDescription>Lots with remaining stock and a recorded expiry date, soonest first</CardDescription>
+                </div>
+                <ExportCsvButton
+                  rows={expiringLots.map((l) => ({ Product: productById.get(l.productId)?.name ?? 'Unknown product', SKU: productById.get(l.productId)?.sku ?? '—', Lot: l.lotNumber, Remaining: l.remaining, Expiry: formatDate(l.expiryDate!), Status: l.expired ? 'Expired' : l.soon ? 'Expiring Soon' : 'OK' }))}
+                  filename={`expiry-report-${new Date().toISOString().slice(0, 10)}.csv`}
+                />
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Product</TableHead>
+                      <TableHead>Lot Number</TableHead>
+                      <TableHead className="text-right">Remaining</TableHead>
+                      <TableHead>Expiry</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {expiringLots.map((l) => (
+                      <TableRow key={`${l.productId}::${l.lotNumber}`}>
+                        <TableCell>
+                          <p className="font-medium">{productById.get(l.productId)?.name ?? 'Unknown product'}</p>
+                          <p className="text-xs text-muted-foreground">{productById.get(l.productId)?.sku}</p>
+                        </TableCell>
+                        <TableCell className="font-mono text-sm">{l.lotNumber}</TableCell>
+                        <TableCell className="text-right tabular-nums">{l.remaining}</TableCell>
+                        <TableCell>{formatDate(l.expiryDate!)}</TableCell>
+                        <TableCell>
+                          <Badge variant={l.expired ? 'danger' : l.soon ? 'warning' : 'secondary'}>{l.expired ? 'Expired' : l.soon ? 'Expiring Soon' : 'OK'}</Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {expiringLots.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">No lots with a recorded expiry date yet.</p>}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   )

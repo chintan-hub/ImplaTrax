@@ -219,15 +219,16 @@
 - **Acceptance criteria:**
   - [ ] Both documents can be generated once the underlying data model decision is implemented; a Payment Receipt reflects real payment data, not just the sale total.
 
-### P1-I — Reports: Export + New Report Types
+### P1-I — Reports: Export + New Report Types ✅ Complete
+*Status update (2026-07-30): five new Reports tabs added — Stock Valuation (per-SKU table), Manufacturer-wise (kept on the Dashboard too, per the objective's "show in both places" option), Doctor-wise (cases + case-linked sales revenue per doctor), and Batch/Lot + Expiry (both gated on `clinicSettings.batchLotTrackingEnabled`, reusing `summarizeLots` — same pattern as `BatchesPage`, no duplicated aggregation logic). All five have CSV export via the existing `ExportCsvButton`. Verified live: every tab renders real data, every export fires a real download, the two batch/lot tabs are correctly hidden when the global setting is off and appear when it's on, and the four pre-existing tabs (Inventory/Sales/Loans/Purchases) still work unchanged.*
 - **Objective:** Add export (PDF/CSV via P1-F) to every existing Reports tab, plus the three genuinely missing report types found in the audit: a proper per-SKU Stock Valuation table (the existing chart is by-category only), a Batch/Lot report (reuses P1-E's data), an Expiry report (if P1-E's `expiryDate` decision keeps that field), a Doctor-wise report, and a Manufacturer-wise report (currently only on the Dashboard — decide whether to keep it there, move it, or show it in both places).
 - **Files affected:** `src/pages/reports/ReportsPage.tsx`.
 - **Risks:** Low — additive to an existing, working page.
 - **Dependencies:** P1-F (export), P1-E (batch/lot and expiry data).
 - **Estimated complexity:** Medium.
 - **Acceptance criteria:**
-  - [ ] Every Reports tab has a working export.
-  - [ ] Stock Valuation, Batch/Lot, Expiry (if kept), Doctor-wise, and Manufacturer-wise reports all exist and are reachable from Reports.
+  - [x] Every Reports tab has a working export.
+  - [x] Stock Valuation, Batch/Lot, Expiry (if kept), Doctor-wise, and Manufacturer-wise reports all exist and are reachable from Reports.
 
 ### P1-J — Print Everywhere + List-Page Export
 - **Objective:** Extend P1-F's print/CSV foundation to every list page (Products, Inventory, Vendors, Patients, Cases, Labs, Users) — a "Print" and/or "Export CSV" action per list, plus the Inventory audit-trail export specifically named as missing.
@@ -458,4 +459,4 @@
 
 **Open decisions needed before/during implementation** (full detail in `AUDIT.md`): case-transition scope, oversell hard-block vs. warning, Proforma modeling, Payment Receipt data fields, `quantityReserved`/`expiryDate` fate, click-select-vs-open for multi-select. **P1-L's two decisions (per-product field fate, sequencing vs. P1-G) were confirmed 2026-07-28 — see P1-L above.**
 
-**Recommended immediate next step:** ~~P1-A (Case Lifecycle Completion)~~ — superseded. Status as of 2026-07-30: P1-A through P1-N, P1-G, P2-A, P2-D, and P2-E are all complete (see status notes on each milestone above). **P1-H remains explicitly blocked** on the two open product decisions in `AUDIT.md` (Proforma modeling, Payment Receipt fields) — do not start it without those. The next unblocked, not-yet-built milestone is **P1-I (Reports: Export + New Report Types)** — CSV export already exists per-tab on every current Reports tab; still missing are the named new report types (Stock Valuation, Batch/Lot, Expiry, Doctor-wise, Manufacturer-wise). After that: P1-J (Print/export on every list page), P1-K (Import), then P2-B (Lab cases drill-down — confirmed still just a count with no list) and P2-C (Users role editing — confirmed still display-only, no edit capability).
+**Recommended immediate next step:** ~~P1-A (Case Lifecycle Completion)~~ — superseded. Status as of 2026-07-30: P1-A through P1-N, P1-G, P1-I, P2-A, P2-D, and P2-E are all complete (see status notes on each milestone above). **P1-H remains explicitly blocked** on the two open product decisions in `AUDIT.md` (Proforma modeling, Payment Receipt fields) — do not start it without those. The next unblocked, not-yet-built milestone is **P1-J (Print Everywhere + List-Page Export)** — a "Print" and/or "Export CSV" action per list page (Products, Inventory, Vendors, Patients, Cases, Labs, Users), plus the Inventory audit-trail export specifically named as missing. After that: P1-K (Import), then P2-B (Lab cases drill-down — confirmed still just a count with no list) and P2-C (Users role editing — confirmed still display-only, no edit capability).
