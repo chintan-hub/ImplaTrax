@@ -1,6 +1,8 @@
 import { Routes, Route } from 'react-router-dom'
 import { ThemeProvider } from '@/components/theme/ThemeProvider'
 import { DataProvider } from '@/store/DataContext'
+import { AuthProvider } from '@/features/auth/AuthContext'
+import { AuthGate } from '@/features/auth/AuthGate'
 import { AppLayout } from '@/layouts/AppLayout'
 import { DashboardPage } from '@/pages/dashboard/DashboardPage'
 import { ProductsPage } from '@/pages/products/ProductsPage'
@@ -30,33 +32,37 @@ function App() {
   return (
     <ThemeProvider>
       <DataProvider>
-        <Routes>
-          <Route element={<AppLayout />}>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/products" element={<ProductsPage />} />
-            <Route path="/inventory" element={<InventoryPage />} />
-            <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
-            <Route path="/purchase-orders/:poId" element={<PODetailPage />} />
-            <Route path="/vendors" element={<VendorsPage />} />
-            <Route path="/vendors/:vendorId" element={<VendorDetailPage />} />
-            <Route path="/patients" element={<PatientsPage />} />
-            <Route path="/patients/:patientId" element={<PatientProfilePage />} />
-            <Route path="/cases" element={<CasesPage />} />
-            <Route path="/cases/:caseId" element={<CaseDetailPage />} />
-            <Route path="/labs" element={<LabsPage />} />
-            <Route path="/labs/:labId" element={<LabDetailPage />} />
-            <Route path="/sales" element={<SalesPage />} />
-            <Route path="/sales/:saleId" element={<SaleDetailPage />} />
-            <Route path="/loans" element={<LoansPage />} />
-            <Route path="/loans/:loanId" element={<LoanDetailPage />} />
-            <Route path="/loan-returns" element={<LoanReturnsPage />} />
-            <Route path="/batches" element={<BatchesPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/users" element={<UsersPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="*" element={<NotFoundPage />} />
-          </Route>
-        </Routes>
+        <AuthProvider>
+          <AuthGate>
+            <Routes>
+              <Route element={<AppLayout />}>
+                <Route path="/" element={<DashboardPage />} />
+                <Route path="/products" element={<ProductsPage />} />
+                <Route path="/inventory" element={<InventoryPage />} />
+                <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
+                <Route path="/purchase-orders/:poId" element={<PODetailPage />} />
+                <Route path="/vendors" element={<VendorsPage />} />
+                <Route path="/vendors/:vendorId" element={<VendorDetailPage />} />
+                <Route path="/patients" element={<PatientsPage />} />
+                <Route path="/patients/:patientId" element={<PatientProfilePage />} />
+                <Route path="/cases" element={<CasesPage />} />
+                <Route path="/cases/:caseId" element={<CaseDetailPage />} />
+                <Route path="/labs" element={<LabsPage />} />
+                <Route path="/labs/:labId" element={<LabDetailPage />} />
+                <Route path="/sales" element={<SalesPage />} />
+                <Route path="/sales/:saleId" element={<SaleDetailPage />} />
+                <Route path="/loans" element={<LoansPage />} />
+                <Route path="/loans/:loanId" element={<LoanDetailPage />} />
+                <Route path="/loan-returns" element={<LoanReturnsPage />} />
+                <Route path="/batches" element={<BatchesPage />} />
+                <Route path="/reports" element={<ReportsPage />} />
+                <Route path="/users" element={<UsersPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="*" element={<NotFoundPage />} />
+              </Route>
+            </Routes>
+          </AuthGate>
+        </AuthProvider>
       </DataProvider>
     </ThemeProvider>
   )

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Sun, Moon, Laptop, Plus, ChevronDown, Bell, AlertTriangle, ClipboardList, Menu } from 'lucide-react'
+import { Search, Sun, Moon, Laptop, Plus, ChevronDown, Bell, AlertTriangle, ClipboardList, Menu, Lock, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
@@ -13,20 +13,25 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { IconHelp } from '@/components/ui/help-tooltip'
 import { SidebarBrand, SidebarNav } from '@/components/layout/Sidebar'
 import { Logo } from '@/components/brand/Logo'
 import { useTheme } from '@/components/theme/ThemeProvider'
 import { useData } from '@/store/DataContext'
-import { currentUser } from '@/mocks/users'
+import { useAuth } from '@/features/auth/AuthContext'
+import { ROLE_LABEL } from '@/features/auth/roles'
+import { BRAND } from '@/content/helpText'
 import { initials } from '@/lib/utils'
 
 export function Topbar({ onOpenSearch }: { onOpenSearch: () => void }) {
   const { theme, setTheme } = useTheme()
   const { products, purchaseOrders } = useData()
+  const { currentMember, lock, logout } = useAuth()
   const navigate = useNavigate()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
 
   const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Laptop
 
@@ -165,24 +170,31 @@ export function Topbar({ onOpenSearch }: { onOpenSearch: () => void }) {
           <DropdownMenuTrigger asChild>
             <button
               className="flex items-center gap-2 rounded-lg pl-1 pr-2 py-1 hover:bg-surface-hover transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label={`Account menu for ${currentUser.name}`}
+              aria-label={`Account menu for ${currentMember?.name ?? 'your account'}`}
             >
               <Avatar className="h-7 w-7">
-                <AvatarFallback style={{ backgroundColor: currentUser.avatarColor, color: 'white' }}>
-                  {initials(currentUser.name)}
-                </AvatarFallback>
+                <AvatarFallback>{initials(currentMember?.name ?? '?')}</AvatarFallback>
               </Avatar>
             </button>
           </DropdownMenuTrigger>
         </IconHelp>
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuLabel className="font-normal">
-            <p className="text-sm font-medium text-foreground">{currentUser.name}</p>
-            <p className="text-xs text-muted-foreground">{currentUser.email}</p>
+            <p className="text-sm font-medium text-foreground">{currentMember?.name}</p>
+            <p className="text-xs text-muted-foreground">{currentMember ? ROLE_LABEL[currentMember.role] : ''}</p>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => navigate('/settings?tab=profile')}>Profile</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => navigate('/settings?tab=security')}>Security</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => navigate('/settings')}>Clinic Settings</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => navigate('/users')}>Manage Users</DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => lock()}>
+            <Lock className="mr-2 h-4 w-4" /> Lock App
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setLogoutConfirmOpen(true)}>
+            <LogOut className="mr-2 h-4 w-4" /> Log Out
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => setAboutOpen(true)}>About ImplaTrax</DropdownMenuItem>
         </DropdownMenuContent>
@@ -194,7 +206,7 @@ export function Topbar({ onOpenSearch }: { onOpenSearch: () => void }) {
             <Logo className="h-8 mb-2" />
             <DialogTitle className="sr-only">About ImplaTrax</DialogTitle>
             <DialogDescription className="text-sm font-medium uppercase tracking-wide text-primary-700 dark:text-primary-300">
-              Every Component. Every Movement. Every Time.
+              {BRAND.tagline}
             </DialogDescription>
           </DialogHeader>
           <p className="text-center text-sm text-muted-foreground">
@@ -203,6 +215,16 @@ export function Topbar({ onOpenSearch }: { onOpenSearch: () => void }) {
           </p>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={logoutConfirmOpen}
+        onOpenChange={setLogoutConfirmOpen}
+        title="Log out?"
+        description="You'll need to enter your PIN again to continue."
+        confirmLabel="Log Out"
+        tone="destructive"
+        onConfirm={logout}
+      />
     </header>
   )
 }

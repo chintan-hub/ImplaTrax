@@ -1,0 +1,295 @@
+import { useState } from 'react'
+import { toast } from 'sonner'
+import { Plus, Link2, Users as UsersIcon, Building2 } from 'lucide-react'
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { formatDate, initials, simulateLatency } from '@/lib/utils'
+import { useAuth } from '@/features/auth/AuthContext'
+import { AccessDenied } from '@/features/auth/AccessDenied'
+import { AddMemberDialog } from '@/features/auth/components/AddMemberDialog'
+import { ACCOUNT_ROLES, WORKSPACE_MANAGER_ROLES, type AccountRole } from '@/features/auth/accountTypes'
+import { ROLE_LABEL, ROLE_BADGE_VARIANT } from '@/features/auth/roles'
+
+export function WorkspaceTab() {
+  const {
+    currentMember,
+    currentWorkspace,
+    workspaces,
+    workspaceMembers,
+    renameWorkspace,
+    disableMember,
+    reactivateMember,
+    changeMemberRole,
+    removeMember,
+    resetMemberPin,
+    createWorkspace,
+    switchWorkspace,
+  } = useAuth()
+
+  const [addOpen, setAddOpen] = useState(false)
+  const [workspaceName, setWorkspaceName] = useState(currentWorkspace?.name ?? '')
+  const [savingName, setSavingName] = useState(false)
+  const [removeTarget, setRemoveTarget] = useState<string | null>(null)
+  const [newWorkspaceOpen, setNewWorkspaceOpen] = useState(false)
+  const [newWorkspaceName, setNewWorkspaceName] = useState('')
+  const [creatingWorkspace, setCreatingWorkspace] = useState(false)
+
+  const canManage = Boolean(currentMember && WORKSPACE_MANAGER_ROLES.includes(currentMember.role))
+
+  if (!currentMember || !currentWorkspace) return null
+  if (!canManage) return <AccessDenied message="Only workspace Owners, Super Admins, and Admins can manage team members and workspace settings." />
+
+  const handleSaveName = async () => {
+    if (!workspaceName.trim()) {
+      toast.error('Workspace name is required.')
+      return
+    }
+    setSavingName(true)
+    await simulateLatency()
+    renameWorkspace(workspaceName)
+    toast.success('Workspace renamed')
+    setSavingName(false)
+  }
+
+  const handleAction = (result: { ok: boolean; error?: string }, successMessage: string) => {
+    if (result.ok) toast.success(successMessage)
+    else toast.error('Action failed', { description: result.error })
+  }
+
+  const handleCreateWorkspace = async () => {
+    if (!newWorkspaceName.trim()) {
+      toast.error('Workspace name is required.')
+      return
+    }
+    setCreatingWorkspace(true)
+    await simulateLatency()
+    const result = createWorkspace(newWorkspaceName)
+    setCreatingWorkspace(false)
+    if (!result.ok) {
+      toast.error('Could not create workspace', { description: result.error })
+      return
+    }
+    toast.success('Workspace created', { description: "You'll set a PIN for it now." })
+    setNewWorkspaceName('')
+    setNewWorkspaceOpen(false)
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-1.5">
+            <Building2 className="h-4 w-4" /> Workspace Name
+          </CardTitle>
+          <CardDescription>Shown throughout ImplaTrax and in exported documents</CardDescription>
+        </CardHeader>
+        <CardContent className="flex max-w-md items-end gap-2">
+          <div className="flex-1 space-y-1.5">
+            <Label htmlFor="workspace-name">Name</Label>
+            <Input id="workspace-name" value={workspaceName} onChange={(e) => setWorkspaceName(e.target.value)} />
+          </div>
+          <Button onClick={handleSaveName} loading={savingName}>
+            Save
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-1.5">
+            <UsersIcon className="h-4 w-4" /> Team Members
+          </CardTitle>
+          <CardDescription>People with access to this workspace on this device</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="mb-4 flex justify-end">
+            <Button onClick={() => setAddOpen(true)}>
+              <Plus className="h-4 w-4" /> Add Team Member
+            </Button>
+          </div>
+          <div className="rounded-xl border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Member</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Last Login</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {workspaceMembers.map((member) => (
+                  <TableRow key={member.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-2.5">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="text-xs">{initials(member.name)}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium">
+                            {member.name} {member.id === currentMember.id && <span className="text-xs text-muted-foreground">(you)</span>}
+                          </p>
+                          {member.contact && <p className="text-xs text-muted-foreground">{member.contact}</p>}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {member.id === currentMember.id || member.role === 'owner' ? (
+                        <Badge variant={ROLE_BADGE_VARIANT[member.role]}>{ROLE_LABEL[member.role]}</Badge>
+                      ) : (
+                        <Select value={member.role} onValueChange={(v) => handleAction(changeMemberRole(member.id, v as AccountRole), 'Role updated')}>
+                          <SelectTrigger className="h-8 w-36">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ACCOUNT_ROLES.filter((r) => r !== 'owner').map((r) => (
+                              <SelectItem key={r} value={r}>
+                                {ROLE_LABEL[r]}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={member.status === 'active' ? 'success' : 'secondary'}>{member.status === 'active' ? 'Active' : 'Disabled'}</Badge>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">{member.lastLoginAt ? formatDate(member.lastLoginAt) : 'Never'}</TableCell>
+                    <TableCell className="text-right">
+                      {member.id === currentMember.id ? (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      ) : (
+                        <div className="flex justify-end gap-1.5">
+                          <Button variant="ghost" size="sm" onClick={() => handleAction(resetMemberPin(member.id), 'PIN reset — they must set a new one at next login')}>
+                            Reset PIN
+                          </Button>
+                          {member.status === 'active' ? (
+                            <Button variant="ghost" size="sm" onClick={() => handleAction(disableMember(member.id), 'Member disabled')}>
+                              Disable
+                            </Button>
+                          ) : (
+                            <Button variant="ghost" size="sm" onClick={() => handleAction(reactivateMember(member.id), 'Member reactivated')}>
+                              Reactivate
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="sm" className="text-danger-700 dark:text-danger-500" onClick={() => setRemoveTarget(member.id)}>
+                            Remove
+                          </Button>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="opacity-70">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-1.5">
+            <Link2 className="h-4 w-4" /> Invite via Link
+          </CardTitle>
+          <CardDescription>Generate a shareable invite for someone to join on their own device</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button disabled variant="outline">
+            Generate Invite Link
+          </Button>
+          <p className="mt-2 text-xs text-muted-foreground">This feature requires Cloud Workspace and will be available in a future release.</p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Your Workspaces</CardTitle>
+          <CardDescription>Workspaces created on this device — each has its own team and PIN, but shares the same inventory data on this device</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {workspaces.map((w) => (
+              <div key={w.id} className="flex items-center justify-between rounded-lg border border-border p-3">
+                <div>
+                  <div className="flex items-center gap-1.5 text-sm font-medium">
+                    <span>{w.name}</span>
+                    {w.id === currentWorkspace.id && <Badge>Current</Badge>}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Created {formatDate(w.createdAt)}</p>
+                </div>
+                {w.id !== currentWorkspace.id && (
+                  <Button variant="outline" size="sm" onClick={() => switchWorkspace(w.id)}>
+                    Switch to This Workspace
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="mt-4">
+            <Button variant="outline" onClick={() => setNewWorkspaceOpen(true)}>
+              <Plus className="h-4 w-4" /> Create Another Workspace
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="opacity-70">
+        <CardHeader>
+          <CardTitle>Connected Accounts</CardTitle>
+          <CardDescription>Sign in with Google, Microsoft, or Apple</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button disabled variant="outline">
+            Connect an Account
+          </Button>
+          <p className="mt-2 text-xs text-muted-foreground">This feature requires Cloud Workspace and will be available in a future release.</p>
+        </CardContent>
+      </Card>
+
+      <AddMemberDialog open={addOpen} onOpenChange={setAddOpen} />
+
+      <Dialog open={newWorkspaceOpen} onOpenChange={setNewWorkspaceOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Create Workspace</DialogTitle>
+            <DialogDescription>You'll switch into it and set a PIN right away.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="new-workspace-name">Workspace name</Label>
+            <Input id="new-workspace-name" value={newWorkspaceName} onChange={(e) => setNewWorkspaceName(e.target.value)} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewWorkspaceOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateWorkspace} loading={creatingWorkspace}>
+              Create & Switch
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={removeTarget != null}
+        onOpenChange={(v) => !v && setRemoveTarget(null)}
+        title="Remove this team member?"
+        description="They will lose access to this workspace immediately. This cannot be undone."
+        confirmLabel="Remove"
+        tone="destructive"
+        onConfirm={() => {
+          if (removeTarget) handleAction(removeMember(removeTarget), 'Member removed')
+          setRemoveTarget(null)
+        }}
+      />
+    </div>
+  )
+}

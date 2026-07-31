@@ -23,7 +23,7 @@ import { useData } from '@/store/DataContext'
 import { useChartColors } from '@/lib/chartColors'
 import { formatCurrency, formatDate, initials } from '@/lib/utils'
 import { openLoanValue } from '@/mocks/loans'
-import { PAGE_INTROS } from '@/content/helpText'
+import { PAGE_INTROS, BRAND } from '@/content/helpText'
 
 export function DashboardPage() {
   const { products, movements, purchaseOrders, loans, cases, sales, labs, users } = useData()
@@ -79,7 +79,7 @@ export function DashboardPage() {
     <div>
       <PageHeader title={PAGE_INTROS.dashboard.title} description={PAGE_INTROS.dashboard.description} />
       <p className="-mt-4 mb-6 text-xs font-medium uppercase tracking-wide text-primary-700 dark:text-primary-300">
-        Every Component. Every Movement. Every Time.
+        {BRAND.tagline}
       </p>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
