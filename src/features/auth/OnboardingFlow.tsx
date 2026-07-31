@@ -5,9 +5,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { BRAND } from '@/content/helpText'
 import { useAuth } from './AuthContext'
-import { ScrewBackground } from './ScrewBackground'
+import { AuthShowcasePanel } from './AuthShowcasePanel'
+import { AuthBrandBlock } from './AuthBrandBlock'
 import { PinPad } from './PinPad'
 import { AuthScreenHeader } from './AuthScreenHeader'
 import { isPlatformAuthenticatorAvailable } from './webauthn'
@@ -74,84 +74,96 @@ export function OnboardingFlow() {
   }
 
   return (
-    <div className={`relative flex h-screen w-full flex-col items-center overflow-hidden px-6 pt-[10vh] print:hidden ${AUTH_BACKDROP_CLASS}`}>
-      <ScrewBackground />
+    <div className="relative flex min-h-screen w-full flex-col md:flex-row print:hidden">
+      <AuthShowcasePanel className="hidden md:sticky md:top-0 md:flex md:h-screen md:w-[32%] md:items-center md:justify-center lg:w-[40%]" />
 
-      <div className={`relative z-10 w-full max-w-sm overflow-hidden px-9 py-12 sm:px-11 ${AUTH_CARD_CLASS}`}>
-        <AnimatePresence mode="wait">
-          {step === 'welcome' && (
-            <motion.div key="welcome" {...STEP_TRANSITION} className="flex flex-col items-center gap-12">
-              <AuthScreenHeader title="Welcome to ImplaTrax" subtitle={BRAND.tagline} />
-              <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} onClick={() => setStep('details')}>
-                Create Workspace
-              </Button>
-            </motion.div>
-          )}
+      <div
+        className={`relative flex w-full flex-1 flex-col items-center gap-10 px-6 py-12 md:w-[68%] md:justify-center lg:w-[60%] ${AUTH_BACKDROP_CLASS}`}
+      >
+        <AuthBrandBlock />
 
-          {step === 'details' && (
-            <motion.div key="details" {...STEP_TRANSITION} className="flex flex-col items-center gap-10">
-              <AuthScreenHeader title="Set Up Your Workspace" subtitle="Tell us a little about your practice." />
-              <div className="flex w-full flex-col gap-5">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="workspaceName">Workspace Name</Label>
-                  <Input
-                    id="workspaceName"
-                    autoFocus
-                    value={workspaceName}
-                    onChange={(e) => setWorkspaceName(e.target.value)}
-                    placeholder="Your clinic or lab name"
-                    className={AUTH_INPUT_CLASS}
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="yourName">Your Name</Label>
-                  <Input id="yourName" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" className={AUTH_INPUT_CLASS} />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="contact">Mobile Number or Email</Label>
-                  <Input
-                    id="contact"
-                    value={contact}
-                    onChange={(e) => setContact(e.target.value)}
-                    placeholder="you@example.com"
-                    className={AUTH_INPUT_CLASS}
-                  />
-                </div>
-              </div>
-              <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} disabled={!detailsValid} onClick={() => setStep('pin')}>
-                Continue
-              </Button>
-            </motion.div>
-          )}
+        <div className={`relative w-full max-w-sm overflow-hidden px-8 py-10 sm:px-10 ${AUTH_CARD_CLASS}`}>
+          <AnimatePresence mode="wait">
+            {step === 'welcome' && (
+              <motion.div key="welcome" {...STEP_TRANSITION} className="flex flex-col items-center gap-10">
+                <AuthScreenHeader title="Welcome to ImplaTrax" subtitle="Let's get your workspace set up." />
+                <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} onClick={() => setStep('details')}>
+                  Create Workspace
+                </Button>
+              </motion.div>
+            )}
 
-          {step === 'pin' && !pinConfirmed && (
-            <motion.div key="pin" {...STEP_TRANSITION} className="flex flex-col items-center gap-12">
-              <AuthScreenHeader
-                title={pinPhase === 'create' ? 'Create Your PIN' : 'Confirm Your PIN'}
-                subtitle={pinPhase === 'create' ? 'Choose a 4-digit PIN to secure your workspace.' : 'Re-enter your PIN to confirm.'}
-              />
-              <PinPad value={pin} onChange={handlePinComplete} length={PIN_LENGTH} error={pinError} />
-            </motion.div>
-          )}
-
-          {step === 'pin' && pinConfirmed && (
-            <motion.div key="finish" {...STEP_TRANSITION} className="flex flex-col items-center gap-10">
-              <AuthScreenHeader title="You're All Set" subtitle="Your workspace is ready to use." />
-              {biometricsSupported && (
-                <div className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-card/60 px-4 py-3 dark:border-white/10">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Enable Biometrics</p>
-                    <p className="text-xs text-muted-foreground">Unlock with Face ID, Touch ID, or Windows Hello.</p>
+            {step === 'details' && (
+              <motion.div key="details" {...STEP_TRANSITION} className="flex flex-col items-center gap-10">
+                <AuthScreenHeader title="Set Up Your Workspace" subtitle="Tell us a little about your practice." />
+                <div className="flex w-full flex-col gap-5">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="workspaceName">Workspace Name</Label>
+                    <Input
+                      id="workspaceName"
+                      autoFocus
+                      value={workspaceName}
+                      onChange={(e) => setWorkspaceName(e.target.value)}
+                      placeholder="Your clinic or lab name"
+                      className={AUTH_INPUT_CLASS}
+                    />
                   </div>
-                  <Switch checked={enableBiometrics} onCheckedChange={setEnableBiometrics} aria-label="Enable biometrics" />
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="yourName">Your Name</Label>
+                    <Input
+                      id="yourName"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Full name"
+                      className={AUTH_INPUT_CLASS}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="contact">Mobile Number or Email</Label>
+                    <Input
+                      id="contact"
+                      value={contact}
+                      onChange={(e) => setContact(e.target.value)}
+                      placeholder="you@example.com"
+                      className={AUTH_INPUT_CLASS}
+                    />
+                  </div>
                 </div>
-              )}
-              <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} loading={finishing} onClick={handleFinish}>
-                Finish
-              </Button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} disabled={!detailsValid} onClick={() => setStep('pin')}>
+                  Continue
+                </Button>
+              </motion.div>
+            )}
+
+            {step === 'pin' && !pinConfirmed && (
+              <motion.div key="pin" {...STEP_TRANSITION} className="flex flex-col items-center gap-12">
+                <AuthScreenHeader
+                  title={pinPhase === 'create' ? 'Create Your PIN' : 'Confirm Your PIN'}
+                  subtitle={pinPhase === 'create' ? 'Choose a 4-digit PIN to secure your workspace.' : 'Re-enter your PIN to confirm.'}
+                />
+                <PinPad value={pin} onChange={handlePinComplete} length={PIN_LENGTH} error={pinError} />
+              </motion.div>
+            )}
+
+            {step === 'pin' && pinConfirmed && (
+              <motion.div key="finish" {...STEP_TRANSITION} className="flex flex-col items-center gap-10">
+                <AuthScreenHeader title="You're All Set" subtitle="Your workspace is ready to use." />
+                {biometricsSupported && (
+                  <div className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-card/60 px-4 py-3 dark:border-white/10">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Enable Biometrics</p>
+                      <p className="text-xs text-muted-foreground">Unlock with Face ID, Touch ID, or Windows Hello.</p>
+                    </div>
+                    <Switch checked={enableBiometrics} onCheckedChange={setEnableBiometrics} aria-label="Enable biometrics" />
+                  </div>
+                )}
+                <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} loading={finishing} onClick={handleFinish}>
+                  Finish
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   )

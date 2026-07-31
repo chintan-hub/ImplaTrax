@@ -3,9 +3,9 @@ import { motion } from 'framer-motion'
 import { Fingerprint } from 'lucide-react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { BRAND } from '@/content/helpText'
 import { useAuth } from './AuthContext'
-import { ScrewBackground } from './ScrewBackground'
+import { AuthShowcasePanel } from './AuthShowcasePanel'
+import { AuthBrandBlock } from './AuthBrandBlock'
 import { PinPad } from './PinPad'
 import { AuthScreenHeader } from './AuthScreenHeader'
 import { AUTH_BACKDROP_CLASS, AUTH_CARD_CLASS, PREMIUM_EASE } from './authTheme'
@@ -62,41 +62,50 @@ export function LoginScreen() {
   }
 
   return (
-    <div className={`relative flex h-screen w-full flex-col items-center overflow-hidden px-6 pt-[10vh] print:hidden ${AUTH_BACKDROP_CLASS}`}>
-      <ScrewBackground unlocking={unlocking} />
+    <div className="relative flex min-h-screen w-full flex-col md:flex-row print:hidden">
+      <AuthShowcasePanel
+        unlocking={unlocking}
+        className="hidden md:sticky md:top-0 md:flex md:h-screen md:w-[32%] md:items-center md:justify-center lg:w-[40%]"
+      />
 
-      <motion.div
-        className={`relative z-10 w-full max-w-sm px-9 py-12 sm:px-11 ${AUTH_CARD_CLASS}`}
-        animate={unlocking ? { opacity: 0, scale: 0.98 } : { opacity: 1, scale: 1 }}
-        transition={{ duration: 0.35, ease: PREMIUM_EASE }}
+      <div
+        className={`relative flex w-full flex-1 flex-col items-center gap-10 px-6 py-12 md:w-[68%] md:justify-center lg:w-[60%] ${AUTH_BACKDROP_CLASS}`}
       >
-        <div className="flex flex-col items-center gap-12">
-          <AuthScreenHeader title="Enter Your PIN" subtitle={BRAND.tagline} pulseLogo={unlocking} />
+        <AuthBrandBlock pulse={unlocking} />
 
-          <PinPad value={pin} onChange={setPin} length={PIN_LENGTH} error={error} success={unlocking} disabled={busy && !error} />
+        <motion.div
+          className={`relative w-full max-w-sm px-8 py-10 sm:px-10 ${AUTH_CARD_CLASS}`}
+          animate={unlocking ? { opacity: 0, scale: 0.98 } : { opacity: 1, scale: 1 }}
+          transition={{ duration: 0.35, ease: PREMIUM_EASE }}
+        >
+          <div className="flex flex-col items-center gap-10">
+            <AuthScreenHeader title="Enter Your PIN" subtitle="Use your 4-digit PIN to continue" />
 
-          <div className="flex w-full flex-col items-center gap-4 border-t border-border/60 pt-6 dark:border-white/10">
-            {canUseBiometrics && (
+            <PinPad value={pin} onChange={setPin} length={PIN_LENGTH} error={error} success={unlocking} disabled={busy && !error} />
+
+            <div className="flex w-full flex-col items-center gap-4 border-t border-border/60 pt-6 dark:border-white/10">
+              {canUseBiometrics && (
+                <button
+                  type="button"
+                  onClick={handleBiometrics}
+                  disabled={busy}
+                  className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-primary-700 transition-colors hover:text-primary-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:text-primary-300 dark:hover:text-primary-200"
+                >
+                  <Fingerprint className="h-4 w-4" aria-hidden="true" />
+                  Use Biometrics
+                </button>
+              )}
               <button
                 type="button"
-                onClick={handleBiometrics}
-                disabled={busy}
-                className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-primary-700 transition-colors hover:text-primary-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:text-primary-300 dark:hover:text-primary-200"
+                onClick={() => setForgotOpen(true)}
+                className="rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
-                <Fingerprint className="h-4 w-4" aria-hidden="true" />
-                Use Biometrics
+                Forgot PIN
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setForgotOpen(true)}
-              className="rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            >
-              Forgot PIN
-            </button>
+            </div>
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
+      </div>
 
       <ConfirmDialog
         open={forgotOpen}

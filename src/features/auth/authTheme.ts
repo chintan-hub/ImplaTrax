@@ -15,13 +15,16 @@
  * gradient swatch. Built entirely from existing --background/--primary
  * tokens — dark mode's glow is stronger since dark is the primary theme.
  */
+// NOTE: each bg-[...]/dark:bg-[...] token below must stay as ONE unbroken
+// string literal — splitting a multi-gradient arbitrary value across
+// separate string-concatenation lines (mid-bracket) silently breaks
+// Tailwind's static class extraction and the whole utility fails to
+// generate any CSS at all, with no build error. Splitting BETWEEN two
+// complete, already-bracket-balanced tokens (e.g. after the closing `]`) is
+// fine — only splitting inside an unclosed bracket group is the problem.
 export const AUTH_BACKDROP_CLASS =
-  'bg-[radial-gradient(ellipse_65%_50%_at_50%_0%,hsl(var(--primary)/0.08),transparent_60%),' +
-  'radial-gradient(ellipse_60%_45%_at_50%_100%,hsl(var(--primary)/0.04),transparent_65%),' +
-  'radial-gradient(ellipse_120%_90%_at_50%_50%,hsl(var(--background)),hsl(var(--foreground)/0.05)_100%)] ' +
-  'dark:bg-[radial-gradient(ellipse_65%_50%_at_50%_0%,hsl(var(--primary)/0.20),transparent_60%),' +
-  'radial-gradient(ellipse_60%_45%_at_50%_100%,hsl(var(--primary)/0.10),transparent_65%),' +
-  'radial-gradient(ellipse_120%_90%_at_50%_50%,hsl(var(--background)),black_100%)]'
+  'bg-[radial-gradient(ellipse_65%_50%_at_50%_0%,hsl(var(--primary)/0.08),transparent_60%),radial-gradient(ellipse_60%_45%_at_50%_100%,hsl(var(--primary)/0.04),transparent_65%),radial-gradient(ellipse_120%_90%_at_50%_50%,hsl(var(--background)),hsl(var(--foreground)/0.05)_100%)] ' +
+  'dark:bg-[radial-gradient(ellipse_65%_50%_at_50%_0%,hsl(var(--primary)/0.20),transparent_60%),radial-gradient(ellipse_60%_45%_at_50%_100%,hsl(var(--primary)/0.10),transparent_65%),radial-gradient(ellipse_120%_90%_at_50%_50%,hsl(var(--background)),black_100%)]'
 
 /**
  * The elevated glass-card surface every screen's content sits inside.
@@ -34,9 +37,19 @@ export const AUTH_BACKDROP_CLASS =
  */
 export const AUTH_CARD_CLASS =
   'relative rounded-[28px] border border-white/70 bg-gradient-to-b from-white/75 to-white/45 backdrop-blur-2xl ' +
-  'shadow-[inset_0_1px_0_rgba(255,255,255,0.7),inset_0_0_0_1px_rgba(255,255,255,0.15),0_1px_2px_rgba(15,23,42,0.04),0_40px_80px_-24px_rgba(15,23,42,0.35)] ' +
+  'shadow-[inset_0_1px_0_rgba(255,255,255,0.7),inset_0_0_0_1px_rgba(255,255,255,0.15),0_1px_2px_rgba(15,23,42,0.04),0_28px_60px_-20px_rgba(15,23,42,0.28)] ' +
   'dark:border-white/[0.09] dark:bg-gradient-to-b dark:from-white/[0.055] dark:to-white/[0.015] ' +
-  'dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.09),inset_0_0_0_1px_rgba(255,255,255,0.03),0_1px_2px_rgba(0,0,0,0.4),0_50px_100px_-20px_rgba(0,0,0,0.75),0_0_90px_-25px_hsl(var(--primary)/0.35)]'
+  'dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.09),inset_0_0_0_1px_rgba(255,255,255,0.03),0_1px_2px_rgba(0,0,0,0.4),0_40px_90px_-20px_rgba(0,0,0,0.7),0_0_70px_-25px_hsl(var(--primary)/0.3)]'
+
+/**
+ * Fixed dark teal/navy stage for the split-layout's decorative showcase
+ * panel. Deliberately NOT theme-aware (no dark: variants) — it's a
+ * consistent premium backdrop for the brand mark, not "the page in dark
+ * mode," so it stays the same regardless of the user's light/dark toggle
+ * (which continues to apply everywhere else, including the content panel).
+ */
+export const AUTH_SHOWCASE_BG_CLASS =
+  'bg-[radial-gradient(ellipse_75%_55%_at_35%_18%,hsl(var(--primary)/0.35),transparent_60%),radial-gradient(ellipse_65%_50%_at_50%_100%,hsl(var(--primary)/0.14),transparent_65%),linear-gradient(165deg,#0a1a1f_0%,#071316_55%,#040a0b_100%)]'
 
 /** Premium "expo-out" deceleration — snappier start, soft landing. Used for every screen/step transition so motion feels like one system. */
 export const PREMIUM_EASE = [0.16, 1, 0.3, 1] as const
