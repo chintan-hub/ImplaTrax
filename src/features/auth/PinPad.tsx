@@ -1,9 +1,17 @@
 import { useEffect, useRef } from 'react'
+import { motion } from 'framer-motion'
 import { Delete } from 'lucide-react'
 import { PinDots } from './PinDots'
 import { cn } from '@/lib/utils'
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
+
+const KEY_CLASS =
+  'flex h-18 w-18 items-center justify-center rounded-full border border-border bg-surface text-xl font-medium text-foreground shadow-sm transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+
+/** Spring-based tap feedback — a quick, snappy compress-and-release rather than a flat CSS scale. */
+const KEY_TAP = { scale: 0.9 }
+const KEY_TAP_TRANSITION = { type: 'spring' as const, stiffness: 500, damping: 20 }
 
 interface PinPadProps {
   value: string
@@ -40,7 +48,7 @@ export function PinPad({ value, onChange, length = 4, error = false, disabled = 
   }
 
   return (
-    <div className="flex flex-col items-center gap-8">
+    <div className="flex flex-col items-center gap-10">
       <input
         ref={inputRef}
         type="text"
@@ -54,48 +62,45 @@ export function PinPad({ value, onChange, length = 4, error = false, disabled = 
         className="sr-only"
       />
       <PinDots length={length} filled={value.length} error={error} />
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-4">
         {KEYS.map((digit) => (
-          <button
+          <motion.button
             key={digit}
             type="button"
             disabled={disabled}
             onClick={() => appendDigit(digit)}
-            className={cn(
-              'flex h-16 w-16 items-center justify-center rounded-full border border-border bg-surface text-xl font-medium text-foreground shadow-sm transition-all',
-              'hover:bg-surface-hover active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              disabled && 'opacity-50',
-            )}
+            whileTap={disabled ? undefined : KEY_TAP}
+            transition={KEY_TAP_TRANSITION}
+            className={cn(KEY_CLASS, disabled && 'opacity-50')}
           >
             {digit}
-          </button>
+          </motion.button>
         ))}
         <div aria-hidden="true" />
-        <button
+        <motion.button
           type="button"
           disabled={disabled}
           onClick={() => appendDigit('0')}
-          className={cn(
-            'flex h-16 w-16 items-center justify-center rounded-full border border-border bg-surface text-xl font-medium text-foreground shadow-sm transition-all',
-            'hover:bg-surface-hover active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-            disabled && 'opacity-50',
-          )}
+          whileTap={disabled ? undefined : KEY_TAP}
+          transition={KEY_TAP_TRANSITION}
+          className={cn(KEY_CLASS, disabled && 'opacity-50')}
         >
           0
-        </button>
-        <button
+        </motion.button>
+        <motion.button
           type="button"
           disabled={disabled || value.length === 0}
           onClick={backspace}
+          whileTap={disabled || value.length === 0 ? undefined : KEY_TAP}
+          transition={KEY_TAP_TRANSITION}
           aria-label="Delete last digit"
           className={cn(
-            'flex h-16 w-16 items-center justify-center rounded-full text-muted-foreground transition-all',
-            'hover:bg-surface-hover active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'flex h-18 w-18 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             (disabled || value.length === 0) && 'opacity-40',
           )}
         >
           <Delete className="h-5 w-5" aria-hidden="true" />
-        </button>
+        </motion.button>
       </div>
     </div>
   )

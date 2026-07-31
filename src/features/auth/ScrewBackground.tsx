@@ -13,8 +13,9 @@ interface ScrewBackgroundProps {
  * Large, very-low-opacity decorative screw silhouette behind the auth
  * screens — the same implant-screw mark that stands in for the "I" in the
  * logo, extracted once (src/assets/screw.png) and reused here as a CSS mask
- * so its color always matches the current theme (foreground at ~5% opacity)
- * instead of shipping separate light/dark image variants.
+ * so its color always matches the current theme (foreground at ~3% opacity,
+ * softened with a slight blur) instead of shipping separate light/dark image
+ * variants.
  */
 export function ScrewBackground({ className, unlocking = false }: ScrewBackgroundProps) {
   const [reducedMotion, setReducedMotion] = useState(false)
@@ -89,7 +90,7 @@ export function ScrewBackground({ className, unlocking = false }: ScrewBackgroun
           }
         >
           <div
-            className="h-full w-full bg-foreground/[0.05]"
+            className="h-full w-full bg-foreground/[0.03] blur-sm"
             style={{
               WebkitMaskImage: `url(${screwUrl})`,
               maskImage: `url(${screwUrl})`,

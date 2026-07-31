@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { toast } from 'sonner'
-import { Logo } from '@/components/brand/Logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,12 +9,16 @@ import { BRAND } from '@/content/helpText'
 import { useAuth } from './AuthContext'
 import { ScrewBackground } from './ScrewBackground'
 import { PinPad } from './PinPad'
+import { AuthScreenHeader } from './AuthScreenHeader'
 import { isPlatformAuthenticatorAvailable } from './webauthn'
 
 const PIN_LENGTH = 4
 
 type Step = 'welcome' | 'details' | 'pin'
 type PinPhase = 'create' | 'confirm'
+
+/** Slightly taller, more elevated CTA treatment for this flow only — the shared Button component (used app-wide) is untouched. */
+const CTA_BUTTON_CLASS = 'h-12 rounded-xl shadow-md'
 
 const fadeStep = {
   initial: { opacity: 0, y: 8 },
@@ -80,31 +83,24 @@ export function OnboardingFlow() {
   }
 
   return (
-    <div className="relative flex h-screen w-full items-center justify-center overflow-hidden bg-background px-6 print:hidden">
+    <div className="relative flex h-screen w-full flex-col items-center overflow-hidden bg-background px-6 pt-[12vh] print:hidden">
       <ScrewBackground />
 
       <div className="relative z-10 w-full max-w-sm">
         <AnimatePresence mode="wait">
           {step === 'welcome' && (
-            <motion.div key="welcome" {...fadeStep} className="flex flex-col items-center gap-8 text-center">
-              <Logo className="h-9" />
-              <div className="flex flex-col items-center gap-2">
-                <h1 className="text-2xl font-semibold tracking-tight text-foreground">Welcome to ImplaTrax</h1>
-                <p className="text-sm text-muted-foreground">{BRAND.tagline}</p>
-              </div>
-              <Button size="lg" className="w-full" onClick={() => setStep('details')}>
+            <motion.div key="welcome" {...fadeStep} className="flex flex-col items-center gap-12">
+              <AuthScreenHeader title="Welcome to ImplaTrax" subtitle={BRAND.tagline} />
+              <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} onClick={() => setStep('details')}>
                 Create Workspace
               </Button>
             </motion.div>
           )}
 
           {step === 'details' && (
-            <motion.div key="details" {...fadeStep} className="flex flex-col gap-6">
-              <div className="flex flex-col items-center gap-1 text-center">
-                <Logo className="h-7" />
-                <p className="mt-2 text-sm text-muted-foreground">Tell us a little about your practice.</p>
-              </div>
-              <div className="flex flex-col gap-4">
+            <motion.div key="details" {...fadeStep} className="flex flex-col items-center gap-10">
+              <AuthScreenHeader title="Set Up Your Workspace" subtitle="Tell us a little about your practice." />
+              <div className="flex w-full flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="workspaceName">Workspace Name</Label>
                   <Input id="workspaceName" autoFocus value={workspaceName} onChange={(e) => setWorkspaceName(e.target.value)} placeholder="Your clinic or lab name" />
@@ -118,30 +114,27 @@ export function OnboardingFlow() {
                   <Input id="contact" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="you@example.com" />
                 </div>
               </div>
-              <Button size="lg" className="w-full" disabled={!detailsValid} onClick={() => setStep('pin')}>
+              <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} disabled={!detailsValid} onClick={() => setStep('pin')}>
                 Continue
               </Button>
             </motion.div>
           )}
 
           {step === 'pin' && !pinConfirmed && (
-            <motion.div key="pin" {...fadeStep} className="flex flex-col items-center gap-8">
-              <div className="flex flex-col items-center gap-1 text-center">
-                <Logo className="h-7" />
-                <p className="mt-2 text-sm text-muted-foreground">{pinPhase === 'create' ? 'Create a 4-digit PIN' : 'Confirm your PIN'}</p>
-              </div>
+            <motion.div key="pin" {...fadeStep} className="flex flex-col items-center gap-12">
+              <AuthScreenHeader
+                title={pinPhase === 'create' ? 'Create Your PIN' : 'Confirm Your PIN'}
+                subtitle={pinPhase === 'create' ? 'Choose a 4-digit PIN to secure your workspace.' : 'Re-enter your PIN to confirm.'}
+              />
               <PinPad value={pin} onChange={handlePinComplete} length={PIN_LENGTH} error={pinError} />
             </motion.div>
           )}
 
           {step === 'pin' && pinConfirmed && (
-            <motion.div key="finish" {...fadeStep} className="flex flex-col gap-6">
-              <div className="flex flex-col items-center gap-1 text-center">
-                <Logo className="h-7" />
-                <p className="mt-2 text-sm text-muted-foreground">You're all set.</p>
-              </div>
+            <motion.div key="finish" {...fadeStep} className="flex flex-col items-center gap-10">
+              <AuthScreenHeader title="You're All Set" subtitle="Your workspace is ready to use." />
               {biometricsSupported && (
-                <div className="flex items-center justify-between rounded-lg border border-border bg-surface px-4 py-3">
+                <div className="flex w-full items-center justify-between rounded-lg border border-border bg-surface px-4 py-3">
                   <div>
                     <p className="text-sm font-medium text-foreground">Enable Biometrics</p>
                     <p className="text-xs text-muted-foreground">Unlock with Face ID, Touch ID, or Windows Hello.</p>
@@ -149,7 +142,7 @@ export function OnboardingFlow() {
                   <Switch checked={enableBiometrics} onCheckedChange={setEnableBiometrics} aria-label="Enable biometrics" />
                 </div>
               )}
-              <Button size="lg" className="w-full" loading={finishing} onClick={handleFinish}>
+              <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} loading={finishing} onClick={handleFinish}>
                 Finish
               </Button>
             </motion.div>

@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Fingerprint } from 'lucide-react'
 import { toast } from 'sonner'
-import { Logo } from '@/components/brand/Logo'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { BRAND } from '@/content/helpText'
 import { useAuth } from './AuthContext'
 import { ScrewBackground } from './ScrewBackground'
 import { PinPad } from './PinPad'
+import { AuthScreenHeader } from './AuthScreenHeader'
 
 const PIN_LENGTH = 4
 /** Shake + clear duration for a wrong PIN, and the correct-PIN unlock transition — both kept well under the "feel instant" budget. */
@@ -61,24 +61,19 @@ export function LoginScreen() {
   }
 
   return (
-    <div className="relative flex h-screen w-full items-center justify-center overflow-hidden bg-background print:hidden">
+    <div className="relative flex h-screen w-full flex-col items-center overflow-hidden bg-background px-6 pt-[12vh] print:hidden">
       <ScrewBackground unlocking={unlocking} />
 
       <motion.div
-        className="relative z-10 flex flex-col items-center gap-10 px-6"
+        className="relative z-10 flex w-full max-w-sm flex-col items-center gap-12"
         animate={unlocking ? { opacity: 0 } : { opacity: 1 }}
         transition={{ duration: 0.35, ease: 'easeOut' }}
       >
-        <div className="flex flex-col items-center gap-3">
-          <motion.div animate={unlocking ? { scale: 1.08 } : { scale: 1 }} transition={{ duration: 0.3, ease: 'easeOut' }}>
-            <Logo className="h-8" />
-          </motion.div>
-          <p className="text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">{BRAND.tagline}</p>
-        </div>
+        <AuthScreenHeader title="Enter Your PIN" subtitle={BRAND.tagline} pulseLogo={unlocking} />
 
         <PinPad value={pin} onChange={setPin} length={PIN_LENGTH} error={error} disabled={busy && !error} />
 
-        <div className="flex flex-col items-center gap-3">
+        <div className="flex flex-col items-center gap-4">
           {canUseBiometrics && (
             <button
               type="button"
