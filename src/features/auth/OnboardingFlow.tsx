@@ -11,22 +11,12 @@ import { ScrewBackground } from './ScrewBackground'
 import { PinPad } from './PinPad'
 import { AuthScreenHeader } from './AuthScreenHeader'
 import { isPlatformAuthenticatorAvailable } from './webauthn'
+import { AUTH_BACKDROP_CLASS, AUTH_CARD_CLASS, AUTH_INPUT_CLASS, CTA_BUTTON_CLASS, STEP_TRANSITION } from './authTheme'
 
 const PIN_LENGTH = 4
 
 type Step = 'welcome' | 'details' | 'pin'
 type PinPhase = 'create' | 'confirm'
-
-/** Taller, slightly more elevated CTA with a confident hover lift — scoped to this flow via className overrides; the shared Button component (used app-wide) is untouched. */
-const CTA_BUTTON_CLASS =
-  'h-12 rounded-xl shadow-md transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:shadow-sm'
-
-const fadeStep = {
-  initial: { opacity: 0, y: 10, scale: 0.99 },
-  animate: { opacity: 1, y: 0, scale: 1 },
-  exit: { opacity: 0, y: -10, scale: 0.99 },
-  transition: { duration: 0.25, ease: 'easeOut' as const },
-}
 
 export function OnboardingFlow() {
   const { completeOnboarding } = useAuth()
@@ -84,13 +74,13 @@ export function OnboardingFlow() {
   }
 
   return (
-    <div className="relative flex h-screen w-full flex-col items-center overflow-hidden bg-background px-6 pt-[10vh] print:hidden">
+    <div className={`relative flex h-screen w-full flex-col items-center overflow-hidden px-6 pt-[10vh] print:hidden ${AUTH_BACKDROP_CLASS}`}>
       <ScrewBackground />
 
-      <div className="relative z-10 w-full max-w-sm overflow-hidden rounded-2xl border border-border/50 bg-muted/60 px-8 py-11 shadow-elevated backdrop-blur-xl dark:border-white/[0.08] dark:bg-white/[0.03] sm:px-10">
+      <div className={`relative z-10 w-full max-w-sm overflow-hidden px-8 py-11 sm:px-10 ${AUTH_CARD_CLASS}`}>
         <AnimatePresence mode="wait">
           {step === 'welcome' && (
-            <motion.div key="welcome" {...fadeStep} className="flex flex-col items-center gap-11">
+            <motion.div key="welcome" {...STEP_TRANSITION} className="flex flex-col items-center gap-11">
               <AuthScreenHeader title="Welcome to ImplaTrax" subtitle={BRAND.tagline} />
               <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} onClick={() => setStep('details')}>
                 Create Workspace
@@ -99,20 +89,33 @@ export function OnboardingFlow() {
           )}
 
           {step === 'details' && (
-            <motion.div key="details" {...fadeStep} className="flex flex-col items-center gap-9">
+            <motion.div key="details" {...STEP_TRANSITION} className="flex flex-col items-center gap-9">
               <AuthScreenHeader title="Set Up Your Workspace" subtitle="Tell us a little about your practice." />
               <div className="flex w-full flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="workspaceName">Workspace Name</Label>
-                  <Input id="workspaceName" autoFocus value={workspaceName} onChange={(e) => setWorkspaceName(e.target.value)} placeholder="Your clinic or lab name" />
+                  <Input
+                    id="workspaceName"
+                    autoFocus
+                    value={workspaceName}
+                    onChange={(e) => setWorkspaceName(e.target.value)}
+                    placeholder="Your clinic or lab name"
+                    className={AUTH_INPUT_CLASS}
+                  />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="yourName">Your Name</Label>
-                  <Input id="yourName" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" />
+                  <Input id="yourName" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" className={AUTH_INPUT_CLASS} />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="contact">Mobile Number or Email</Label>
-                  <Input id="contact" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="you@example.com" />
+                  <Input
+                    id="contact"
+                    value={contact}
+                    onChange={(e) => setContact(e.target.value)}
+                    placeholder="you@example.com"
+                    className={AUTH_INPUT_CLASS}
+                  />
                 </div>
               </div>
               <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} disabled={!detailsValid} onClick={() => setStep('pin')}>
@@ -122,7 +125,7 @@ export function OnboardingFlow() {
           )}
 
           {step === 'pin' && !pinConfirmed && (
-            <motion.div key="pin" {...fadeStep} className="flex flex-col items-center gap-11">
+            <motion.div key="pin" {...STEP_TRANSITION} className="flex flex-col items-center gap-11">
               <AuthScreenHeader
                 title={pinPhase === 'create' ? 'Create Your PIN' : 'Confirm Your PIN'}
                 subtitle={pinPhase === 'create' ? 'Choose a 4-digit PIN to secure your workspace.' : 'Re-enter your PIN to confirm.'}
@@ -132,7 +135,7 @@ export function OnboardingFlow() {
           )}
 
           {step === 'pin' && pinConfirmed && (
-            <motion.div key="finish" {...fadeStep} className="flex flex-col items-center gap-9">
+            <motion.div key="finish" {...STEP_TRANSITION} className="flex flex-col items-center gap-9">
               <AuthScreenHeader title="You're All Set" subtitle="Your workspace is ready to use." />
               {biometricsSupported && (
                 <div className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-card/60 px-4 py-3 dark:border-white/10">

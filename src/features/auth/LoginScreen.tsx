@@ -8,6 +8,7 @@ import { useAuth } from './AuthContext'
 import { ScrewBackground } from './ScrewBackground'
 import { PinPad } from './PinPad'
 import { AuthScreenHeader } from './AuthScreenHeader'
+import { AUTH_BACKDROP_CLASS, AUTH_CARD_CLASS, PREMIUM_EASE } from './authTheme'
 
 const PIN_LENGTH = 4
 /** Shake + clear duration for a wrong PIN, and the correct-PIN unlock transition — both kept well under the "feel instant" budget. */
@@ -61,18 +62,18 @@ export function LoginScreen() {
   }
 
   return (
-    <div className="relative flex h-screen w-full flex-col items-center overflow-hidden bg-background px-6 pt-[10vh] print:hidden">
+    <div className={`relative flex h-screen w-full flex-col items-center overflow-hidden px-6 pt-[10vh] print:hidden ${AUTH_BACKDROP_CLASS}`}>
       <ScrewBackground unlocking={unlocking} />
 
       <motion.div
-        className="relative z-10 w-full max-w-sm rounded-2xl border border-border/50 bg-muted/60 px-8 py-11 shadow-elevated backdrop-blur-xl dark:border-white/[0.08] dark:bg-white/[0.03] sm:px-10"
+        className={`relative z-10 w-full max-w-sm px-8 py-11 sm:px-10 ${AUTH_CARD_CLASS}`}
         animate={unlocking ? { opacity: 0, scale: 0.98 } : { opacity: 1, scale: 1 }}
-        transition={{ duration: 0.35, ease: 'easeOut' }}
+        transition={{ duration: 0.35, ease: PREMIUM_EASE }}
       >
         <div className="flex flex-col items-center gap-11">
           <AuthScreenHeader title="Enter Your PIN" subtitle={BRAND.tagline} pulseLogo={unlocking} />
 
-          <PinPad value={pin} onChange={setPin} length={PIN_LENGTH} error={error} disabled={busy && !error} />
+          <PinPad value={pin} onChange={setPin} length={PIN_LENGTH} error={error} success={unlocking} disabled={busy && !error} />
 
           <div className="flex w-full flex-col items-center gap-4 border-t border-border/60 pt-6 dark:border-white/10">
             {canUseBiometrics && (

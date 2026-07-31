@@ -5,26 +5,43 @@ import screwUrl from '@/assets/screw.png'
 
 interface ScrewBackgroundProps {
   className?: string
-  /** True during the brief correct-PIN transition — shrinks and fades the glow instead of drifting. */
+  /** True during the brief correct-PIN transition — shrinks and fades the artwork instead of drifting. */
   unlocking?: boolean
 }
 
+const maskStyle = {
+  WebkitMaskImage: `url(${screwUrl})`,
+  maskImage: `url(${screwUrl})`,
+  WebkitMaskSize: 'contain',
+  maskSize: 'contain',
+  WebkitMaskRepeat: 'no-repeat',
+  maskRepeat: 'no-repeat',
+  WebkitMaskPosition: 'center',
+  maskPosition: 'center',
+} as const
+
 /**
- * Ambient brand texture behind the auth screens — the implant-screw mark
- * from the logo, masked so heavily blurred and so faint it never reads as a
- * literal icon, just a soft teal glow. Tinted with the brand primary (rather
- * than adapting to foreground like the sidebar logo does) since its job here
- * is a deliberate, quiet accent, not a legible mark. Dark mode needs a much
- * lower opacity for the same effect — --primary is a bright, saturated teal
- * there (vs. a deep, dark one in light mode), so the same alpha would read
- * as a clearly legible shape instead of a texture.
+ * Signature background artwork for the auth screens — the implant-screw
+ * mark from the logo, at a large scale but soft enough that it reads as
+ * elegant brand artwork, not a watermark stamped over the content. Two
+ * layered copies of the same mask give it a little dimensionality instead
+ * of a flat silhouette: a large, heavily-blurred primary-teal "glow" layer,
+ * plus a smaller, slightly offset, crisper near-white "rim light" layer —
+ * the same trick that makes a rendered 3D object read as dimensional even
+ * as a still image (light source implied from one corner).
+ *
+ * The box is sized with min(vh, vw) rather than a plain vh unit — a large,
+ * heavily-blurred shape sized off only one axis gets a hard-edged cutoff
+ * where the blur meets the viewport boundary on the *other* axis (very
+ * visible on narrow/mobile screens); tying the size to whichever axis is
+ * smaller keeps a safe blur-fade margin on every screen size.
  */
 export function ScrewBackground({ className, unlocking = false }: ScrewBackgroundProps) {
   const [reducedMotion, setReducedMotion] = useState(false)
   const offsetX = useMotionValue(0)
   const offsetY = useMotionValue(0)
-  const springX = useSpring(offsetX, { stiffness: 40, damping: 16, mass: 0.8 })
-  const springY = useSpring(offsetY, { stiffness: 40, damping: 16, mass: 0.8 })
+  const springX = useSpring(offsetX, { stiffness: 35, damping: 16, mass: 0.9 })
+  const springY = useSpring(offsetY, { stiffness: 35, damping: 16, mass: 0.9 })
 
   useEffect(() => {
     const query = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -67,24 +84,30 @@ export function ScrewBackground({ className, unlocking = false }: ScrewBackgroun
 
   return (
     <div className={cn('pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden', className)} aria-hidden="true">
-      <motion.div style={{ x: springX, y: springY }} className="h-[min(50vh,50vw)] w-[min(50vh,50vw)] max-w-none">
+      <motion.div style={{ x: springX, y: springY }} className="h-[min(65vh,70vw)] w-[min(65vh,70vw)] max-w-none">
         <motion.div
-          className="h-full w-full"
-          animate={unlocking ? { scale: 0.2, opacity: 0 } : reducedMotion ? { opacity: 1 } : { y: [0, -18, 0] }}
-          transition={unlocking ? { duration: 0.4, ease: 'easeIn' } : reducedMotion ? undefined : { duration: 10, repeat: Infinity, ease: 'easeInOut' }}
+          className="relative h-full w-full"
+          animate={
+            unlocking
+              ? { scale: 0.2, opacity: 0, rotate: 0 }
+              : reducedMotion
+                ? { opacity: 1 }
+                : { y: [0, -20, 0], rotate: [-2.5, 2.5, -2.5] }
+          }
+          transition={
+            unlocking
+              ? { duration: 0.4, ease: 'easeIn' }
+              : reducedMotion
+                ? undefined
+                : { duration: 16, repeat: Infinity, ease: 'easeInOut' }
+          }
         >
+          {/* base glow — large, heavily blurred, brand teal */}
+          <div className="absolute inset-0 bg-primary/[0.14] blur-3xl dark:bg-primary/[0.05]" style={maskStyle} />
+          {/* rim light — smaller, crisper, offset up-left to imply a light source and give the mark some dimensionality */}
           <div
-            className="h-full w-full bg-primary/[0.14] blur-3xl dark:bg-primary/[0.022]"
-            style={{
-              WebkitMaskImage: `url(${screwUrl})`,
-              maskImage: `url(${screwUrl})`,
-              WebkitMaskSize: 'contain',
-              maskSize: 'contain',
-              WebkitMaskRepeat: 'no-repeat',
-              maskRepeat: 'no-repeat',
-              WebkitMaskPosition: 'center',
-              maskPosition: 'center',
-            }}
+            className="absolute inset-[8%] -translate-x-3 -translate-y-3 bg-white/[0.35] blur-xl dark:bg-white/[0.06]"
+            style={maskStyle}
           />
         </motion.div>
       </motion.div>

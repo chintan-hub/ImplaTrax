@@ -5,16 +5,18 @@ interface PinDotsProps {
   length: number
   filled: number
   error?: boolean
+  /** Correct PIN just confirmed — plays a brief, left-to-right confirmation pulse across all dots. */
+  success?: boolean
 }
 
-export function PinDots({ length, filled, error = false }: PinDotsProps) {
+export function PinDots({ length, filled, error = false, success = false }: PinDotsProps) {
   return (
     <motion.div
       className="flex items-center justify-center gap-5"
       role="status"
       aria-label={`${filled} of ${length} PIN digits entered${error ? ', incorrect PIN' : ''}`}
-      animate={error ? { x: [0, -9, 9, -9, 9, 0] } : { x: 0 }}
-      transition={{ duration: 0.4, ease: 'easeInOut' }}
+      animate={error ? { x: [0, -10, 8, -6, 4, -2, 0] } : { x: 0 }}
+      transition={{ duration: 0.45, ease: 'easeOut' }}
     >
       {Array.from({ length }).map((_, i) => {
         const isFilled = i < filled
@@ -23,8 +25,12 @@ export function PinDots({ length, filled, error = false }: PinDotsProps) {
             key={i}
             aria-hidden="true"
             initial={false}
-            animate={{ scale: isFilled && !error ? [1, 1.25, 1] : 1 }}
-            transition={{ duration: 0.25, ease: 'easeOut' }}
+            animate={
+              success
+                ? { scale: [1, 1.35, 1.05] }
+                : { scale: isFilled && !error ? [1, 1.25, 1] : 1 }
+            }
+            transition={{ duration: success ? 0.45 : 0.25, ease: 'easeOut', delay: success ? i * 0.05 : 0 }}
             className={cn(
               'h-4 w-4 rounded-full border-2 transition-colors duration-150',
               error
@@ -32,6 +38,7 @@ export function PinDots({ length, filled, error = false }: PinDotsProps) {
                 : isFilled
                   ? 'border-primary bg-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.15)]'
                   : 'border-border/80 bg-transparent',
+              success && 'shadow-[0_0_0_7px_hsl(var(--primary)/0.28)]',
             )}
           />
         )
