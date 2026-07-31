@@ -19,6 +19,7 @@ import { Logo } from '@/components/brand/Logo'
 import { useTheme } from '@/components/theme/ThemeProvider'
 import { useData } from '@/store/DataContext'
 import { currentUser } from '@/mocks/users'
+import { BRAND } from '@/content/helpText'
 import { initials } from '@/lib/utils'
 
 export function Topbar({ onOpenSearch }: { onOpenSearch: () => void }) {
@@ -194,7 +195,7 @@ export function Topbar({ onOpenSearch }: { onOpenSearch: () => void }) {
             <Logo className="h-8 mb-2" />
             <DialogTitle className="sr-only">About ImplaTrax</DialogTitle>
             <DialogDescription className="text-sm font-medium uppercase tracking-wide text-primary-700 dark:text-primary-300">
-              Every Component. Every Movement. Every Time.
+              {BRAND.tagline}
             </DialogDescription>
           </DialogHeader>
           <p className="text-center text-sm text-muted-foreground">

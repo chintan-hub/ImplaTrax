@@ -7,6 +7,14 @@
 // voice can be edited in one place.
 // ============================================================================
 
+// ---------------------------------------------------------------------------
+// Brand — used tastefully in a small number of places (dashboard welcome
+// header, About dialog, auth screens). Never spammed throughout the UI.
+// ---------------------------------------------------------------------------
+export const BRAND = {
+  tagline: 'Every Component. Every Movement. Every Time.',
+} as const
+
 export interface HelpEntry {
   title: string
   description: string
