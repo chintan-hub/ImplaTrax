@@ -9,7 +9,8 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { EmptyState } from '@/components/shared/EmptyState'
 import { useData } from '@/store/DataContext'
 import { patientFullName } from '@/mocks/patients'
-import { formatCurrency, formatDateTime } from '@/lib/utils'
+import { formatDateTime } from '@/lib/utils'
+import { useCurrencyFormat } from '@/hooks/useCurrencyFormat'
 import { buildSaleSummaryText, buildSaleDocumentData } from '@/lib/documents/sale'
 import { SaleDocument } from '@/lib/documents/SaleDocument'
 import { DeliveryChallanDocument } from '@/lib/documents/DeliveryChallanDocument'
@@ -20,6 +21,7 @@ export function SaleDetailPage() {
   const { saleId } = useParams()
   const navigate = useNavigate()
   const { sales, patients, cases, products, users, clinicSettings } = useData()
+  const { format } = useCurrencyFormat()
 
   const [printMode, setPrintMode] = useState<PrintMode>('invoice')
 
@@ -35,7 +37,7 @@ export function SaleDetailPage() {
   const productById = new Map(products.map((p) => [p.id, p]))
 
   const handleCopyWhatsApp = async () => {
-    const text = buildSaleSummaryText(sale, patient, caseRecord, productById)
+    const text = buildSaleSummaryText(sale, patient, caseRecord, productById, clinicSettings.currency)
     try {
       await navigator.clipboard.writeText(text)
       toast.success('Copied to clipboard', { description: 'Paste it into WhatsApp to share this sale.' })
@@ -104,15 +106,15 @@ export function SaleDetailPage() {
                         </TableCell>
                         {clinicSettings.batchLotTrackingEnabled && <TableCell className="text-muted-foreground">{line.batchLot ?? '—'}</TableCell>}
                         <TableCell className="text-right tabular-nums">{line.quantity}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatCurrency(line.unitPrice)}</TableCell>
-                        <TableCell className="text-right tabular-nums font-medium">{formatCurrency(line.unitPrice * line.quantity)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{format(line.unitPrice)}</TableCell>
+                        <TableCell className="text-right tabular-nums font-medium">{format(line.unitPrice * line.quantity)}</TableCell>
                       </TableRow>
                     )
                   })}
                 </TableBody>
               </Table>
               <Separator className="my-3" />
-              <p className="text-right text-sm font-semibold">Total: {formatCurrency(sale.total)}</p>
+              <p className="text-right text-sm font-semibold">Total: {format(sale.total)}</p>
             </CardContent>
           </Card>
         </div>
@@ -151,7 +153,7 @@ export function SaleDetailPage() {
               <Separator />
               <div>
                 <p className="text-muted-foreground">Total</p>
-                <p className="font-medium">{formatCurrency(sale.total)}</p>
+                <p className="font-medium">{format(sale.total)}</p>
               </div>
             </CardContent>
           </Card>

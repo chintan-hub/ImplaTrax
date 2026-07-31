@@ -10,13 +10,15 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { PatientFormDialog } from '@/components/patients/PatientFormDialog'
 import { useData } from '@/store/DataContext'
 import { patientFullName } from '@/mocks/patients'
-import { formatCurrency, formatDate, initials } from '@/lib/utils'
+import { formatDate, initials } from '@/lib/utils'
+import { useCurrencyFormat } from '@/hooks/useCurrencyFormat'
 import { FolderKanban } from 'lucide-react'
 
 export function PatientProfilePage() {
   const { patientId } = useParams()
   const navigate = useNavigate()
   const { patients, cases, sales } = useData()
+  const { format } = useCurrencyFormat()
   const [editOpen, setEditOpen] = useState(false)
 
   const patient = patients.find((p) => p.id === patientId)
@@ -111,7 +113,7 @@ export function PatientProfilePage() {
                     <p className="font-medium">{s.saleNumber}</p>
                     <p className="text-xs text-muted-foreground">{s.lines.length} item(s) · {formatDate(s.createdAt)}</p>
                   </div>
-                  <Badge variant="success">{formatCurrency(s.total)}</Badge>
+                  <Badge variant="success">{format(s.total)}</Badge>
                 </div>
               ))}
             </CardContent>

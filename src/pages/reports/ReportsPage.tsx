@@ -12,7 +12,8 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { StatCard } from '@/components/shared/StatCard'
 import { useData } from '@/store/DataContext'
 import { useChartColors } from '@/lib/chartColors'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { useCurrencyFormat } from '@/hooks/useCurrencyFormat'
+import { formatDate } from '@/lib/utils'
 import { exportToCsv } from '@/lib/documents/csv'
 import { summarizeLots } from '@/lib/batches'
 import { PAGE_INTROS } from '@/content/helpText'
@@ -31,6 +32,7 @@ function ExportCsvButton({ rows, filename }: { rows: Record<string, string | num
 export function ReportsPage() {
   const { products, sales, loans, purchaseOrders, movements, vendors, cases, batches, clinicSettings } = useData()
   const colors = useChartColors()
+  const { format } = useCurrencyFormat()
 
   const inventoryByCategory = useMemo(() => {
     const map = new Map<string, number>()
@@ -158,7 +160,7 @@ export function ReportsPage() {
 
         <TabsContent value="inventory">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-4">
-            <StatCard label="Inventory Value" value={formatCurrency(inventoryValue)} icon={DollarSign} />
+            <StatCard label="Inventory Value" value={format(inventoryValue)} icon={DollarSign} />
             <StatCard label="Active SKUs" value={String(products.filter((p) => p.status === 'active').length)} icon={Package} />
             <StatCard label="Units Lost (all time)" value={String(lostUnits)} icon={AlertTriangle} tone="danger" />
           </div>
@@ -179,7 +181,7 @@ export function ReportsPage() {
                   <CartesianGrid stroke={colors.chrome.grid} vertical={false} />
                   <XAxis dataKey="name" stroke={colors.chrome.muted} fontSize={11} angle={-35} textAnchor="end" interval={0} height={80} tickLine={false} axisLine={{ stroke: colors.chrome.axis }} />
                   <YAxis stroke={colors.chrome.muted} fontSize={11} tickLine={false} axisLine={false} width={40} />
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ background: colors.chrome.surface, border: `1px solid ${colors.chrome.grid}`, borderRadius: 10, fontSize: 12 }} />
+                  <Tooltip formatter={(v: number) => format(v)} contentStyle={{ background: colors.chrome.surface, border: `1px solid ${colors.chrome.grid}`, borderRadius: 10, fontSize: 12 }} />
                   <Bar dataKey="value" radius={[4, 4, 0, 0]} fill={colors.categorical[0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -189,9 +191,9 @@ export function ReportsPage() {
 
         <TabsContent value="sales">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-4">
-            <StatCard label="Total Revenue" value={formatCurrency(totalRevenue)} icon={DollarSign} tone="success" />
+            <StatCard label="Total Revenue" value={format(totalRevenue)} icon={DollarSign} tone="success" />
             <StatCard label="Total Sales" value={String(sales.length)} icon={TrendingUp} />
-            <StatCard label="Avg Sale Value" value={formatCurrency(Math.round(totalRevenue / (sales.length || 1)))} icon={TrendingUp} tone="accent" />
+            <StatCard label="Avg Sale Value" value={format(Math.round(totalRevenue / (sales.length || 1)))} icon={TrendingUp} tone="accent" />
           </div>
           <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0">
@@ -210,7 +212,7 @@ export function ReportsPage() {
                   <CartesianGrid stroke={colors.chrome.grid} vertical={false} />
                   <XAxis dataKey="label" stroke={colors.chrome.muted} fontSize={11} tickLine={false} axisLine={{ stroke: colors.chrome.axis }} />
                   <YAxis stroke={colors.chrome.muted} fontSize={11} tickLine={false} axisLine={false} width={48} />
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ background: colors.chrome.surface, border: `1px solid ${colors.chrome.grid}`, borderRadius: 10, fontSize: 12 }} />
+                  <Tooltip formatter={(v: number) => format(v)} contentStyle={{ background: colors.chrome.surface, border: `1px solid ${colors.chrome.grid}`, borderRadius: 10, fontSize: 12 }} />
                   <Line type="monotone" dataKey="revenue" name="Revenue" stroke={colors.categorical[0]} strokeWidth={2} dot={{ r: 3 }} />
                 </LineChart>
               </ResponsiveContainer>
@@ -261,7 +263,7 @@ export function ReportsPage() {
 
         <TabsContent value="purchases">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-4">
-            <StatCard label="Total PO Spend" value={formatCurrency(totalPOSpend)} icon={DollarSign} />
+            <StatCard label="Total PO Spend" value={format(totalPOSpend)} icon={DollarSign} />
             <StatCard label="Total Purchase Orders" value={String(purchaseOrders.length)} icon={ClipboardList} />
             <StatCard
               label="Pending Orders"
@@ -287,7 +289,7 @@ export function ReportsPage() {
                   <CartesianGrid stroke={colors.chrome.grid} horizontal={false} />
                   <XAxis type="number" stroke={colors.chrome.muted} fontSize={11} tickLine={false} axisLine={false} hide />
                   <YAxis type="category" dataKey="vendorName" stroke={colors.chrome.muted} fontSize={11} tickLine={false} axisLine={false} width={140} />
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ background: colors.chrome.surface, border: `1px solid ${colors.chrome.grid}`, borderRadius: 10, fontSize: 12 }} />
+                  <Tooltip formatter={(v: number) => format(v)} contentStyle={{ background: colors.chrome.surface, border: `1px solid ${colors.chrome.grid}`, borderRadius: 10, fontSize: 12 }} />
                   <Bar dataKey="value" radius={[0, 4, 4, 0]} fill={colors.categorical[0]} barSize={18} />
                 </BarChart>
               </ResponsiveContainer>
@@ -297,7 +299,7 @@ export function ReportsPage() {
 
         <TabsContent value="stock-valuation">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-4">
-            <StatCard label="Total Stock Value" value={formatCurrency(inventoryValue)} icon={DollarSign} />
+            <StatCard label="Total Stock Value" value={format(inventoryValue)} icon={DollarSign} />
             <StatCard label="SKUs Valued" value={String(stockValuation.length)} icon={Boxes} />
           </div>
           <Card>
@@ -332,8 +334,8 @@ export function ReportsPage() {
                         </TableCell>
                         <TableCell className="text-muted-foreground">{r.manufacturer}</TableCell>
                         <TableCell className="text-right tabular-nums">{r.quantityOnHand}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatCurrency(r.unitCost)}</TableCell>
-                        <TableCell className="text-right tabular-nums font-medium">{formatCurrency(r.value)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{format(r.unitCost)}</TableCell>
+                        <TableCell className="text-right tabular-nums font-medium">{format(r.value)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -345,7 +347,7 @@ export function ReportsPage() {
 
         <TabsContent value="manufacturers">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-4">
-            <StatCard label="Total Stock Value" value={formatCurrency(inventoryValue)} icon={DollarSign} />
+            <StatCard label="Total Stock Value" value={format(inventoryValue)} icon={DollarSign} />
             <StatCard label="Manufacturers Stocked" value={String(manufacturerValue.length)} icon={Factory} />
           </div>
           <Card>
@@ -365,7 +367,7 @@ export function ReportsPage() {
                   <CartesianGrid stroke={colors.chrome.grid} horizontal={false} />
                   <XAxis type="number" stroke={colors.chrome.muted} fontSize={11} tickLine={false} axisLine={false} hide />
                   <YAxis type="category" dataKey="name" stroke={colors.chrome.muted} fontSize={11} tickLine={false} axisLine={false} width={110} />
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ background: colors.chrome.surface, border: `1px solid ${colors.chrome.grid}`, borderRadius: 10, fontSize: 12 }} />
+                  <Tooltip formatter={(v: number) => format(v)} contentStyle={{ background: colors.chrome.surface, border: `1px solid ${colors.chrome.grid}`, borderRadius: 10, fontSize: 12 }} />
                   <Bar dataKey="value" radius={[0, 4, 4, 0]} fill={colors.categorical[0]} barSize={18} />
                 </BarChart>
               </ResponsiveContainer>
@@ -377,7 +379,7 @@ export function ReportsPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-4">
             <StatCard label="Doctors With Cases" value={String(doctorStats.length)} icon={Stethoscope} />
             <StatCard label="Total Cases" value={String(cases.length)} icon={ClipboardList} />
-            <StatCard label="Attributed Revenue" value={formatCurrency(doctorStats.reduce((s, d) => s + d.revenue, 0))} icon={DollarSign} tone="success" />
+            <StatCard label="Attributed Revenue" value={format(doctorStats.reduce((s, d) => s + d.revenue, 0))} icon={DollarSign} tone="success" />
           </div>
           <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0">
@@ -406,7 +408,7 @@ export function ReportsPage() {
                       <TableCell className="font-medium">{r.doctor}</TableCell>
                       <TableCell className="text-right tabular-nums">{r.caseCount}</TableCell>
                       <TableCell className="text-right tabular-nums">{r.salesCount}</TableCell>
-                      <TableCell className="text-right tabular-nums font-medium">{formatCurrency(r.revenue)}</TableCell>
+                      <TableCell className="text-right tabular-nums font-medium">{format(r.revenue)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

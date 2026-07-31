@@ -5,11 +5,35 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatCurrency(value: number, currency = 'USD') {
-  return new Intl.NumberFormat('en-US', {
+/**
+ * The one locale each supported currency is formatted with — this is what
+ * actually determines digit grouping (INR's lakh/crore grouping vs. USD/EUR's
+ * thousands grouping), decimal separator, and symbol placement. Extend this
+ * map, not the currency's formatting call sites, when adding a new currency.
+ */
+const CURRENCY_LOCALE: Record<string, string> = {
+  USD: 'en-US',
+  EUR: 'de-DE',
+  GBP: 'en-GB',
+  INR: 'en-IN',
+}
+
+/**
+ * The single formatter every monetary value in the app must go through.
+ * Currency is a required argument on purpose — there is no default, so a
+ * call site can't silently fall back to USD when the workspace is actually
+ * configured for something else (that was the root cause of the currency
+ * setting not propagating: every call site historically omitted this
+ * argument). React components should get `currency` from `useCurrencyFormat`
+ * rather than calling this directly, so they automatically stay in sync
+ * with Settings; this function itself stays a plain, stateless utility so
+ * non-component code (PDF/document builders, tests) can call it directly.
+ */
+export function formatCurrency(value: number, currency: string) {
+  const locale = CURRENCY_LOCALE[currency] ?? undefined
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency,
-    maximumFractionDigits: 0,
   }).format(value)
 }
 

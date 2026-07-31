@@ -3,11 +3,12 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useData } from '@/store/DataContext'
 import type { Product } from '@/types'
-import { formatCurrency } from '@/lib/utils'
+import { useCurrencyFormat } from '@/hooks/useCurrencyFormat'
 import { stockStatus, availableStock } from '@/lib/stock'
 
 export function ProductCard({ product, onClick }: { product: Product; onClick: () => void }) {
   const { clinicSettings } = useData()
+  const { format } = useCurrencyFormat()
   const status = stockStatus(product)
   return (
     <Card onClick={onClick} className="cursor-pointer transition-all hover:shadow-elevated hover:-translate-y-0.5">
@@ -50,7 +51,7 @@ export function ProductCard({ product, onClick }: { product: Product; onClick: (
             </p>
           </div>
           {product.priceVisible && (
-            <p className="text-sm font-medium tabular-nums">{formatCurrency(product.unitPrice)}</p>
+            <p className="text-sm font-medium tabular-nums">{format(product.unitPrice)}</p>
           )}
         </div>
       </CardContent>

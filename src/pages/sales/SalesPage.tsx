@@ -12,12 +12,14 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { SaleFormDialog } from '@/components/sales/SaleFormDialog'
 import { useData } from '@/store/DataContext'
 import { patientFullName } from '@/mocks/patients'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { useCurrencyFormat } from '@/hooks/useCurrencyFormat'
 import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
 import { DollarSign, TrendingUp, Package } from 'lucide-react'
 
 export function SalesPage() {
   const { sales, patients, cases, products } = useData()
+  const { format } = useCurrencyFormat()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const [search, setSearch] = useState('')
@@ -69,9 +71,9 @@ export function SalesPage() {
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-6">
-        <StatCard label="Total Revenue" value={formatCurrency(stats.totalRevenue)} icon={DollarSign} tone="success" />
+        <StatCard label="Total Revenue" value={format(stats.totalRevenue)} icon={DollarSign} tone="success" />
         <StatCard label="Units Sold" value={String(stats.totalUnits)} icon={Package} />
-        <StatCard label="Average Sale" value={formatCurrency(Math.round(stats.avgSale))} icon={TrendingUp} tone="accent" />
+        <StatCard label="Average Sale" value={format(Math.round(stats.avgSale))} icon={TrendingUp} tone="accent" />
       </div>
 
       <StickyToolbar>
@@ -122,7 +124,7 @@ export function SalesPage() {
                         {s.lines.length > 2 && <Badge variant="secondary" className="w-fit">+{s.lines.length - 2} more</Badge>}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-medium tabular-nums">{formatCurrency(s.total)}</TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">{format(s.total)}</TableCell>
                     <TableCell className="text-muted-foreground whitespace-nowrap">{formatDate(s.createdAt)}</TableCell>
                   </TableRow>
                 )

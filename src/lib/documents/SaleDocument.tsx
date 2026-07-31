@@ -1,8 +1,9 @@
 import { DocumentLayout } from './DocumentLayout'
-import { formatCurrency } from '@/lib/utils'
+import { useCurrencyFormat } from '@/hooks/useCurrencyFormat'
 import type { SaleDocumentData } from './sale'
 
 export function SaleDocument({ data }: { data: SaleDocumentData }) {
+  const { format } = useCurrencyFormat()
   return (
     <DocumentLayout
       title="Sales Invoice"
@@ -35,8 +36,8 @@ export function SaleDocument({ data }: { data: SaleDocumentData }) {
               </td>
               {data.showBatchLot && <td className="py-3">{line.batchLot ?? '—'}</td>}
               <td className="py-3 text-right tabular-nums">{line.quantity}</td>
-              <td className="py-3 text-right tabular-nums">{formatCurrency(line.unitPrice)}</td>
-              <td className="py-3 text-right tabular-nums font-medium">{formatCurrency(line.lineTotal)}</td>
+              <td className="py-3 text-right tabular-nums">{format(line.unitPrice)}</td>
+              <td className="py-3 text-right tabular-nums font-medium">{format(line.lineTotal)}</td>
             </tr>
           ))}
         </tbody>
@@ -46,7 +47,7 @@ export function SaleDocument({ data }: { data: SaleDocumentData }) {
         <div className="w-72 rounded-lg border-2 border-slate-900 px-5 py-4">
           <div className="flex items-baseline justify-between">
             <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Amount Due</p>
-            <p className="text-3xl font-bold tracking-tight">{formatCurrency(data.total)}</p>
+            <p className="text-3xl font-bold tracking-tight">{format(data.total)}</p>
           </div>
         </div>
       </div>

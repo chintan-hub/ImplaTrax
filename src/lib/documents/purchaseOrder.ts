@@ -5,13 +5,13 @@ import { formatCurrency, formatDate } from '@/lib/utils'
  * Builds the plain-text summary used by "Copy WhatsApp Message" — one place
  * assembling a Purchase Order's shareable content, not one per export format.
  */
-export function buildPOSummaryText(po: PurchaseOrder, vendor: Vendor | undefined, productById: Map<string, Product>): string {
+export function buildPOSummaryText(po: PurchaseOrder, vendor: Vendor | undefined, productById: Map<string, Product>, currency: string): string {
   const total = po.lines.reduce((sum, l) => sum + l.unitCost * l.quantityOrdered, 0)
   const lines = po.lines
     .map((l) => {
       const product = productById.get(l.productId)
       const name = product?.name ?? 'Unknown product'
-      return `- ${name} — Qty ${l.quantityOrdered} @ ${formatCurrency(l.unitCost)}`
+      return `- ${name} — Qty ${l.quantityOrdered} @ ${formatCurrency(l.unitCost, currency)}`
     })
     .join('\n')
 
@@ -24,7 +24,7 @@ export function buildPOSummaryText(po: PurchaseOrder, vendor: Vendor | undefined
     'Items:',
     lines,
     '',
-    `Total: ${formatCurrency(total)}`,
+    `Total: ${formatCurrency(total, currency)}`,
   ].join('\n')
 }
 

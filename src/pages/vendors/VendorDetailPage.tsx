@@ -8,13 +8,15 @@ import { StatCard } from '@/components/shared/StatCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { useData } from '@/store/DataContext'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { useCurrencyFormat } from '@/hooks/useCurrencyFormat'
+import { formatDate } from '@/lib/utils'
 import { ClipboardList, TrendingUp } from 'lucide-react'
 
 export function VendorDetailPage() {
   const { vendorId } = useParams()
   const navigate = useNavigate()
   const { vendors, purchaseOrders } = useData()
+  const { format } = useCurrencyFormat()
 
   const vendor = vendors.find((v) => v.id === vendorId)
   const vendorPOs = useMemo(
@@ -50,7 +52,7 @@ export function VendorDetailPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-6">
         <StatCard label="Total Purchase Orders" value={String(vendorPOs.length)} icon={ClipboardList} />
         <StatCard label="Pending Orders" value={String(pendingPOs.length)} icon={ClipboardList} tone="warning" />
-        <StatCard label="Total Spend" value={formatCurrency(totalSpend)} icon={TrendingUp} tone="success" />
+        <StatCard label="Total Spend" value={format(totalSpend)} icon={TrendingUp} tone="success" />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

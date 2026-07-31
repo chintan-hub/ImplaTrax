@@ -12,7 +12,8 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { IconHelp } from '@/components/ui/help-tooltip'
 import { POStatusActions } from '@/components/purchase-orders/POStatusActions'
 import { useData } from '@/store/DataContext'
-import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
+import { formatDate, formatDateTime } from '@/lib/utils'
+import { useCurrencyFormat } from '@/hooks/useCurrencyFormat'
 import { buildPOSummaryText, buildPurchaseOrderDocumentData } from '@/lib/documents/purchaseOrder'
 import { PurchaseOrderDocument } from '@/lib/documents/PurchaseOrderDocument'
 
@@ -21,7 +22,8 @@ const MAX_PHOTO_BYTES = 5 * 1024 * 1024 // 5MB — a defensive cap for a client-
 export function PODetailPage() {
   const { poId } = useParams()
   const navigate = useNavigate()
-  const { purchaseOrders, vendors, products, attachPhotoToOrder } = useData()
+  const { purchaseOrders, vendors, products, attachPhotoToOrder, clinicSettings } = useData()
+  const { format } = useCurrencyFormat()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const po = purchaseOrders.find((p) => p.id === poId)
@@ -36,7 +38,7 @@ export function PODetailPage() {
   const history = [...po.history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
   const handleCopyWhatsApp = async () => {
-    const text = buildPOSummaryText(po, vendor, productById)
+    const text = buildPOSummaryText(po, vendor, productById, clinicSettings.currency)
     try {
       await navigator.clipboard.writeText(text)
       toast.success('Copied to clipboard', { description: 'Paste it into WhatsApp to share this purchase order.' })
@@ -128,15 +130,15 @@ export function PODetailPage() {
                             {line.quantityReceived} / {line.quantityOrdered}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">{formatCurrency(line.unitCost)}</TableCell>
-                        <TableCell className="text-right tabular-nums font-medium">{formatCurrency(line.quantityOrdered * line.unitCost)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{format(line.unitCost)}</TableCell>
+                        <TableCell className="text-right tabular-nums font-medium">{format(line.quantityOrdered * line.unitCost)}</TableCell>
                       </TableRow>
                     )
                   })}
                 </TableBody>
               </Table>
               <Separator className="my-3" />
-              <p className="text-right text-sm font-semibold">Total: {formatCurrency(totalCost)}</p>
+              <p className="text-right text-sm font-semibold">Total: {format(totalCost)}</p>
             </CardContent>
           </Card>
 
