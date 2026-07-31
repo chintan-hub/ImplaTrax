@@ -138,7 +138,7 @@ export function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Theme</CardTitle>
-            <CardDescription>Choose how ImplantDesk looks on this device</CardDescription>
+            <CardDescription>Choose how ImplaTrax looks on this device</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-3 gap-3 max-w-md">

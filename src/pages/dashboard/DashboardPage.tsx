@@ -78,6 +78,9 @@ export function DashboardPage() {
   return (
     <div>
       <PageHeader title={PAGE_INTROS.dashboard.title} description={PAGE_INTROS.dashboard.description} />
+      <p className="-mt-4 mb-6 text-xs font-medium uppercase tracking-wide text-primary-700 dark:text-primary-300">
+        Every Component. Every Movement. Every Time.
+      </p>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard label="Inventory Value" value={formatCurrency(stats.inventoryValue)} icon={DollarSign} tone="default" onClick={() => navigate('/products')} />

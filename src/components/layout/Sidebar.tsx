@@ -1,7 +1,7 @@
 import { NavLink, useMatch } from 'react-router-dom'
-import { Activity } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { IconHelp } from '@/components/ui/help-tooltip'
+import { Logo } from '@/components/brand/Logo'
 import { useData } from '@/store/DataContext'
 import { NAV_ITEMS, NAV_GROUPS, type NavItem } from './nav'
 
@@ -40,12 +40,8 @@ function SidebarLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => v
 
 export function SidebarBrand() {
   return (
-    <div className="flex h-14 items-center gap-2 px-5 border-b border-border shrink-0">
-      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-        <Activity className="h-4 w-4" />
-      </div>
-      <span className="text-sm font-semibold tracking-tight">ImplantDesk</span>
-      <span className="text-[10px] font-medium text-muted-foreground rounded bg-muted px-1.5 py-0.5">2.0</span>
+    <div className="flex h-14 items-center px-5 border-b border-border shrink-0">
+      <Logo className="h-6" />
     </div>
   )
 }

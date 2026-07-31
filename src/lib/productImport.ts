@@ -147,7 +147,7 @@ export function validateImportRows(rows: Record<string, string>[], existingProdu
       lowStockThreshold,
       batchTracked: parseBoolean(raw['Batch Tracked'] ?? ''),
       vendorId: '', // resolved by DataContext.importProducts, same auto-match-by-manufacturer rule as manual product creation
-      imageColor: '#3b82f6',
+      imageColor: '#12a2a3',
       description: (raw['Description'] ?? '').trim(),
       status: 'active',
     }

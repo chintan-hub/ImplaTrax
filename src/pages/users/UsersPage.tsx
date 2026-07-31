@@ -104,7 +104,7 @@ export function UsersPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> Role Permissions</CardTitle>
-          <CardDescription>What each role can access across ImplantDesk</CardDescription>
+          <CardDescription>What each role can access across ImplaTrax</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>

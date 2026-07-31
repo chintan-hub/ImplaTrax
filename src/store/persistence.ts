@@ -14,7 +14,9 @@ import type {
   Doctor,
 } from '@/types'
 
-const STORAGE_KEY = 'implantdesk:data:v1'
+const STORAGE_KEY = 'implatrax:data:v1'
+// Pre-rebrand key — data may still live here from before the app was renamed from ImplantDesk.
+const LEGACY_STORAGE_KEY = 'implantdesk:data:v1'
 
 export interface PersistedSnapshot {
   products: Product[]
@@ -43,7 +45,7 @@ export interface PersistedSnapshot {
  */
 export function loadPersistedSnapshot(): PersistedSnapshot | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY)
     if (!raw) return null
     return JSON.parse(raw) as PersistedSnapshot
   } catch {
@@ -54,6 +56,7 @@ export function loadPersistedSnapshot(): PersistedSnapshot | null {
 export function savePersistedSnapshot(snapshot: PersistedSnapshot) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot))
+    localStorage.removeItem(LEGACY_STORAGE_KEY)
   } catch {
     // localStorage unavailable or full — persistence is best-effort, not fatal to the session.
   }

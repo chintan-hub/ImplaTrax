@@ -1,6 +1,6 @@
 # ARCHITECTURE.md — Engineering Review of ImplantDesk (v1.8 prototype)
 
-> Scope: this document is an independent engineering audit of the codebase as it exists today, produced by reading every source file under `src/`, the build/tooling config, and the project's own handoff document (`PROJECT.md`). It is written for whoever plans ImplantDesk 2.0's production build. It intentionally does not propose UI changes and no code was modified to produce it.
+> Scope: this document is an independent engineering audit of the codebase as it exists today, produced by reading every source file under `src/`, the build/tooling config, and the project's own handoff document (`PROJECT.md`). It is written for whoever plans ImplaTrax's production build. It intentionally does not propose UI changes and no code was modified to produce it.
 >
 > A very thorough internal spec, `PROJECT.md`, already exists at the repo root and should be treated as the domain/business-rules source of truth — this document does not repeat that content wholesale. Where this review's findings differ from or add to `PROJECT.md`'s self-assessment (mostly in the Weaknesses/Technical Debt sections), that is because this pass verified claims against the actual code rather than against intent.
 
@@ -8,7 +8,7 @@
 
 ## 1. Overall Architecture
 
-ImplantDesk is a **client-only, single-page React application**. There is no backend, no API layer, and no persistence beyond a single `localStorage` key for theme preference. It is best described as a "high-fidelity clickable prototype with real state" — every interaction is real (data actually mutates, derived views actually update), but the entire universe of data lives in one in-memory React context that resets on reload.
+ImplaTrax is a **client-only, single-page React application**. There is no backend, no API layer, and no persistence beyond a single `localStorage` key for theme preference. It is best described as a "high-fidelity clickable prototype with real state" — every interaction is real (data actually mutates, derived views actually update), but the entire universe of data lives in one in-memory React context that resets on reload.
 
 **Stack:**
 | Concern | Choice |

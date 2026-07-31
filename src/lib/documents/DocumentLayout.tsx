@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { useData } from '@/store/DataContext'
 import { formatDateTime } from '@/lib/utils'
 import { MICROCOPY } from '@/content/helpText'
+import logo from '@/assets/logo.png'
 
 /**
  * Every document type declares its own `kind` so the shared shell can give
@@ -51,11 +52,12 @@ const KIND_EYEBROW: Record<DocumentKind, string> = {
 }
 
 /**
- * Shared print/PDF shell for every generated document. Reserves a slot for
- * a future clinic logo — none exists yet, so nothing renders there today.
- * Colors are plain neutral grays (not the app's themeable CSS variables) —
- * a printed document is always on white paper regardless of the app's
- * light/dark theme, so it shouldn't depend on that system at all.
+ * Shared print/PDF shell for every generated document. The clinic's own
+ * name/address leads the header; the ImplaTrax logo appears small in the
+ * footer as a watermark, not a competing brand. Colors are plain neutral
+ * grays (not the app's themeable CSS variables) — a printed document is
+ * always on white paper regardless of the app's light/dark theme, so it
+ * shouldn't depend on that system at all.
  */
 export function DocumentLayout({ title, documentNumber, kind = 'neutral', eyebrow, meta = [], banner, children }: DocumentLayoutProps) {
   const { clinicSettings } = useData()
@@ -93,8 +95,11 @@ export function DocumentLayout({ title, documentNumber, kind = 'neutral', eyebro
       <div className="mt-7">{children}</div>
 
       <div className="mt-14 flex items-end justify-between gap-6 border-t border-slate-200 pt-4 text-[11px] text-slate-400">
-        <p>{MICROCOPY.documentFooter}</p>
-        <p>Generated {formatDateTime(new Date())}</p>
+        <div>
+          <p>{MICROCOPY.documentFooter}</p>
+          <p>Generated {formatDateTime(new Date())}</p>
+        </div>
+        <img src={logo} alt="ImplaTrax" className="h-4 w-auto shrink-0 opacity-70" />
       </div>
     </div>
   )
