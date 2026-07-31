@@ -12,8 +12,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { IconHelp } from '@/components/ui/help-tooltip'
 import { SidebarBrand, SidebarNav } from '@/components/layout/Sidebar'
+import { Logo } from '@/components/brand/Logo'
 import { useTheme } from '@/components/theme/ThemeProvider'
 import { useData } from '@/store/DataContext'
 import { currentUser } from '@/mocks/users'
@@ -24,6 +26,7 @@ export function Topbar({ onOpenSearch }: { onOpenSearch: () => void }) {
   const { products, purchaseOrders } = useData()
   const navigate = useNavigate()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [aboutOpen, setAboutOpen] = useState(false)
 
   const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Laptop
 
@@ -180,8 +183,26 @@ export function Topbar({ onOpenSearch }: { onOpenSearch: () => void }) {
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => navigate('/settings')}>Clinic Settings</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => navigate('/users')}>Manage Users</DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => setAboutOpen(true)}>About ImplaTrax</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <Dialog open={aboutOpen} onOpenChange={setAboutOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader className="items-center text-center">
+            <Logo className="h-8 mb-2" />
+            <DialogTitle className="sr-only">About ImplaTrax</DialogTitle>
+            <DialogDescription className="text-sm font-medium uppercase tracking-wide text-primary-700 dark:text-primary-300">
+              Every Component. Every Movement. Every Time.
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-center text-sm text-muted-foreground">
+            ImplaTrax is inventory management built for dental implant practices — components, cases, loans, and
+            purchasing, all in one place.
+          </p>
+        </DialogContent>
+      </Dialog>
     </header>
   )
 }

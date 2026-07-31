@@ -266,7 +266,7 @@ export function BatchesPage() {
                 </div>
 
                 <p className="text-xs text-muted-foreground">
-                  Patient-case usage is shown above for traceability, but doesn't currently reduce the remaining count — recording a component against a case doesn't yet deduct stock in this version of ImplantDesk (only a recorded Sale does).
+                  Patient-case usage is shown above for traceability, but doesn't currently reduce the remaining count — recording a component against a case doesn't yet deduct stock in this version of ImplaTrax (only a recorded Sale does).
                 </p>
               </SheetBody>
             </>

@@ -1,12 +1,12 @@
 # HANDOFF.md — Start Here for a New Session
 
-> **Purpose:** This document lets a brand-new Claude session pick up work on ImplantDesk 2.0 with zero prior context. Read this file first, in full, before touching any code or answering the user. It tells you what exists, what's proven, what's next, and the exact rules of engagement this project runs under.
+> **Purpose:** This document lets a brand-new Claude session pick up work on ImplaTrax with zero prior context. Read this file first, in full, before touching any code or answering the user. It tells you what exists, what's proven, what's next, and the exact rules of engagement this project runs under.
 
 ---
 
 ## 1. What this project is
 
-ImplantDesk 2.0 is a client-only (no backend) React/TypeScript/Vite inventory and workflow platform for dental implant clinics and labs — purchasing, storage, loans to labs, patient cases, and sales, with full stock-movement traceability. It started as a prototype ("ImplantDesk 1.8") and is being evolved into a production-ready application through a strict, phase-by-phase, human-approved process — **not** a free-for-all refactor.
+ImplaTrax is a client-only (no backend) React/TypeScript/Vite inventory and workflow platform for dental implant clinics and labs — purchasing, storage, loans to labs, patient cases, and sales, with full stock-movement traceability. It started as a prototype ("ImplantDesk 1.8") and is being evolved into a production-ready application through a strict, phase-by-phase, human-approved process — **not** a free-for-all refactor.
 
 Full product framing, business rules, data model, and terminology: **`PROJECT.md`** (read this before making any product/business-rule judgment call).
 

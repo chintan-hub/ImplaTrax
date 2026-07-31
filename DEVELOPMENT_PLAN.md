@@ -1,4 +1,4 @@
-# DEVELOPMENT_PLAN.md — ImplantDesk 2.0 Roadmap
+# DEVELOPMENT_PLAN.md — ImplaTrax Roadmap
 
 > This roadmap evolves the existing prototype into a production-ready application. It is a **refactor-and-extend** plan, not a rewrite.
 >

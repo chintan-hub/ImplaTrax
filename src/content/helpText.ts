@@ -1,5 +1,5 @@
 // ============================================================================
-// ImplantDesk 2.0 — Centralized Help & Copy Registry
+// ImplaTrax — Centralized Help & Copy Registry
 //
 // Every tooltip, term explanation, microcopy hint, empty-state message, and
 // page introduction lives here. Nothing in the UI should hardcode this kind
@@ -124,7 +124,7 @@ export const ICON_HELP = {
   },
   settings: {
     title: 'Settings',
-    description: 'Configure ImplantDesk preferences.',
+    description: 'Configure ImplaTrax preferences.',
   },
   profile: {
     title: 'Profile',
@@ -182,7 +182,7 @@ export type IconHelpKey = keyof typeof ICON_HELP
 // Form microcopy — short guidance shown directly under a field
 // ---------------------------------------------------------------------------
 export const MICROCOPY = {
-  minStock: 'When stock reaches this quantity, ImplantDesk will remind you to reorder.',
+  minStock: 'When stock reaches this quantity, ImplaTrax will remind you to reorder.',
   purchasePrice: 'The amount paid to the vendor for one unit.',
   sellingPrice: 'The amount charged when this component is sold or used in a case.',
   caseId: 'Automatically generated unique identifier for this treatment.',
@@ -196,7 +196,7 @@ export const MICROCOPY = {
   eta: 'The date you expect this order to arrive from the vendor.',
   receivingLot: 'Required for batch-tracked components — the number printed on the box or packing slip. This is what lets you trace exactly where a component came from and everywhere it went.',
   loanLot: 'Required for batch-tracked components — the same lot automatically follows this item when it comes back from the lab.',
-  documentFooter: 'This is a computer-generated document from ImplantDesk.',
+  documentFooter: 'This is a computer-generated document from ImplaTrax.',
 } as const
 
 export type MicrocopyKey = keyof typeof MICROCOPY
@@ -259,7 +259,7 @@ export const PAGE_INTROS = {
   },
   users: {
     title: 'Users',
-    description: 'Everyone with access to ImplantDesk, and what they can do.',
+    description: 'Everyone with access to ImplaTrax, and what they can do.',
   },
   settings: {
     title: 'Settings',

@@ -136,7 +136,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: { open: boole
         lowStockThreshold: values.lowStockThreshold,
         batchTracked: values.batchTracked,
         vendorId: vendor.id,
-        imageColor: '#3b82f6',
+        imageColor: '#12a2a3',
         description: values.description ?? '',
         status: 'active',
       })
