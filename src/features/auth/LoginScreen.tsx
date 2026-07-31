@@ -61,37 +61,39 @@ export function LoginScreen() {
   }
 
   return (
-    <div className="relative flex h-screen w-full flex-col items-center overflow-hidden bg-background px-6 pt-[12vh] print:hidden">
+    <div className="relative flex h-screen w-full flex-col items-center overflow-hidden bg-background px-6 pt-[10vh] print:hidden">
       <ScrewBackground unlocking={unlocking} />
 
       <motion.div
-        className="relative z-10 flex w-full max-w-sm flex-col items-center gap-12"
-        animate={unlocking ? { opacity: 0 } : { opacity: 1 }}
+        className="relative z-10 w-full max-w-sm rounded-2xl border border-border/50 bg-muted/60 px-8 py-11 shadow-elevated backdrop-blur-xl dark:border-white/[0.08] dark:bg-white/[0.03] sm:px-10"
+        animate={unlocking ? { opacity: 0, scale: 0.98 } : { opacity: 1, scale: 1 }}
         transition={{ duration: 0.35, ease: 'easeOut' }}
       >
-        <AuthScreenHeader title="Enter Your PIN" subtitle={BRAND.tagline} pulseLogo={unlocking} />
+        <div className="flex flex-col items-center gap-11">
+          <AuthScreenHeader title="Enter Your PIN" subtitle={BRAND.tagline} pulseLogo={unlocking} />
 
-        <PinPad value={pin} onChange={setPin} length={PIN_LENGTH} error={error} disabled={busy && !error} />
+          <PinPad value={pin} onChange={setPin} length={PIN_LENGTH} error={error} disabled={busy && !error} />
 
-        <div className="flex flex-col items-center gap-4">
-          {canUseBiometrics && (
+          <div className="flex w-full flex-col items-center gap-4 border-t border-border/60 pt-6 dark:border-white/10">
+            {canUseBiometrics && (
+              <button
+                type="button"
+                onClick={handleBiometrics}
+                disabled={busy}
+                className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-primary-700 transition-colors hover:text-primary-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:text-primary-300 dark:hover:text-primary-200"
+              >
+                <Fingerprint className="h-4 w-4" aria-hidden="true" />
+                Use Biometrics
+              </button>
+            )}
             <button
               type="button"
-              onClick={handleBiometrics}
-              disabled={busy}
-              className="flex items-center gap-1.5 text-sm font-medium text-primary-700 transition-colors hover:text-primary-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md px-2 py-1 dark:text-primary-300 dark:hover:text-primary-200"
+              onClick={() => setForgotOpen(true)}
+              className="rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
-              <Fingerprint className="h-4 w-4" aria-hidden="true" />
-              Use Biometrics
+              Forgot PIN
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setForgotOpen(true)}
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md px-2 py-1"
-          >
-            Forgot PIN
-          </button>
+          </div>
         </div>
       </motion.div>
 

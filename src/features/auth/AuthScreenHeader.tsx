@@ -26,8 +26,8 @@ export function AuthScreenHeader({ title, subtitle, className, pulseLogo = false
       >
         <Logo className="h-10 w-auto" />
       </motion.div>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">{title}</h1>
-      <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">{subtitle}</p>
+      <h1 className="text-3xl font-bold tracking-tight text-foreground">{title}</h1>
+      <p className="max-w-[15rem] text-[13px] leading-relaxed text-muted-foreground/80">{subtitle}</p>
     </div>
   )
 }
