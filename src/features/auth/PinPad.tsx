@@ -7,25 +7,35 @@ import { cn } from '@/lib/utils'
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
 
 /**
- * Keys need to read as physical, pressable controls at a glance — a plain
- * bordered circle on a near-identical surface color (the previous approach)
- * doesn't clear that bar. Elevation here comes from lightness contrast
- * against the card (crucial in dark mode, where shadows barely register)
- * plus a real shadow in light mode, a teal-tinted hover, and a confident
- * primary-colored focus ring.
+ * Keys need to read as physical, pressable hardware at a glance. That
+ * comes from layering, not a single flat color: an inset highlight along
+ * the top rim (light catching a raised edge), a real two-tier shadow
+ * (a tight contact shadow plus a soft ambient one — not one flat blur) to
+ * lift the key off the card, a crisp rim border, a hover state that lifts
+ * the key further and brightens the rim toward primary, and a pressed
+ * state that flattens the key back down with a brief primary glow instead
+ * of just a plain darker fill. Dark mode leans on a lighter fill for
+ * contrast rather than shadow, since shadows barely register on dark
+ * backgrounds.
  */
 const KEY_CLASS = cn(
-  'flex h-18 w-18 items-center justify-center rounded-full text-xl font-semibold text-foreground',
-  'bg-card shadow-[0_1px_2px_rgba(15,23,42,0.06),0_6px_16px_rgba(15,23,42,0.10)] border border-black/[0.04]',
-  'dark:bg-white/[0.09] dark:shadow-none dark:border-white/[0.08]',
-  'transition-colors duration-150 disabled:cursor-not-allowed',
-  'hover:bg-primary/10 hover:text-primary-700 dark:hover:bg-white/[0.14] dark:hover:text-primary-300',
+  'relative flex h-20 w-20 items-center justify-center rounded-full text-2xl font-semibold text-foreground select-none',
+  'bg-gradient-to-b from-card to-card/85 border border-black/[0.06]',
+  'shadow-[inset_0_1px_0_rgba(255,255,255,0.9),inset_0_-1px_1px_rgba(15,23,42,0.04),0_1px_2px_rgba(15,23,42,0.06),0_12px_20px_-8px_rgba(15,23,42,0.22)]',
+  'dark:from-white/[0.10] dark:to-white/[0.035] dark:border-white/[0.12]',
+  'dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.14),inset_0_-1px_1px_rgba(0,0,0,0.3),0_1px_2px_rgba(0,0,0,0.4),0_14px_24px_-8px_rgba(0,0,0,0.55)]',
+  'transition-all duration-150 ease-out disabled:cursor-not-allowed',
+  'hover:-translate-y-[3px] hover:border-primary/40',
+  'hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9),inset_0_-1px_1px_rgba(15,23,42,0.04),0_1px_2px_rgba(15,23,42,0.06),0_18px_28px_-8px_rgba(15,23,42,0.28),0_0_0_5px_hsl(var(--primary)/0.10)]',
+  'dark:hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-1px_1px_rgba(0,0,0,0.3),0_1px_2px_rgba(0,0,0,0.4),0_20px_32px_-8px_rgba(0,0,0,0.6),0_0_0_5px_hsl(var(--primary)/0.16)]',
+  'active:translate-y-0 active:border-primary/60',
+  'active:shadow-[inset_0_2px_5px_rgba(15,23,42,0.18),0_0_16px_2px_hsl(var(--primary)/0.35)]',
+  'dark:active:shadow-[inset_0_2px_5px_rgba(0,0,0,0.5),0_0_20px_3px_hsl(var(--primary)/0.4)]',
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-  'active:bg-primary/15 dark:active:bg-white/[0.18]',
 )
 
 /** Spring-based tap feedback — a quick, snappy compress-and-release rather than a flat CSS scale. */
-const KEY_TAP = { scale: 0.88 }
+const KEY_TAP = { scale: 0.9 }
 const KEY_TAP_TRANSITION = { type: 'spring' as const, stiffness: 500, damping: 20 }
 
 interface PinPadProps {
@@ -65,7 +75,7 @@ export function PinPad({ value, onChange, length = 4, error = false, success = f
   }
 
   return (
-    <div className="flex flex-col items-center gap-10">
+    <div className="flex flex-col items-center gap-11">
       <input
         ref={inputRef}
         type="text"
@@ -79,7 +89,7 @@ export function PinPad({ value, onChange, length = 4, error = false, success = f
         className="sr-only"
       />
       <PinDots length={length} filled={value.length} error={error} success={success} />
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-5">
         {KEYS.map((digit) => (
           <motion.button
             key={digit}
@@ -111,12 +121,7 @@ export function PinPad({ value, onChange, length = 4, error = false, success = f
           whileTap={disabled || value.length === 0 ? undefined : KEY_TAP}
           transition={KEY_TAP_TRANSITION}
           aria-label="Delete last digit"
-          className={cn(
-            'flex h-18 w-18 items-center justify-center rounded-full text-muted-foreground transition-colors duration-150 disabled:cursor-not-allowed',
-            'hover:bg-primary/10 hover:text-primary-700 dark:hover:bg-white/[0.10] dark:hover:text-white',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-            (disabled || value.length === 0) && 'opacity-40',
-          )}
+          className={cn(KEY_CLASS, 'text-lg text-muted-foreground', (disabled || value.length === 0) && 'opacity-40')}
         >
           <Delete className="h-5 w-5" aria-hidden="true" />
         </motion.button>

@@ -77,10 +77,10 @@ export function OnboardingFlow() {
     <div className={`relative flex h-screen w-full flex-col items-center overflow-hidden px-6 pt-[10vh] print:hidden ${AUTH_BACKDROP_CLASS}`}>
       <ScrewBackground />
 
-      <div className={`relative z-10 w-full max-w-sm overflow-hidden px-8 py-11 sm:px-10 ${AUTH_CARD_CLASS}`}>
+      <div className={`relative z-10 w-full max-w-sm overflow-hidden px-9 py-12 sm:px-11 ${AUTH_CARD_CLASS}`}>
         <AnimatePresence mode="wait">
           {step === 'welcome' && (
-            <motion.div key="welcome" {...STEP_TRANSITION} className="flex flex-col items-center gap-11">
+            <motion.div key="welcome" {...STEP_TRANSITION} className="flex flex-col items-center gap-12">
               <AuthScreenHeader title="Welcome to ImplaTrax" subtitle={BRAND.tagline} />
               <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} onClick={() => setStep('details')}>
                 Create Workspace
@@ -89,10 +89,10 @@ export function OnboardingFlow() {
           )}
 
           {step === 'details' && (
-            <motion.div key="details" {...STEP_TRANSITION} className="flex flex-col items-center gap-9">
+            <motion.div key="details" {...STEP_TRANSITION} className="flex flex-col items-center gap-10">
               <AuthScreenHeader title="Set Up Your Workspace" subtitle="Tell us a little about your practice." />
-              <div className="flex w-full flex-col gap-4">
-                <div className="flex flex-col gap-1.5">
+              <div className="flex w-full flex-col gap-5">
+                <div className="flex flex-col gap-2">
                   <Label htmlFor="workspaceName">Workspace Name</Label>
                   <Input
                     id="workspaceName"
@@ -103,11 +103,11 @@ export function OnboardingFlow() {
                     className={AUTH_INPUT_CLASS}
                   />
                 </div>
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-2">
                   <Label htmlFor="yourName">Your Name</Label>
                   <Input id="yourName" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" className={AUTH_INPUT_CLASS} />
                 </div>
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-2">
                   <Label htmlFor="contact">Mobile Number or Email</Label>
                   <Input
                     id="contact"
@@ -125,7 +125,7 @@ export function OnboardingFlow() {
           )}
 
           {step === 'pin' && !pinConfirmed && (
-            <motion.div key="pin" {...STEP_TRANSITION} className="flex flex-col items-center gap-11">
+            <motion.div key="pin" {...STEP_TRANSITION} className="flex flex-col items-center gap-12">
               <AuthScreenHeader
                 title={pinPhase === 'create' ? 'Create Your PIN' : 'Confirm Your PIN'}
                 subtitle={pinPhase === 'create' ? 'Choose a 4-digit PIN to secure your workspace.' : 'Re-enter your PIN to confirm.'}
@@ -135,7 +135,7 @@ export function OnboardingFlow() {
           )}
 
           {step === 'pin' && pinConfirmed && (
-            <motion.div key="finish" {...STEP_TRANSITION} className="flex flex-col items-center gap-9">
+            <motion.div key="finish" {...STEP_TRANSITION} className="flex flex-col items-center gap-10">
               <AuthScreenHeader title="You're All Set" subtitle="Your workspace is ready to use." />
               {biometricsSupported && (
                 <div className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-card/60 px-4 py-3 dark:border-white/10">

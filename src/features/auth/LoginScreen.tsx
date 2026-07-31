@@ -66,11 +66,11 @@ export function LoginScreen() {
       <ScrewBackground unlocking={unlocking} />
 
       <motion.div
-        className={`relative z-10 w-full max-w-sm px-8 py-11 sm:px-10 ${AUTH_CARD_CLASS}`}
+        className={`relative z-10 w-full max-w-sm px-9 py-12 sm:px-11 ${AUTH_CARD_CLASS}`}
         animate={unlocking ? { opacity: 0, scale: 0.98 } : { opacity: 1, scale: 1 }}
         transition={{ duration: 0.35, ease: PREMIUM_EASE }}
       >
-        <div className="flex flex-col items-center gap-11">
+        <div className="flex flex-col items-center gap-12">
           <AuthScreenHeader title="Enter Your PIN" subtitle={BRAND.tagline} pulseLogo={unlocking} />
 
           <PinPad value={pin} onChange={setPin} length={PIN_LENGTH} error={error} success={unlocking} disabled={busy && !error} />

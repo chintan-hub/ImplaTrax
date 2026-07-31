@@ -35,6 +35,12 @@ const maskStyle = {
  * where the blur meets the viewport boundary on the *other* axis (very
  * visible on narrow/mobile screens); tying the size to whichever axis is
  * smaller keeps a safe blur-fade margin on every screen size.
+ *
+ * Anchored near the top of the viewport (matching the card's own fixed
+ * offset) rather than centered in the full page — the mark's widest part
+ * sits roughly behind the card and its tapering shaft extends below it,
+ * so it reads as part of the same composition instead of a separate glow
+ * floating underneath.
  */
 export function ScrewBackground({ className, unlocking = false }: ScrewBackgroundProps) {
   const [reducedMotion, setReducedMotion] = useState(false)
@@ -83,7 +89,10 @@ export function ScrewBackground({ className, unlocking = false }: ScrewBackgroun
   }, [offsetX, offsetY, unlocking, reducedMotion])
 
   return (
-    <div className={cn('pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden', className)} aria-hidden="true">
+    <div
+      className={cn('pointer-events-none absolute inset-0 flex items-start justify-center overflow-hidden pt-[9vh]', className)}
+      aria-hidden="true"
+    >
       <motion.div style={{ x: springX, y: springY }} className="h-[min(65vh,70vw)] w-[min(65vh,70vw)] max-w-none">
         <motion.div
           className="relative h-full w-full"

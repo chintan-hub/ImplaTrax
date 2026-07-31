@@ -27,12 +27,16 @@ export function PinDots({ length, filled, error = false, success = false }: PinD
             initial={false}
             animate={
               success
-                ? { scale: [1, 1.35, 1.05] }
-                : { scale: isFilled && !error ? [1, 1.25, 1] : 1 }
+                ? { scale: [1, 1.4, 1.05] }
+                : { scale: isFilled && !error ? [0.6, 1.3, 1] : 1 }
             }
-            transition={{ duration: success ? 0.45 : 0.25, ease: 'easeOut', delay: success ? i * 0.05 : 0 }}
+            transition={
+              success
+                ? { duration: 0.45, ease: 'easeOut', delay: i * 0.05 }
+                : { type: 'spring', stiffness: 450, damping: 16 }
+            }
             className={cn(
-              'h-4 w-4 rounded-full border-2 transition-colors duration-150',
+              'h-4.5 w-4.5 rounded-full border-2 transition-colors duration-150',
               error
                 ? 'border-danger bg-danger/25'
                 : isFilled
