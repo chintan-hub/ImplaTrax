@@ -15,9 +15,9 @@ interface AuthScreenHeaderProps {
  */
 export function AuthScreenHeader({ title, subtitle, className }: AuthScreenHeaderProps) {
   return (
-    <div className={cn('flex flex-col items-center gap-2 text-center', className)}>
+    <div className={cn('flex flex-col items-center gap-3 text-center', className)}>
       <h1 className="text-[2.25rem] font-bold leading-[1.1] tracking-[-0.02em] text-foreground">{title}</h1>
-      <p className="max-w-[15rem] text-[13px] leading-relaxed text-muted-foreground/70">{subtitle}</p>
+      <p className="max-w-[15rem] text-[13px] leading-relaxed text-muted-foreground/70 dark:text-muted-foreground/85">{subtitle}</p>
     </div>
   )
 }

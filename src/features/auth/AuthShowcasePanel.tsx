@@ -46,9 +46,13 @@ function buildParticles(): Particle[] {
  * that carries the implant-screw brand mark as a large, clearly-visible
  * hero graphic — not a faint watermark. Built from the same flat alpha-mask
  * silhouette used elsewhere, given the illusion of a lit 3D object purely
- * with layered CSS: a soft ambient glow, a top-lit gradient base coat, and a
- * small crisp offset rim-light layer, plus a grounding floor shadow and a
- * scattering of slowly drifting particles for atmosphere.
+ * with layered CSS: a soft ambient glow (slowly pulsing, never static), a
+ * top-lit gradient base coat, and a small crisp offset rim-light layer, plus
+ * a grounding floor shadow and a scattering of slowly drifting particles for
+ * atmosphere. Visible at every breakpoint — shrunk to a shallow banner
+ * above the content on mobile rather than hidden, so branding and artwork
+ * stay part of the composition everywhere (see the className each screen
+ * passes in for the exact per-breakpoint size/position).
  */
 export function AuthShowcasePanel({ className, unlocking = false }: AuthShowcasePanelProps) {
   const [reducedMotion, setReducedMotion] = useState(false)
@@ -112,10 +116,13 @@ export function AuthShowcasePanel({ className, unlocking = false }: AuthShowcase
 
       <motion.div
         style={{ x: springX, y: springY }}
-        className="relative h-[42vh] w-[42vh] max-w-[70%] sm:h-[48vh] sm:w-[48vh] lg:h-[54vh] lg:w-[54vh]"
+        className="relative h-[18vh] w-[18vh] max-w-[42%] sm:h-[20vh] sm:w-[20vh] md:h-[46vh] md:w-[46vh] lg:h-[58vh] lg:w-[58vh]"
       >
         {/* floor shadow — grounds the mark instead of letting it float free */}
         <div className="absolute inset-x-[18%] bottom-[3%] h-8 rounded-full bg-black/50 blur-xl" />
+
+        {/* far halo — a second, wider, fainter ring of glow further out for extra depth behind the ambient glow */}
+        <div className="absolute inset-0 scale-125 bg-primary-500/15 blur-[64px]" style={maskStyle} />
 
         <motion.div
           className="relative h-full w-full"
@@ -134,8 +141,13 @@ export function AuthShowcasePanel({ className, unlocking = false }: AuthShowcase
                 : { duration: 16, repeat: Infinity, ease: 'easeInOut' }
           }
         >
-          {/* ambient glow */}
-          <div className="absolute inset-0 scale-110 bg-primary-500/40 blur-3xl" style={maskStyle} />
+          {/* ambient glow — a slow pulse so the whole mark feels gently alive rather than a static sticker */}
+          <motion.div
+            className="absolute inset-0 scale-110 bg-primary-500/30 blur-3xl"
+            style={maskStyle}
+            animate={reducedMotion ? undefined : { opacity: [0.75, 1, 0.75] }}
+            transition={reducedMotion ? undefined : { duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+          />
           {/* base coat — lit-from-above gradient fill so the mark reads as dimensional, not a flat silhouette */}
           <div className="absolute inset-0 bg-gradient-to-b from-primary-200 via-primary-500 to-primary-800" style={maskStyle} />
           {/* rim light — crisp offset highlight implying a light source up-left */}

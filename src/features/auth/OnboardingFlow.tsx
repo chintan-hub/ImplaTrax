@@ -11,7 +11,7 @@ import { AuthBrandBlock } from './AuthBrandBlock'
 import { PinPad } from './PinPad'
 import { AuthScreenHeader } from './AuthScreenHeader'
 import { isPlatformAuthenticatorAvailable } from './webauthn'
-import { AUTH_BACKDROP_CLASS, AUTH_CARD_CLASS, AUTH_INPUT_CLASS, CTA_BUTTON_CLASS, STEP_TRANSITION } from './authTheme'
+import { AUTH_BACKDROP_CLASS, AUTH_CARD_CLASS, AUTH_CARD_MOTION, AUTH_INPUT_CLASS, CTA_BUTTON_CLASS, STEP_TRANSITION } from './authTheme'
 
 const PIN_LENGTH = 4
 
@@ -75,17 +75,17 @@ export function OnboardingFlow() {
 
   return (
     <div className="relative flex min-h-screen w-full flex-col md:flex-row print:hidden">
-      <AuthShowcasePanel className="hidden md:sticky md:top-0 md:flex md:h-screen md:w-[32%] md:items-center md:justify-center lg:w-[40%]" />
+      <AuthShowcasePanel className="flex h-[26vh] w-full items-center justify-center sm:h-[30vh] md:sticky md:top-0 md:h-screen md:w-[32%] lg:w-[40%]" />
 
       <div
-        className={`relative flex w-full flex-1 flex-col items-center gap-10 px-6 py-12 md:w-[68%] md:justify-center lg:w-[60%] ${AUTH_BACKDROP_CLASS}`}
+        className={`relative flex w-full flex-1 flex-col items-center gap-11 px-6 py-12 md:w-[68%] md:justify-center lg:w-[60%] ${AUTH_BACKDROP_CLASS}`}
       >
         <AuthBrandBlock />
 
-        <div className={`relative w-full max-w-sm overflow-hidden px-8 py-10 sm:px-10 ${AUTH_CARD_CLASS}`}>
+        <motion.div {...AUTH_CARD_MOTION} className={`overflow-hidden ${AUTH_CARD_CLASS}`}>
           <AnimatePresence mode="wait">
             {step === 'welcome' && (
-              <motion.div key="welcome" {...STEP_TRANSITION} className="flex flex-col items-center gap-10">
+              <motion.div key="welcome" {...STEP_TRANSITION} className="flex flex-col items-center gap-11">
                 <AuthScreenHeader title="Welcome to ImplaTrax" subtitle="Let's get your workspace set up." />
                 <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} onClick={() => setStep('details')}>
                   Create Workspace
@@ -94,7 +94,7 @@ export function OnboardingFlow() {
             )}
 
             {step === 'details' && (
-              <motion.div key="details" {...STEP_TRANSITION} className="flex flex-col items-center gap-10">
+              <motion.div key="details" {...STEP_TRANSITION} className="flex flex-col items-center gap-11">
                 <AuthScreenHeader title="Set Up Your Workspace" subtitle="Tell us a little about your practice." />
                 <div className="flex w-full flex-col gap-5">
                   <div className="flex flex-col gap-2">
@@ -136,7 +136,7 @@ export function OnboardingFlow() {
             )}
 
             {step === 'pin' && !pinConfirmed && (
-              <motion.div key="pin" {...STEP_TRANSITION} className="flex flex-col items-center gap-12">
+              <motion.div key="pin" {...STEP_TRANSITION} className="flex flex-col items-center gap-11">
                 <AuthScreenHeader
                   title={pinPhase === 'create' ? 'Create Your PIN' : 'Confirm Your PIN'}
                   subtitle={pinPhase === 'create' ? 'Choose a 4-digit PIN to secure your workspace.' : 'Re-enter your PIN to confirm.'}
@@ -146,7 +146,7 @@ export function OnboardingFlow() {
             )}
 
             {step === 'pin' && pinConfirmed && (
-              <motion.div key="finish" {...STEP_TRANSITION} className="flex flex-col items-center gap-10">
+              <motion.div key="finish" {...STEP_TRANSITION} className="flex flex-col items-center gap-11">
                 <AuthScreenHeader title="You're All Set" subtitle="Your workspace is ready to use." />
                 {biometricsSupported && (
                   <div className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-card/60 px-4 py-3 dark:border-white/10">
@@ -163,7 +163,7 @@ export function OnboardingFlow() {
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
+        </motion.div>
       </div>
     </div>
   )
