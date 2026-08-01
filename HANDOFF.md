@@ -135,11 +135,11 @@ The roadmap is ordered **Priority 1 → 4 by business value**, not by implementa
 ### Priority 2 — missing screens/detail pages
 P2-A Vendor Detail Page ✅ (done — see §5) · **P2-B Lab Cases Drill-Down** (confirmed still open: `LabDetailPage.tsx`'s `labCases` is computed but only used for a stat-card count, no list rendered) · **P2-C Users Role Editing** (confirmed still open: `UsersPage.tsx` is still display-only, no edit capability, the Role Permissions matrix is still pure documentation) · P2-D Product Edit ✅ (done — see §5) · P2-E Patient Edit ✅ (done — see §5).
 
-### Priority 3 — UX polish
-P3-A Sticky Page Headers · P3-B Sticky Table Headers (fixes a confirmed `Table.tsx` bug — nested `overflow-auto` traps vertical scroll) · P3-C Responsive List Pages · P3-D No-Wasted-Clicks Final Audit Pass · P3-E Empty/Loading/Error States + root `ErrorBoundary` (cheap, could be done opportunistically any time per its own risk note) · P3-F Search & Filter Consistency.
+### Priority 3 — UX polish ✅ Complete (all of P3-A through P3-F done 2026-07-30)
+**P3-A Sticky Page Headers ✅** · **P3-B Sticky Table Headers ✅** (fixed the confirmed `Table.tsx` bug via a bounded self-contained scroll box per table rather than page-level bubbling — see `DEVELOPMENT_PLAN.md`'s status note for why) · **P3-C Responsive List Pages ✅** · **P3-D No-Wasted-Clicks Final Audit Pass ✅** · **P3-E Empty/Loading/Error State Consistency + root `ErrorBoundary` ✅** · **P3-F Search & Filter Consistency ✅**.
 
 ### Priority 4 — reusable interaction primitives
-P4-A Sticky Stack Primitive · P4-B Multi-Selection System (the highest-complexity item in the whole plan — full desktop-grade rubber-band selection; **blocked on your confirmation of click-select-vs-click-open**, see below) · P4-C Roll Out Selection + Bulk Actions · P4-D Keyboard Shortcuts + Command Palette Actions.
+**P4-D Keyboard Shortcuts + Command Palette Actions ✅** (done 2026-07-30 — `⌘K` now goes through a real registered-shortcut layer, `src/hooks/useKeyboardShortcuts.tsx`, and the palette can run 6 real actions). P4-A Sticky Stack Primitive was deliberately **held, not skipped** — its only stated justification is letting P4-C's future bulk-action bar mount/unmount without manual offset math, which can't be built or verified before P4-B/C exist; building it now would be refactoring already-correct, already-tested P3-A/B code against a spec that can't be exercised yet. Do it once P4-B/C are unblocked (see below), not before. P4-B Multi-Selection System (the highest-complexity item in the whole plan — full desktop-grade rubber-band selection; **still blocked on your confirmation of click-select-vs-click-open**, see below — this was asked again and not yet answered) · P4-C Roll Out Selection + Bulk Actions (blocked behind P4-B).
 
 ### Open product decisions still outstanding (don't guess these — ask the user)
 From `AUDIT.md`'s "Open product decisions" list and `DEVELOPMENT_PLAN.md`'s summary table:
