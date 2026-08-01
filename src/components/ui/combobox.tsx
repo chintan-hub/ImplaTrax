@@ -22,6 +22,14 @@ interface ComboboxProps {
   /** When provided, typing a name with no exact match offers an inline "create" option. */
   onCreate?: (typed: string) => void
   createLabel?: (typed: string) => string
+  /**
+   * Keep the create row visible regardless of search text — for an action
+   * that always makes sense (e.g. "+ Add New Patient", which opens a full
+   * form rather than creating a record from the typed string) as opposed to
+   * the default behavior, which only offers to create a record named
+   * exactly what's been typed once it doesn't already match one.
+   */
+  alwaysShowCreate?: boolean
   className?: string
   disabled?: boolean
   triggerAriaLabel?: string
@@ -36,6 +44,7 @@ export function Combobox({
   emptyText = 'No results found.',
   onCreate,
   createLabel = (typed) => `Add "${typed}"`,
+  alwaysShowCreate = false,
   className,
   disabled,
   triggerAriaLabel,
@@ -48,7 +57,7 @@ export function Combobox({
   const q = search.trim().toLowerCase()
   const filtered = q ? options.filter((o) => matchText(o).includes(q)) : options
   const exactMatch = options.some((o) => matchText(o) === q)
-  const canCreate = !!onCreate && q.length > 0 && !exactMatch
+  const canCreate = !!onCreate && (alwaysShowCreate || (q.length > 0 && !exactMatch))
 
   const handleSelect = (optValue: string) => {
     onChange(optValue)

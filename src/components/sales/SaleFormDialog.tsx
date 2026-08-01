@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Combobox } from '@/components/ui/combobox'
+import { PatientFormDialog } from '@/components/patients/PatientFormDialog'
 import { useData } from '@/store/DataContext'
 import { patientFullName } from '@/mocks/patients'
 import { simulateLatency } from '@/lib/utils'
@@ -17,11 +18,17 @@ import type { SaleLine } from '@/types'
 export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const { patients, cases, products, createSale, clinicSettings } = useData()
   const { format } = useCurrencyFormat()
-  const [patientId, setPatientId] = useState<string>('none')
+  const [patientId, setPatientId] = useState<string>('')
   const [caseId, setCaseId] = useState<string>('none')
   const [lines, setLines] = useState<SaleLine[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const [patientError, setPatientError] = useState(false)
+  const [addingPatient, setAddingPatient] = useState(false)
 
+  const patientOptions = useMemo(
+    () => patients.map((p) => ({ value: p.id, label: `${patientFullName(p)} · ${p.patientCode}`, searchValue: `${patientFullName(p)} ${p.patientCode}` })),
+    [patients],
+  )
   const patientCases = useMemo(() => cases.filter((c) => c.patientId === patientId), [cases, patientId])
   const total = lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0)
 
@@ -48,12 +55,32 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const removeLine = (i: number) => setLines((prev) => prev.filter((_, idx) => idx !== i))
 
   const reset = () => {
-    setPatientId('none')
+    setPatientId('')
     setCaseId('none')
     setLines([])
+    setPatientError(false)
+  }
+
+  const handlePatientChange = (v: string) => {
+    setPatientId(v)
+    setCaseId('none')
+    setPatientError(false)
+  }
+
+  // Opened from the Combobox's always-visible "+ Add New Patient" row — the
+  // sale's line items live in this component's own state, untouched by
+  // whatever happens in the nested PatientFormDialog, so nothing entered so
+  // far is lost while the user steps away to create the patient.
+  const handlePatientCreated = (patient: { id: string }) => {
+    handlePatientChange(patient.id)
   }
 
   const handleSubmit = async () => {
+    if (!patientId) {
+      setPatientError(true)
+      toast.error('Patient is required to record a sale.')
+      return
+    }
     if (lines.length === 0) {
       toast.error('Add at least one product line.')
       return
@@ -65,7 +92,7 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     setSubmitting(true)
     await simulateLatency()
     try {
-      const sale = createSale(lines, patientId === 'none' ? undefined : patientId, caseId === 'none' ? undefined : caseId)
+      const sale = createSale(lines, patientId, caseId === 'none' ? undefined : caseId)
       toast.success(`Sale ${sale.saleNumber} recorded`, { description: `${format(sale.total)} · stock updated` })
       reset()
       onOpenChange(false)
@@ -77,27 +104,35 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); onOpenChange(v) }}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Record Sale</DialogTitle>
-          <DialogDescription>A sale marks products as permanently used. Stock is deducted immediately.</DialogDescription>
+          <DialogDescription>A sale marks products as permanently used in a patient. Stock is deducted immediately.</DialogDescription>
         </DialogHeader>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label>Patient (optional)</Label>
-            <Select value={patientId} onValueChange={(v) => { setPatientId(v); setCaseId('none') }}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent className="max-h-72">
-                <SelectItem value="none">Direct sale (no patient)</SelectItem>
-                {patients.map((p) => <SelectItem key={p.id} value={p.id}>{patientFullName(p)}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Label>Patient *</Label>
+            <Combobox
+              options={patientOptions}
+              value={patientId}
+              onChange={handlePatientChange}
+              placeholder="Search or select patient"
+              searchPlaceholder="Search name or patient ID..."
+              emptyText="No patients found."
+              onCreate={() => setAddingPatient(true)}
+              createLabel={() => '+ Add New Patient'}
+              alwaysShowCreate
+              triggerAriaLabel="Patient"
+              className={patientError ? 'border-danger-500' : undefined}
+            />
+            {patientError && <p className="text-xs text-danger-600">Patient is required to record a sale.</p>}
           </div>
           <div className="space-y-1.5">
             <Label>Case (optional)</Label>
-            <Select value={caseId} onValueChange={setCaseId} disabled={patientId === 'none'}>
+            <Select value={caseId} onValueChange={setCaseId} disabled={!patientId}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent className="max-h-72">
                 <SelectItem value="none">No case</SelectItem>
@@ -167,5 +202,8 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <PatientFormDialog open={addingPatient} onOpenChange={setAddingPatient} onCreated={handlePatientCreated} />
+    </>
   )
 }

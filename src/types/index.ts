@@ -271,7 +271,9 @@ export interface SaleLine {
 export interface Sale {
   id: ID
   saleNumber: string // SL-2026-00001
-  patientId?: ID
+  // A Sale represents permanent placement of a component into a patient —
+  // it can never exist without one (PROJECT.md's core business invariant).
+  patientId: ID
   caseId?: ID
   lines: SaleLine[]
   total: number

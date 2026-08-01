@@ -118,7 +118,7 @@ export function SalesPage() {
                         {s.voidedAt && <Badge variant="secondary">Voided</Badge>}
                       </div>
                     </TableCell>
-                    <TableCell>{patient ? patientFullName(patient) : <span className="text-muted-foreground">Direct sale</span>}</TableCell>
+                    <TableCell>{patient ? patientFullName(patient) : <span className="text-muted-foreground">Unknown patient</span>}</TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">{caseRecord?.caseId ?? '—'}</TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-0.5">
