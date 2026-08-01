@@ -52,12 +52,17 @@ const KIND_EYEBROW: Record<DocumentKind, string> = {
 }
 
 /**
- * Shared print/PDF shell for every generated document. The clinic's own
- * name/address leads the header; the ImplaTrax logo appears small in the
- * footer as a watermark, not a competing brand. Colors are plain neutral
- * grays (not the app's themeable CSS variables) — a printed document is
- * always on white paper regardless of the app's light/dark theme, so it
- * shouldn't depend on that system at all.
+ * Shared print/PDF shell for every generated document — the white-label
+ * brand hierarchy every document type inherits for free. PRIMARY branding
+ * is the clinic's own workspace logo (large, leading the header) with its
+ * name/address alongside; a clinic that hasn't uploaded one yet still gets
+ * a clean styled-name header instead of an empty gap. SECONDARY branding
+ * is ImplaTrax itself — a small "Powered by" mark in the footer,
+ * deliberately sized well under the workspace logo so the customer's own
+ * brand always reads as the hero. Colors are plain neutral grays (not the
+ * app's themeable CSS variables) — a printed document is always on white
+ * paper regardless of the app's light/dark theme, so it shouldn't depend
+ * on that system at all.
  */
 export function DocumentLayout({ title, documentNumber, kind = 'neutral', eyebrow, meta = [], banner, children }: DocumentLayoutProps) {
   const { clinicSettings } = useData()
@@ -65,12 +70,21 @@ export function DocumentLayout({ title, documentNumber, kind = 'neutral', eyebro
   return (
     <div className="mx-auto max-w-[210mm] bg-white p-10 text-[13px] leading-relaxed text-slate-900">
       <div className={`flex items-start justify-between gap-8 pb-5 ${KIND_RULE[kind]}`}>
-        <div>
-          <p className="text-2xl font-bold tracking-tight">{clinicSettings.clinicName}</p>
-          {clinicSettings.address && <p className="mt-1.5 text-slate-500">{clinicSettings.address}</p>}
-          {(clinicSettings.phone || clinicSettings.email) && (
-            <p className="text-slate-500">{[clinicSettings.phone, clinicSettings.email].filter(Boolean).join(' · ')}</p>
+        <div className="flex items-center gap-4">
+          {clinicSettings.logoDataUrl && (
+            <img
+              src={clinicSettings.logoDataUrl}
+              alt={`${clinicSettings.clinicName} logo`}
+              className="h-12 w-12 shrink-0 rounded-lg border border-slate-100 object-contain"
+            />
           )}
+          <div>
+            <p className="text-2xl font-bold tracking-tight">{clinicSettings.clinicName}</p>
+            {clinicSettings.address && <p className="mt-1.5 text-slate-500">{clinicSettings.address}</p>}
+            {(clinicSettings.phone || clinicSettings.email) && (
+              <p className="text-slate-500">{[clinicSettings.phone, clinicSettings.email].filter(Boolean).join(' · ')}</p>
+            )}
+          </div>
         </div>
         <div className="text-right">
           <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">{eyebrow ?? KIND_EYEBROW[kind]}</p>
@@ -99,7 +113,10 @@ export function DocumentLayout({ title, documentNumber, kind = 'neutral', eyebro
           <p>{MICROCOPY.documentFooter}</p>
           <p>Generated {formatDateTime(new Date())}</p>
         </div>
-        <img src={logo} alt="ImplaTrax" className="h-4 w-auto shrink-0 opacity-70" />
+        <div className="flex shrink-0 items-center gap-1.5 opacity-70">
+          <span className="text-[9px] uppercase tracking-wider">Powered by</span>
+          <img src={logo} alt="ImplaTrax" className="h-3 w-auto" />
+        </div>
       </div>
     </div>
   )

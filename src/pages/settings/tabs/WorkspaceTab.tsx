@@ -1,6 +1,6 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Plus, Link2, Users as UsersIcon, Building2 } from 'lucide-react'
+import { Plus, Link2, Users as UsersIcon, Building2, Image as ImageIcon, X } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,12 +13,85 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { formatDate, initials, simulateLatency } from '@/lib/utils'
 import { useAuth } from '@/features/auth/AuthContext'
+import { useData } from '@/store/DataContext'
 import { AccessDenied } from '@/features/auth/AccessDenied'
 import { AddMemberDialog } from '@/features/auth/components/AddMemberDialog'
 import { ACCOUNT_ROLES, WORKSPACE_MANAGER_ROLES, type AccountRole } from '@/features/auth/accountTypes'
 import { ROLE_LABEL, ROLE_BADGE_VARIANT } from '@/features/auth/roles'
 import { useDirtyState } from '@/hooks/useDirtyState'
+import { fileToResizedDataUrl } from '@/lib/imageResize'
 import { useRegisterSettingsSaveAction } from '../SettingsHeaderActionContext'
+
+/**
+ * Logo upload is saved immediately on change (not deferred to the tab's
+ * dirty-state Save bar) — a logo is a discrete asset swap, not a form field
+ * you'd want to accidentally discard by navigating away, and every other
+ * consumer (Sidebar, DocumentLayout) reads it straight from
+ * `clinicSettings.logoDataUrl` so it needs to be live immediately.
+ */
+function WorkspaceLogoCard() {
+  const { clinicSettings, updateClinicSettings } = useData()
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const hasLogo = Boolean(clinicSettings.logoDataUrl)
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setUploading(true)
+    try {
+      const dataUrl = await fileToResizedDataUrl(file)
+      updateClinicSettings({ logoDataUrl: dataUrl })
+      toast.success('Workspace logo updated', { description: 'Now shown across the app and on new documents.' })
+    } catch {
+      toast.error('Could not use that image', { description: 'Try a different file.' })
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleRemove = () => {
+    updateClinicSettings({ logoDataUrl: '' })
+    toast.success('Workspace logo removed', { description: 'Your workspace name will be used instead.' })
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-1.5">
+          <ImageIcon className="h-4 w-4" /> Workspace Logo
+        </CardTitle>
+        <CardDescription>Shown in the app sidebar and as the primary brand on invoices, challans, and reports</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-muted/40 dark:bg-black/20">
+            {hasLogo ? (
+              <img src={clinicSettings.logoDataUrl} alt="Workspace logo" className="h-full w-full object-contain p-1.5" />
+            ) : (
+              <Building2 className="h-8 w-8 text-muted-foreground/60" aria-hidden="true" />
+            )}
+          </div>
+          <div className="flex flex-1 flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} loading={uploading}>
+                {hasLogo ? 'Change Logo' : 'Upload Logo'}
+              </Button>
+              {hasLogo && (
+                <Button variant="ghost" size="sm" className="text-danger-700 dark:text-danger-500" onClick={handleRemove}>
+                  <X className="h-4 w-4" /> Remove
+                </Button>
+              )}
+              <input ref={fileInputRef} type="file" accept="image/*" className="sr-only" onChange={handleFileChange} />
+            </div>
+            <p className="text-xs text-muted-foreground">PNG or JPG, square works best. Optional — falls back to your workspace name if none is set.</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
 
 export function WorkspaceTab() {
   const {
@@ -101,6 +174,8 @@ export function WorkspaceTab() {
           <Input id="workspace-name" value={workspaceName} onChange={(e) => setWorkspaceName(e.target.value)} />
         </CardContent>
       </Card>
+
+      <WorkspaceLogoCard />
 
       <Card>
         <CardHeader>
