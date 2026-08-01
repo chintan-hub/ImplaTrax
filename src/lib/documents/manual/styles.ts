@@ -70,9 +70,11 @@ export const styles = StyleSheet.create({
     borderBottomColor: COLORS.slate200,
     paddingBottom: 8,
   },
-  runningHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  runningHeaderLogo: { width: 16, height: 16 },
-  runningHeaderWordmark: { fontFamily: FONT.bold, fontSize: 8.5, color: COLORS.slate900, letterSpacing: 0.2 },
+  // Height-only + objectFit: 'contain' — the source wordmark is ~3.56:1
+  // (wide), so pairing a hardcoded width with a hardcoded height (the old
+  // 16x16 square) squashed it. Letting width resolve from the intrinsic
+  // ratio is what keeps it crisp at any size.
+  runningHeaderLogo: { height: 20, objectFit: 'contain' },
   runningHeaderTitle: { fontFamily: FONT.regular, fontSize: 8.5, color: COLORS.slate500 },
 
   runningFooter: {

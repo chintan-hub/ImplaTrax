@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Page, View, Text, Image } from '@react-pdf/renderer'
 import logo from '@/assets/logo.png'
+import logoDark from '@/assets/logo-dark.png'
 import { styles, COLORS } from '../styles'
 
 interface ChapterPageProps {
@@ -23,10 +24,7 @@ export function ChapterPage({ chapterNumber, chapterTitle, children }: ChapterPa
   return (
     <Page size="A4" style={styles.page} id={`chapter-${chapterNumber}`} bookmark={`${chapterNumber}. ${chapterTitle}`}>
       <View fixed style={styles.runningHeader}>
-        <View style={styles.runningHeaderLeft}>
-          <Image src={logo} style={styles.runningHeaderLogo} />
-          <Text style={styles.runningHeaderWordmark}>ImplaTrax</Text>
-        </View>
+        <Image src={logo} style={styles.runningHeaderLogo} />
         <Text style={styles.runningHeaderTitle}>Chapter {chapterNumber} — {chapterTitle}</Text>
       </View>
 
@@ -45,6 +43,7 @@ export function ChapterDivider({ chapterNumber, title, description, screwMotif }
   return (
     <Page size="A4" style={{ backgroundColor: COLORS.obsidian, padding: 0 }}>
       <View style={{ position: 'absolute', right: -50, top: 70, opacity: 0.14 }}>{screwMotif}</View>
+      <Image src={logoDark} style={{ position: 'absolute', top: 56, left: 64, height: 20, objectFit: 'contain' }} />
       <View style={{ flex: 1, justifyContent: 'center', paddingLeft: 64, paddingRight: 90 }}>
         <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 11, color: COLORS.teal, letterSpacing: 2, marginBottom: 10 }}>
           CHAPTER {String(chapterNumber).padStart(2, '0')}
