@@ -1,8 +1,9 @@
 import { DocumentLayout } from './DocumentLayout'
-import { formatCurrency } from '@/lib/utils'
+import { useCurrencyFormat } from '@/hooks/useCurrencyFormat'
 import type { PurchaseOrderDocumentData } from './purchaseOrder'
 
 export function PurchaseOrderDocument({ data }: { data: PurchaseOrderDocumentData }) {
+  const { format } = useCurrencyFormat()
   return (
     <DocumentLayout
       title="Purchase Order"
@@ -35,8 +36,8 @@ export function PurchaseOrderDocument({ data }: { data: PurchaseOrderDocumentDat
               </td>
               <td className="py-3 text-right tabular-nums">{line.quantityOrdered}</td>
               <td className="py-3 text-right tabular-nums">{line.quantityReceived}</td>
-              <td className="py-3 text-right tabular-nums">{formatCurrency(line.unitCost)}</td>
-              <td className="py-3 text-right tabular-nums font-medium">{formatCurrency(line.lineTotal)}</td>
+              <td className="py-3 text-right tabular-nums">{format(line.unitCost)}</td>
+              <td className="py-3 text-right tabular-nums font-medium">{format(line.lineTotal)}</td>
             </tr>
           ))}
         </tbody>
@@ -46,7 +47,7 @@ export function PurchaseOrderDocument({ data }: { data: PurchaseOrderDocumentDat
         <div className="w-72 rounded-lg border-2 border-slate-900 px-5 py-4">
           <div className="flex items-baseline justify-between">
             <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Order Total</p>
-            <p className="text-3xl font-bold tracking-tight">{formatCurrency(data.total)}</p>
+            <p className="text-3xl font-bold tracking-tight">{format(data.total)}</p>
           </div>
         </div>
       </div>

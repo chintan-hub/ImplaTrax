@@ -116,7 +116,7 @@ export function AuthShowcasePanel({ className, unlocking = false }: AuthShowcase
 
       <motion.div
         style={{ x: springX, y: springY }}
-        className="relative h-[18vh] w-[18vh] max-w-[42%] sm:h-[20vh] sm:w-[20vh] md:h-[46vh] md:w-[46vh] lg:h-[58vh] lg:w-[58vh]"
+        className="relative h-[4vh] w-[4vh] max-w-[26%] sm:h-[20vh] sm:w-[20vh] md:h-[46vh] md:w-[46vh] lg:h-[58vh] lg:w-[58vh]"
       >
         {/* floor shadow — grounds the mark instead of letting it float free */}
         <div className="absolute inset-x-[18%] bottom-[3%] h-8 rounded-full bg-black/50 blur-xl" />

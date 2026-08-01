@@ -21,13 +21,15 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useData } from '@/store/DataContext'
 import { useChartColors } from '@/lib/chartColors'
-import { formatCurrency, formatDate, initials } from '@/lib/utils'
+import { useCurrencyFormat } from '@/hooks/useCurrencyFormat'
+import { formatDate, initials } from '@/lib/utils'
 import { openLoanValue } from '@/mocks/loans'
 import { PAGE_INTROS, BRAND } from '@/content/helpText'
 
 export function DashboardPage() {
   const { products, movements, purchaseOrders, loans, cases, sales, labs, users } = useData()
   const colors = useChartColors()
+  const { format } = useCurrencyFormat()
   const navigate = useNavigate()
 
   const stats = useMemo(() => {
@@ -83,12 +85,12 @@ export function DashboardPage() {
       </p>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <StatCard label="Inventory Value" value={formatCurrency(stats.inventoryValue)} icon={DollarSign} tone="default" onClick={() => navigate('/products')} />
+        <StatCard label="Inventory Value" value={format(stats.inventoryValue)} icon={DollarSign} tone="default" onClick={() => navigate('/products')} />
         <StatCard label="Low Stock Items" value={String(stats.lowStock.length)} icon={AlertTriangle} tone="warning" onClick={() => navigate('/inventory')} helpTerm="lowStock" />
         <StatCard label="Open Loans" value={String(stats.openLoans.length)} icon={HandCoins} tone="accent" onClick={() => navigate('/loans')} helpTerm="loan" />
         <StatCard label="Pending Purchase Orders" value={String(stats.pendingPOs.length)} icon={ClipboardList} tone="default" onClick={() => navigate('/purchase-orders')} helpTerm="purchaseOrder" />
         <StatCard label="Cases This Month" value={String(stats.casesThisMonth.length)} icon={FolderKanban} tone="success" onClick={() => navigate('/cases')} helpTerm="case" />
-        <StatCard label="Revenue (30d)" value={formatCurrency(stats.revenue30d)} icon={TrendingUp} tone="success" onClick={() => navigate('/sales')} />
+        <StatCard label="Revenue (30d)" value={format(stats.revenue30d)} icon={TrendingUp} tone="success" onClick={() => navigate('/sales')} />
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-5">
@@ -145,7 +147,7 @@ export function DashboardPage() {
                   width={100}
                 />
                 <Tooltip
-                  formatter={(v: number) => formatCurrency(v)}
+                  formatter={(v: number) => format(v)}
                   contentStyle={{ background: colors.chrome.surface, border: `1px solid ${colors.chrome.grid}`, borderRadius: 10, fontSize: 12 }}
                 />
                 <Bar dataKey="value" radius={[0, 4, 4, 0]} fill={colors.categorical[0]} barSize={16} />

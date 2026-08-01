@@ -11,11 +11,12 @@ export function buildSaleSummaryText(
   patient: Patient | undefined,
   caseRecord: Case | undefined,
   productById: Map<string, Product>,
+  currency: string,
 ): string {
   const lines = sale.lines
     .map((l) => {
       const product = productById.get(l.productId)
-      return `- ${product?.name ?? 'Unknown product'} — Qty ${l.quantity} @ ${formatCurrency(l.unitPrice)}`
+      return `- ${product?.name ?? 'Unknown product'} — Qty ${l.quantity} @ ${formatCurrency(l.unitPrice, currency)}`
     })
     .join('\n')
 
@@ -28,7 +29,7 @@ export function buildSaleSummaryText(
     'Items:',
     lines,
     '',
-    `Total: ${formatCurrency(sale.total)}`,
+    `Total: ${formatCurrency(sale.total, currency)}`,
   ].filter((x): x is string => x !== undefined).join('\n')
 }
 

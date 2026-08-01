@@ -24,7 +24,7 @@ import { ProductDetailSheet } from '@/components/products/ProductDetailSheet'
 import { ProductImportDialog } from '@/components/products/ProductImportDialog'
 import { IconHelp } from '@/components/ui/help-tooltip'
 import { useData } from '@/store/DataContext'
-import { formatCurrency } from '@/lib/utils'
+import { useCurrencyFormat } from '@/hooks/useCurrencyFormat'
 import { exportToCsv } from '@/lib/documents/csv'
 import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
 import { MANUFACTURERS, PRODUCT_CATEGORIES } from '@/types'
@@ -37,6 +37,7 @@ const columnHelper = createColumnHelper<Product>()
 
 export function ProductsPage() {
   const { products } = useData()
+  const { format } = useCurrencyFormat()
   const [params, setParams] = useSearchParams()
   const [view, setView] = useState<'card' | 'table'>('card')
   const [search, setSearch] = useState('')
@@ -113,7 +114,7 @@ export function ProductsPage() {
         header: () => <span className="block text-right">Price</span>,
         cell: (info) => (
           <span className="block text-right tabular-nums">
-            {info.row.original.priceVisible ? formatCurrency(info.getValue()) : '—'}
+            {info.row.original.priceVisible ? format(info.getValue()) : '—'}
           </span>
         ),
       }),
@@ -122,7 +123,7 @@ export function ProductsPage() {
         cell: (info) => <Badge variant={info.getValue() === 'active' ? 'success' : 'secondary'}>{info.getValue()}</Badge>,
       }),
     ],
-    [],
+    [format],
   )
 
   const table = useReactTable({

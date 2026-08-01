@@ -11,7 +11,8 @@ import { BarcodeDisplay, QRDisplay } from '@/components/shared/Barcode'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { TermHint } from '@/components/ui/help-tooltip'
 import { useData } from '@/store/DataContext'
-import { formatCurrency, formatDate, formatDateTime, simulateLatency } from '@/lib/utils'
+import { formatDate, formatDateTime, simulateLatency } from '@/lib/utils'
+import { useCurrencyFormat } from '@/hooks/useCurrencyFormat'
 import { MICROCOPY } from '@/content/helpText'
 import { patientFullName } from '@/mocks/patients'
 import { summarizeLots } from '@/lib/batches'
@@ -60,6 +61,7 @@ function HistorySection({
 
 export function ProductDetailSheet({ product, open, onOpenChange }: { product: Product | null; open: boolean; onOpenChange: (v: boolean) => void }) {
   const { movements, adjustStock, vendors, labs, patients, batches, cases, clinicSettings } = useData()
+  const { format } = useCurrencyFormat()
   const [adjustDelta, setAdjustDelta] = useState(1)
   const [reason, setReason] = useState('')
   const [pendingSign, setPendingSign] = useState<1 | -1 | null>(null)
@@ -154,11 +156,11 @@ export function ProductDetailSheet({ product, open, onOpenChange }: { product: P
               <>
                 <div>
                   <p className="text-muted-foreground">Unit cost</p>
-                  <p className="font-medium tabular-nums text-base">{formatCurrency(product.unitCost)}</p>
+                  <p className="font-medium tabular-nums text-base">{format(product.unitCost)}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Unit price</p>
-                  <p className="font-medium tabular-nums text-base">{formatCurrency(product.unitPrice)}</p>
+                  <p className="font-medium tabular-nums text-base">{format(product.unitPrice)}</p>
                 </div>
               </>
             )}

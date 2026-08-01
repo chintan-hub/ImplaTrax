@@ -13,7 +13,8 @@ import { Progress } from '@/components/ui/progress'
 import { POFormDialog } from '@/components/purchase-orders/POFormDialog'
 import { POStatusActions } from '@/components/purchase-orders/POStatusActions'
 import { useData } from '@/store/DataContext'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { useCurrencyFormat } from '@/hooks/useCurrencyFormat'
 import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
 import type { POStatus } from '@/types'
 
@@ -21,6 +22,7 @@ const STATUSES: POStatus[] = ['draft', 'submitted', 'confirmed', 'partially-rece
 
 export function PurchaseOrdersPage() {
   const { purchaseOrders, vendors } = useData()
+  const { format } = useCurrencyFormat()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const [search, setSearch] = useState('')
@@ -120,7 +122,7 @@ export function PurchaseOrdersPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground whitespace-nowrap">{formatDate(po.eta)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatCurrency(totalCost)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{format(totalCost)}</TableCell>
                     <TableCell className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <POStatusActions po={po} size="sm" />
                     </TableCell>

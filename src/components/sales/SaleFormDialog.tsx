@@ -8,11 +8,13 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { useData } from '@/store/DataContext'
 import { patientFullName } from '@/mocks/patients'
-import { formatCurrency, simulateLatency } from '@/lib/utils'
+import { simulateLatency } from '@/lib/utils'
+import { useCurrencyFormat } from '@/hooks/useCurrencyFormat'
 import type { SaleLine } from '@/types'
 
 export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const { patients, cases, products, createSale, clinicSettings } = useData()
+  const { format } = useCurrencyFormat()
   const [patientId, setPatientId] = useState<string>('none')
   const [caseId, setCaseId] = useState<string>('none')
   const [lines, setLines] = useState<SaleLine[]>([])
@@ -61,7 +63,7 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     setSubmitting(true)
     await simulateLatency()
     const sale = createSale(lines, patientId === 'none' ? undefined : patientId, caseId === 'none' ? undefined : caseId)
-    toast.success(`Sale ${sale.saleNumber} recorded`, { description: `${formatCurrency(sale.total)} · stock updated` })
+    toast.success(`Sale ${sale.saleNumber} recorded`, { description: `${format(sale.total)} · stock updated` })
     setSubmitting(false)
     reset()
     onOpenChange(false)
@@ -147,7 +149,7 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             {lines.length === 0 && <p className="text-sm text-muted-foreground">No products added yet.</p>}
           </div>
           {lines.length > 0 && (
-            <p className="mt-2 text-right text-sm font-medium">Total: {formatCurrency(total)}</p>
+            <p className="mt-2 text-right text-sm font-medium">Total: {format(total)}</p>
           )}
         </div>
 

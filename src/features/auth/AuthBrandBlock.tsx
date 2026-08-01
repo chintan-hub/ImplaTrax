@@ -18,9 +18,9 @@ interface AuthBrandBlockProps {
  */
 export function AuthBrandBlock({ className, pulse = false }: AuthBrandBlockProps) {
   return (
-    <motion.div {...AUTH_BRAND_MOTION} className={cn('flex flex-col items-center gap-4 text-center', className)}>
+    <motion.div {...AUTH_BRAND_MOTION} className={cn('flex flex-col items-center gap-2 text-center sm:gap-4', className)}>
       <motion.div animate={pulse ? { scale: 1.08 } : { scale: 1 }} transition={{ duration: 0.3, ease: 'easeOut' }}>
-        <Logo className="h-16 w-auto dark:brightness-110 sm:h-[4.5rem] lg:h-20" />
+        <Logo className="h-11 w-auto dark:brightness-110 sm:h-[4.5rem] lg:h-20" />
       </motion.div>
       {/* Hex literal (not a primary-* token) — this must exactly match the brand teal baked into the logo asset, in both themes. */}
       <p className="text-[15px] font-medium text-[#12a2a3] sm:text-base">{BRAND.tagline}</p>

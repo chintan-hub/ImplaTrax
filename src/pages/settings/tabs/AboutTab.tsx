@@ -50,7 +50,7 @@ export function AboutTab() {
           </CardTitle>
           <CardDescription>Download or restore a full backup of your workspace</CardDescription>
         </CardHeader>
-        <CardContent className="flex gap-2">
+        <CardContent className="flex flex-wrap gap-2">
           <Button disabled variant="outline">
             Download Backup
           </Button>
