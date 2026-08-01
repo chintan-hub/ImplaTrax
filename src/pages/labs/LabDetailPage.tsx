@@ -10,16 +10,21 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { useData } from '@/store/DataContext'
 import { formatDate } from '@/lib/utils'
 import { openLoanValue } from '@/mocks/loans'
+import { patientFullName } from '@/mocks/patients'
 import { HandCoins, FolderKanban } from 'lucide-react'
 
 export function LabDetailPage() {
   const { labId } = useParams()
   const navigate = useNavigate()
-  const { labs, loans, cases } = useData()
+  const { labs, loans, cases, patients } = useData()
 
   const lab = labs.find((l) => l.id === labId)
   const labLoans = useMemo(() => loans.filter((l) => l.labId === labId).sort((a, b) => new Date(b.issuedAt).getTime() - new Date(a.issuedAt).getTime()), [loans, labId])
-  const labCases = useMemo(() => cases.filter((c) => c.labId === labId), [cases, labId])
+  const labCases = useMemo(
+    () => cases.filter((c) => c.labId === labId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [cases, labId],
+  )
+  const patientById = useMemo(() => new Map(patients.map((p) => [p.id, p])), [patients])
 
   if (!lab) {
     return <EmptyState icon={FlaskConical} title="Lab not found" action={<Button onClick={() => navigate('/labs')}>Back to Labs</Button>} />
@@ -76,7 +81,7 @@ export function LabDetailPage() {
             {labLoans.map((loan) => (
               <Link
                 key={loan.id}
-                to="/loans"
+                to={`/loans/${loan.id}`}
                 className="flex items-center justify-between rounded-lg border border-border p-3 text-sm hover:bg-surface-hover transition-colors"
               >
                 <div>
@@ -86,6 +91,34 @@ export function LabDetailPage() {
                 <StatusBadge status={loan.status} />
               </Link>
             ))}
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <CardTitle>Cases Involving This Lab</CardTitle>
+            <CardDescription>Every patient case that has used this lab</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {labCases.length === 0 && <p className="text-sm text-muted-foreground">No cases involve this lab yet.</p>}
+            {labCases.map((c) => {
+              const patient = patientById.get(c.patientId)
+              return (
+                <Link
+                  key={c.id}
+                  to={`/cases/${c.id}`}
+                  className="flex items-center justify-between rounded-lg border border-border p-3 text-sm hover:bg-surface-hover transition-colors"
+                >
+                  <div>
+                    <p className="font-medium font-mono text-xs">{c.caseId}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {c.procedure} · {patient ? patientFullName(patient) : 'Unknown patient'} · {formatDate(c.createdAt)}
+                    </p>
+                  </div>
+                  <StatusBadge status={c.status} />
+                </Link>
+              )
+            })}
           </CardContent>
         </Card>
       </div>
