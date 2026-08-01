@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Search, Undo2 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StickyToolbar } from '@/components/shared/StickyToolbar'
@@ -104,7 +105,9 @@ export function LoanReturnsPage() {
                       <p className="font-medium">{product?.name}</p>
                       <p className="text-xs text-muted-foreground">{product?.sku}</p>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{m.reference}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {loan ? <Link to={`/loans/${loan.id}`} className="text-primary hover:underline">{m.reference}</Link> : m.reference}
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{lab?.name ?? '—'}</TableCell>
                     <TableCell>
                       <Badge variant={m.type === 'loan-return' ? 'success' : 'danger'}>{m.type === 'loan-return' ? 'Returned' : 'Lost'}</Badge>
