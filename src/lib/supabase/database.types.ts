@@ -107,19 +107,19 @@ export interface Database {
           quantity_before: number; quantity_after: number; reason: string; reference: string | null
           performed_by: string | null; note: string | null; batch_lot: string | null; vendor_id: string | null
           lab_id: string | null; patient_id: string | null; doctor: string | null; case_id: string | null
-          created_at: string
+          photo_urls: string[]; created_at: string
         },
         'id' | 'reference' | 'performed_by' | 'note' | 'batch_lot' | 'vendor_id' | 'lab_id' | 'patient_id'
-        | 'doctor' | 'case_id' | 'created_at'
+        | 'doctor' | 'case_id' | 'photo_urls' | 'created_at'
       >
       purchase_orders: Table<
         {
           id: string; workspace_id: string; po_number: string; vendor_id: string; status: PoStatus
           eta: string | null; submitted_at: string | null; confirmed_at: string | null; received_at: string | null
-          notes: string | null; photo_url: string | null; created_at: string; updated_at: string
+          notes: string | null; photo_url: string | null; photo_urls: string[]; created_at: string; updated_at: string
         },
         'id' | 'status' | 'eta' | 'submitted_at' | 'confirmed_at' | 'received_at' | 'notes' | 'photo_url'
-        | 'created_at' | 'updated_at'
+        | 'photo_urls' | 'created_at' | 'updated_at'
       >
       purchase_order_lines: Table<
         {
@@ -168,9 +168,9 @@ export interface Database {
       loans: Table<
         {
           id: string; workspace_id: string; loan_number: string; lab_id: string; status: LoanStatus
-          due_date: string | null; notes: string | null; created_at: string; updated_at: string
+          due_date: string | null; notes: string | null; photo_urls: string[]; created_at: string; updated_at: string
         },
-        'id' | 'status' | 'due_date' | 'notes' | 'created_at' | 'updated_at'
+        'id' | 'status' | 'due_date' | 'notes' | 'photo_urls' | 'created_at' | 'updated_at'
       >
       loan_lines: Table<
         {
@@ -190,9 +190,9 @@ export interface Database {
           // exist without one (see the not-null constraint + comment on
           // this column in migration 0008).
           id: string; workspace_id: string; sale_number: string; patient_id: string; case_id: string | null
-          total: number; sold_by: string | null; created_at: string
+          total: number; sold_by: string | null; photo_urls: string[]; created_at: string
         },
-        'id' | 'case_id' | 'total' | 'sold_by' | 'created_at'
+        'id' | 'case_id' | 'total' | 'sold_by' | 'photo_urls' | 'created_at'
       >
       sale_lines: Table<
         { id: string; workspace_id: string; sale_id: string; product_id: string; quantity: number; unit_price: number; batch_lot: string | null },

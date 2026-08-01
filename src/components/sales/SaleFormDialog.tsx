@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Combobox } from '@/components/ui/combobox'
 import { PatientFormDialog } from '@/components/patients/PatientFormDialog'
+import { PhotoDropzone } from '@/components/shared/PhotoDropzone'
 import { useData } from '@/store/DataContext'
 import { patientFullName } from '@/mocks/patients'
 import { simulateLatency } from '@/lib/utils'
@@ -21,6 +22,7 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const [patientId, setPatientId] = useState<string>('')
   const [caseId, setCaseId] = useState<string>('none')
   const [lines, setLines] = useState<SaleLine[]>([])
+  const [photos, setPhotos] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [patientError, setPatientError] = useState(false)
   const [addingPatient, setAddingPatient] = useState(false)
@@ -58,6 +60,7 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     setPatientId('')
     setCaseId('none')
     setLines([])
+    setPhotos([])
     setPatientError(false)
   }
 
@@ -92,7 +95,7 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     setSubmitting(true)
     await simulateLatency()
     try {
-      const sale = createSale(lines, patientId, caseId === 'none' ? undefined : caseId)
+      const sale = createSale(lines, patientId, caseId === 'none' ? undefined : caseId, photos.length > 0 ? photos : undefined)
       toast.success(`Sale ${sale.saleNumber} recorded`, { description: `${format(sale.total)} · stock updated` })
       reset()
       onOpenChange(false)
@@ -195,6 +198,13 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             <p className="mt-2 text-right text-sm font-medium">Total: {format(total)}</p>
           )}
         </div>
+
+        <PhotoDropzone
+          label="Photos (Optional)"
+          photos={photos}
+          onChange={setPhotos}
+          helpText="Record component condition or a clinical delivery slip."
+        />
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>

@@ -111,6 +111,8 @@ export interface InventoryMovement {
   /** Display string, e.g. "Dr. Alan Whitfield" — matches Case.doctor's convention, not a Doctor.id FK (PROJECT.md §3). */
   doctor?: string
   caseId?: ID
+  /** Evidence photos captured at the time of this movement (e.g. a partial PO receipt's delivery slip). Supabase Storage object paths once live; data URLs locally. */
+  photoUrls?: string[]
 }
 
 // ---------------------------------------------------------------------------
@@ -165,8 +167,10 @@ export interface PurchaseOrder {
   notes?: string
   /** Append-only audit trail — every status transition adds an entry here, never edited or removed. */
   history: PurchaseOrderEvent[]
-  /** Optional reference photo (e.g. a photographed paper PO or packing slip), stored as a data URL. */
+  /** Optional reference photo (e.g. a photographed paper PO or packing slip), stored as a data URL. Distinct from photoUrls below — this is a single manual attachment addable any time from the PO detail page. */
   photoDataUrl?: string
+  /** Evidence photos accumulated from receipt actions (receivePurchaseOrder) — mandatory whenever a receipt is partial (PROJECT.md §3, mandatory-partial-receipt-photo rule). Append-only across multiple receipts, like every other audit trail on this record. */
+  photoUrls?: string[]
 }
 
 // ---------------------------------------------------------------------------
@@ -282,6 +286,8 @@ export interface Sale {
   /** A voided sale is never deleted (append-only, like every other record here) — its inventory has been restored and it's excluded from revenue totals, but it stays visible with a reason for audit purposes. */
   voidedAt?: string
   voidReason?: string
+  /** Optional evidence photos (e.g. component condition, delivery slip) captured at the time of sale. */
+  photoUrls?: string[]
 }
 
 // ---------------------------------------------------------------------------
@@ -323,6 +329,8 @@ export interface Loan {
   notes?: string
   /** Append-only audit trail — every issue/return event adds an entry here, never edited or removed. */
   history: LoanEvent[]
+  /** Optional evidence photos captured at issuance (e.g. component condition, clinical delivery slip). */
+  photoUrls?: string[]
 }
 
 export interface LoanReturnRecord {

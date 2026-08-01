@@ -91,7 +91,7 @@ describe('purchase order lifecycle', () => {
       result.current.submitPurchaseOrder(po!.id)
     })
     act(() => {
-      result.current.receivePurchaseOrder(po!.id, [{ lineId: po!.lines[0].id, quantityReceived: 4 }])
+      result.current.receivePurchaseOrder(po!.id, [{ lineId: po!.lines[0].id, quantityReceived: 4 }], ['data:image/png;base64,slip1'])
     })
 
     const updatedPo = result.current.purchaseOrders.find((p) => p.id === po!.id)!
@@ -121,9 +121,10 @@ describe('purchase order lifecycle', () => {
       result.current.submitPurchaseOrder(po!.id)
     })
     act(() => {
-      result.current.receivePurchaseOrder(po!.id, [{ lineId: po!.lines[0].id, quantityReceived: 4 }])
+      result.current.receivePurchaseOrder(po!.id, [{ lineId: po!.lines[0].id, quantityReceived: 4 }], ['data:image/png;base64,slip1'])
     })
     act(() => {
+      // The 2nd receipt fully catches up the line — not partial, so no photo required.
       result.current.receivePurchaseOrder(po!.id, [{ lineId: po!.lines[0].id, quantityReceived: 6 }])
     })
 
@@ -179,6 +180,26 @@ describe('loan lifecycle', () => {
     expect(movement.type).toBe('loan-out')
     expect(movement.quantity).toBe(-5)
     expect(movement.reference).toBe(loan!.loanNumber)
+  })
+
+  it('threads optional photoUrls onto the Loan record, its issuance movement, and its return movement', () => {
+    const { result } = setup()
+    const lab = result.current.labs[0]
+    const product = result.current.products.find((p) => p.quantityOnHand >= 5)!
+
+    let loan: ReturnType<typeof result.current.createLoan>
+    act(() => {
+      loan = result.current.createLoan(lab.id, [{ productId: product.id, quantityLoaned: 5 }], undefined, undefined, ['issue-photo'])
+    })
+    expect(loan!.photoUrls).toEqual(['issue-photo'])
+    const outMovement = result.current.movements.find((m) => m.type === 'loan-out' && m.reference === loan!.loanNumber)!
+    expect(outMovement.photoUrls).toEqual(['issue-photo'])
+
+    act(() => {
+      result.current.returnLoanLines(loan!.id, [{ lineId: loan!.lines[0].id, quantityReturned: 3, quantityLost: 0 }], ['return-photo'])
+    })
+    const returnMovement = result.current.movements.find((m) => m.type === 'loan-return' && m.reference === loan!.loanNumber)!
+    expect(returnMovement.photoUrls).toEqual(['return-photo'])
   })
 
   it('a partial return moves status to partially-returned and restores stock for the returned quantity only', () => {
@@ -255,6 +276,21 @@ describe('createSale', () => {
     expect(movement.type).toBe('sale')
     expect(movement.quantity).toBe(-2)
     expect(movement.reference).toBe(sale!.saleNumber)
+  })
+
+  it('threads optional photoUrls onto the Sale record and its movement', () => {
+    const { result } = setup()
+    const product = result.current.products.find((p) => p.quantityOnHand >= 1)!
+    const patient = result.current.patients[0]
+
+    let sale: ReturnType<typeof result.current.createSale>
+    act(() => {
+      sale = result.current.createSale([{ productId: product.id, quantity: 1, unitPrice: 100 }], patient.id, undefined, ['photo-a'])
+    })
+
+    expect(sale!.photoUrls).toEqual(['photo-a'])
+    const movement = result.current.movements.find((m) => m.type === 'sale' && m.reference === sale!.saleNumber)!
+    expect(movement.photoUrls).toEqual(['photo-a'])
   })
 
   it('labels the movement reason differently for a case-linked sale vs. a direct sale', () => {
@@ -347,6 +383,91 @@ describe('business-rule validation (M4)', () => {
     expect(() => result.current.receivePurchaseOrder(po!.id, [{ lineId: po!.lines[0].id, quantityReceived: 0 }])).toThrow(/at least one line/i)
     const unchangedPo = result.current.purchaseOrders.find((p) => p.id === po!.id)!
     expect(unchangedPo.status).toBe('draft')
+  })
+
+  /**
+   * Mandatory Partial Receipt Photo rule (CRITICAL business rule, PROJECT.md
+   * §3): receivePurchaseOrder is the source of truth, enforced independently
+   * of whatever POReceiveDialog does — these tests call it directly.
+   */
+  describe('mandatory partial-receipt photo rule', () => {
+    function submittedPo(result: { current: ReturnType<typeof useData> }, quantityOrdered = 10) {
+      const vendor = result.current.vendors[0]
+      const product = result.current.products[0]
+      let po: ReturnType<typeof result.current.createPurchaseOrder>
+      act(() => {
+        po = result.current.createPurchaseOrder(vendor.id, [{ productId: product.id, quantityOrdered, unitCost: 5 }], new Date().toISOString())
+      })
+      act(() => {
+        result.current.submitPurchaseOrder(po!.id)
+      })
+      return po!
+    }
+
+    it('rejects a partial receipt with no photos, and leaves stock/PO status unchanged', () => {
+      const { result } = setup()
+      const po = submittedPo(result)
+      const product = result.current.products.find((p) => p.id === po.lines[0].productId)!
+      const before = product.quantityOnHand
+
+      expect(() => result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 4 }])).toThrow(/attach at least one photo/i)
+
+      const unchangedPo = result.current.purchaseOrders.find((p) => p.id === po.id)!
+      expect(unchangedPo.status).toBe('submitted')
+      expect(unchangedPo.lines[0].quantityReceived).toBe(0)
+      const unchangedProduct = result.current.products.find((p) => p.id === product.id)!
+      expect(unchangedProduct.quantityOnHand).toBe(before)
+    })
+
+    it('rejects a partial receipt with an empty photo array, same as no photos at all', () => {
+      const { result } = setup()
+      const po = submittedPo(result)
+      expect(() => result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 4 }], [])).toThrow(/attach at least one photo/i)
+    })
+
+    it('accepts a partial receipt once at least one photo is attached, and stores it on the PO and the movement', () => {
+      const { result } = setup()
+      const po = submittedPo(result)
+
+      act(() => {
+        result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 4 }], ['data:image/png;base64,slip1'])
+      })
+
+      const updatedPo = result.current.purchaseOrders.find((p) => p.id === po.id)!
+      expect(updatedPo.status).toBe('partially-received')
+      expect(updatedPo.photoUrls).toEqual(['data:image/png;base64,slip1'])
+
+      const movement = result.current.movements.find((m) => m.type === 'inbound' && m.reference === po.poNumber)!
+      expect(movement.photoUrls).toEqual(['data:image/png;base64,slip1'])
+    })
+
+    it('accumulates photos across multiple partial receipts, append-only', () => {
+      const { result } = setup()
+      const po = submittedPo(result, 20)
+
+      act(() => {
+        result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 5 }], ['photo-a'])
+      })
+      act(() => {
+        result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 5 }], ['photo-b'])
+      })
+
+      const updatedPo = result.current.purchaseOrders.find((p) => p.id === po.id)!
+      expect(updatedPo.photoUrls).toEqual(['photo-a', 'photo-b'])
+    })
+
+    it('does not require a photo for a full receipt', () => {
+      const { result } = setup()
+      const po = submittedPo(result, 5)
+
+      expect(() => act(() => {
+        result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 5 }])
+      })).not.toThrow()
+
+      const updatedPo = result.current.purchaseOrders.find((p) => p.id === po.id)!
+      expect(updatedPo.status).toBe('received')
+      expect(updatedPo.photoUrls).toBeUndefined()
+    })
   })
 
   it('returnLoanLines rejects an all-zero return', () => {
@@ -567,7 +688,7 @@ describe('Purchase Order workflow (Phase 3)', () => {
       result.current.submitPurchaseOrder(po.id)
     })
     act(() => {
-      result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 4 }])
+      result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 4 }], ['data:image/png;base64,slip1'])
     })
     let updated = result.current.purchaseOrders.find((p) => p.id === po.id)!
     expect(updated.history.at(-1)!.label).toBe('Stock Partially Received')
@@ -861,7 +982,7 @@ describe('Batch/Lot receiving & traceability (P1-E)', () => {
     const po = submittedPo(result, product.id)
 
     expect(() => act(() => {
-      result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 5 }])
+      result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 5 }], ['data:image/png;base64,slip1'])
     })).not.toThrow()
 
     expect(result.current.batches.some((b) => b.reference === po.poNumber)).toBe(false)
@@ -873,7 +994,7 @@ describe('Batch/Lot receiving & traceability (P1-E)', () => {
     const po = submittedPo(result, product.id)
 
     act(() => {
-      result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 5, lotNumber: 'LOT-55501', expiryDate: '2027-01-01' }])
+      result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 5, lotNumber: 'LOT-55501', expiryDate: '2027-01-01' }], ['data:image/png;base64,slip1'])
     })
 
     const batch = result.current.batches.find((b) => b.lotNumber === 'LOT-55501')!
@@ -893,10 +1014,10 @@ describe('Batch/Lot receiving & traceability (P1-E)', () => {
     const po = submittedPo(result, product.id, 20)
 
     act(() => {
-      result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 5, lotNumber: 'LOT-DUP' }])
+      result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 5, lotNumber: 'LOT-DUP' }], ['data:image/png;base64,slip1'])
     })
     act(() => {
-      result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 5, lotNumber: 'LOT-DUP' }])
+      result.current.receivePurchaseOrder(po.id, [{ lineId: po.lines[0].id, quantityReceived: 5, lotNumber: 'LOT-DUP' }], ['data:image/png;base64,slip2'])
     })
 
     const matching = result.current.batches.filter((b) => b.lotNumber === 'LOT-DUP')
@@ -988,7 +1109,7 @@ describe('Movement quantityBefore/quantityAfter and structured linkage (P1-N)', 
       result.current.submitPurchaseOrder(po!.id)
     })
     act(() => {
-      result.current.receivePurchaseOrder(po!.id, [{ lineId: po!.lines[0].id, quantityReceived: 6 }])
+      result.current.receivePurchaseOrder(po!.id, [{ lineId: po!.lines[0].id, quantityReceived: 6 }], ['data:image/png;base64,slip1'])
     })
 
     const movement = result.current.movements.find((m) => m.type === 'inbound' && m.reference === po!.poNumber)!
@@ -1021,7 +1142,7 @@ describe('Movement quantityBefore/quantityAfter and structured linkage (P1-N)', 
       result.current.receivePurchaseOrder(po!.id, [
         { lineId: po!.lines[0].id, quantityReceived: 4 },
         { lineId: po!.lines[1].id, quantityReceived: 5 },
-      ])
+      ], ['data:image/png;base64,slip1'])
     })
 
     // Movements are prepended (newest first): index 1 is the first line

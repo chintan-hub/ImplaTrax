@@ -4,16 +4,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PhotoDropzone } from '@/components/shared/PhotoDropzone'
 import { useData } from '@/store/DataContext'
 import { MICROCOPY } from '@/content/helpText'
 import { simulateLatency } from '@/lib/utils'
 import type { PurchaseOrder } from '@/types'
+
+const PARTIAL_PHOTO_ERROR = 'Please attach at least one photo of the delivery slip or package to document this partial receipt.'
 
 export function POReceiveDialog({ po, open, onOpenChange }: { po: PurchaseOrder | null; open: boolean; onOpenChange: (v: boolean) => void }) {
   const { products, receivePurchaseOrder, clinicSettings } = useData()
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [lotNumbers, setLotNumbers] = useState<Record<string, string>>({})
   const [expiryDates, setExpiryDates] = useState<Record<string, string>>({})
+  const [photos, setPhotos] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
@@ -25,6 +29,7 @@ export function POReceiveDialog({ po, open, onOpenChange }: { po: PurchaseOrder 
       setQuantities(initial)
       setLotNumbers({})
       setExpiryDates({})
+      setPhotos([])
     }
   }, [po])
 
@@ -38,6 +43,18 @@ export function POReceiveDialog({ po, open, onOpenChange }: { po: PurchaseOrder 
     if (qty <= 0) return false
     return clinicSettings.batchLotTrackingEnabled && !lotNumbers[line.id]?.trim()
   })
+
+  // Mandatory Partial Receipt Photo rule (CRITICAL, PROJECT.md §3): this
+  // receipt is "partial" the moment any line's entered quantity comes in
+  // short of what's currently outstanding for it — whether under-received
+  // this time or left untouched. Mirrors the same check enforced in
+  // DataContext.receivePurchaseOrder, which is the actual source of truth.
+  const isPartialReceive = po.lines.some((line) => {
+    const remainingQty = line.quantityOrdered - line.quantityReceived
+    const receivingQty = quantities[line.id] ?? 0
+    return receivingQty < remainingQty
+  })
+  const missingPartialPhoto = isPartialReceive && photos.length === 0
 
   const handleSubmit = async () => {
     const receipts = Object.entries(quantities)
@@ -56,10 +73,14 @@ export function POReceiveDialog({ po, open, onOpenChange }: { po: PurchaseOrder 
       toast.error('Enter a lot/batch number for every line being received.')
       return
     }
+    if (missingPartialPhoto) {
+      toast.error(PARTIAL_PHOTO_ERROR)
+      return
+    }
     setSubmitting(true)
     try {
       await simulateLatency()
-      receivePurchaseOrder(po.id, receipts)
+      receivePurchaseOrder(po.id, receipts, photos.length > 0 ? photos : undefined)
       toast.success(`Received items for ${po.poNumber}`, { description: 'Inventory updated and stock movement history recorded.' })
       onOpenChange(false)
     } catch (err) {
@@ -139,9 +160,18 @@ export function POReceiveDialog({ po, open, onOpenChange }: { po: PurchaseOrder 
           })}
         </div>
 
+        <PhotoDropzone
+          label={isPartialReceive ? 'Shipment Photos (Required for Partial Receipt)' : 'Shipment Photos / Delivery Slip (Optional)'}
+          photos={photos}
+          onChange={setPhotos}
+          required={isPartialReceive}
+          error={missingPartialPhoto ? PARTIAL_PHOTO_ERROR : undefined}
+          helpText={isPartialReceive ? undefined : 'Attach a photo of the packing slip or delivered package for your records.'}
+        />
+
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
-          <Button onClick={handleSubmit} loading={submitting} disabled={missingLot}>Confirm Receipt</Button>
+          <Button onClick={handleSubmit} loading={submitting} disabled={missingLot || missingPartialPhoto}>Confirm Receipt</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
