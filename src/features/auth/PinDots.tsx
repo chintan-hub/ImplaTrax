@@ -16,7 +16,7 @@ interface PinDotsProps {
 export function PinDots({ length, filled, value = '', revealed = false, error = false, success = false }: PinDotsProps) {
   return (
     <motion.div
-      className="flex items-center justify-center gap-5"
+      className="flex items-center justify-center gap-4 sm:gap-5"
       role="status"
       aria-label={`${filled} of ${length} PIN digits entered${revealed ? ', digits visible' : ''}${error ? ', incorrect PIN' : ''}`}
       animate={error ? { x: [0, -10, 8, -6, 4, -2, 0] } : { x: 0 }}
@@ -62,13 +62,13 @@ export function PinDots({ length, filled, value = '', revealed = false, error = 
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
                   className={cn(
-                    'h-4.5 w-4.5 rounded-full border-2 transition-colors duration-150',
+                    'h-3.5 w-3.5 rounded-full border-2 transition-[background-color,border-color,box-shadow] duration-200',
                     error
-                      ? 'border-danger bg-danger/25'
+                      ? 'border-danger bg-danger/25 shadow-[0_0_0_5px_hsl(var(--danger)/0.15)]'
                       : isFilled
-                        ? 'border-primary bg-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.15)]'
-                        : 'border-border/80 bg-transparent',
-                    success && 'shadow-[0_0_0_7px_hsl(var(--primary)/0.28)]',
+                        ? 'border-teal-400 bg-teal-400 shadow-[0_0_10px_2px_rgba(45,212,191,0.55),0_0_0_4px_hsl(var(--primary)/0.15)]'
+                        : 'border-border/70 bg-transparent',
+                    success && 'shadow-[0_0_16px_4px_rgba(45,212,191,0.75),0_0_0_7px_hsl(var(--primary)/0.28)]',
                   )}
                 />
               )}
