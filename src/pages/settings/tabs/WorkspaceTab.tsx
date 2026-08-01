@@ -37,6 +37,7 @@ export function WorkspaceTab() {
   const [addOpen, setAddOpen] = useState(false)
   const [workspaceName, setWorkspaceName] = useState(currentWorkspace?.name ?? '')
   const [savingName, setSavingName] = useState(false)
+  const isNameDirty = workspaceName.trim() !== (currentWorkspace?.name ?? '')
   const [removeTarget, setRemoveTarget] = useState<string | null>(null)
   const [newWorkspaceOpen, setNewWorkspaceOpen] = useState(false)
   const [newWorkspaceName, setNewWorkspaceName] = useState('')
@@ -91,14 +92,15 @@ export function WorkspaceTab() {
           </CardTitle>
           <CardDescription>Shown throughout ImplaTrax and in exported documents</CardDescription>
         </CardHeader>
-        <CardContent className="flex max-w-md items-end gap-2">
+        <CardContent className="flex max-w-md flex-wrap items-end gap-2">
           <div className="flex-1 space-y-1.5">
             <Label htmlFor="workspace-name">Name</Label>
             <Input id="workspace-name" value={workspaceName} onChange={(e) => setWorkspaceName(e.target.value)} />
           </div>
-          <Button onClick={handleSaveName} loading={savingName}>
+          <Button onClick={handleSaveName} loading={savingName} disabled={!isNameDirty}>
             Save
           </Button>
+          {isNameDirty && !savingName && <p className="w-full text-xs text-muted-foreground">Unsaved changes</p>}
         </CardContent>
       </Card>
 

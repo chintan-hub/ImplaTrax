@@ -12,7 +12,7 @@ import { AuthBrandBlock } from './AuthBrandBlock'
 import { PinPad } from './PinPad'
 import { AuthScreenHeader } from './AuthScreenHeader'
 import { ROLE_LABEL } from './roles'
-import { AUTH_BACKDROP_CLASS, AUTH_CARD_CLASS, AUTH_CARD_MOTION, PREMIUM_EASE } from './authTheme'
+import { AUTH_BACKDROP_CLASS, AUTH_CARD_CLASS, AUTH_CARD_MOTION, AUTH_CONTENT_WRAPPER_CLASS, AUTH_SHOWCASE_PANEL_CLASS, PREMIUM_EASE } from './authTheme'
 
 const PIN_LENGTH = 4
 /** Shake + clear duration for a wrong PIN, and the correct-PIN unlock transition — both kept well under the "feel instant" budget. */
@@ -66,6 +66,13 @@ export function LoginScreen() {
   const isLockedOut = lockoutSecondsLeft > 0
   const showPicker = !currentMember && activeWorkspaceMembers.length > 0
   const showSetNewPin = Boolean(currentMember) && mustChangePin
+
+  // The picker / set-new-PIN / enter-PIN states can differ in height —
+  // keep whichever one is showing anchored to the top of the viewport
+  // instead of leaving scroll wherever a previous state left it.
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [showPicker, showSetNewPin])
 
   useEffect(() => {
     if (pin.length !== PIN_LENGTH || busy || isLockedOut) return
@@ -131,15 +138,10 @@ export function LoginScreen() {
   }
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col md:flex-row print:hidden">
-      <AuthShowcasePanel
-        unlocking={unlocking}
-        className="flex h-[26vh] w-full items-center justify-center sm:h-[30vh] md:sticky md:top-0 md:h-screen md:w-[32%] lg:w-[40%]"
-      />
+    <div className="relative flex min-h-dvh w-full flex-col md:flex-row print:hidden">
+      <AuthShowcasePanel unlocking={unlocking} className={AUTH_SHOWCASE_PANEL_CLASS} />
 
-      <div
-        className={`relative flex w-full flex-1 flex-col items-center gap-11 px-6 py-12 md:w-[68%] md:justify-center lg:w-[60%] ${AUTH_BACKDROP_CLASS}`}
-      >
+      <div className={`${AUTH_CONTENT_WRAPPER_CLASS} ${AUTH_BACKDROP_CLASS}`}>
         <AuthBrandBlock pulse={unlocking} />
 
         <motion.div
@@ -149,7 +151,7 @@ export function LoginScreen() {
           transition={unlocking ? { duration: 0.35, ease: PREMIUM_EASE } : AUTH_CARD_MOTION.transition}
         >
           {showPicker ? (
-            <div className="flex flex-col items-center gap-11">
+            <div className="flex flex-col items-center gap-6 sm:gap-11">
               <AuthScreenHeader title="Who's Signing In?" subtitle="Choose your account to continue." />
               <div className="flex w-full flex-col gap-2">
                 {activeWorkspaceMembers.map((member) => (
@@ -171,7 +173,7 @@ export function LoginScreen() {
               </div>
             </div>
           ) : showSetNewPin ? (
-            <div className="flex flex-col items-center gap-11">
+            <div className="flex flex-col items-center gap-6 sm:gap-11">
               <AuthScreenHeader
                 title={newPinPhase === 'create' ? 'Set a New PIN' : 'Confirm Your New PIN'}
                 subtitle={newPinPhase === 'create' ? 'Your PIN was reset. Choose a new 4-digit PIN.' : 'Re-enter your new PIN to confirm.'}
@@ -179,7 +181,7 @@ export function LoginScreen() {
               <PinPad value={newPinValue} onChange={handleNewPinComplete} length={PIN_LENGTH} error={newPinError} disabled={newPinBusy} />
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-11">
+            <div className="flex flex-col items-center gap-6 sm:gap-11">
               <AuthScreenHeader
                 title="Enter Your PIN"
                 subtitle={isLockedOut ? `Too many attempts. Try again in ${lockoutSecondsLeft}s.` : `Use your 4-digit PIN to continue${currentMember && activeWorkspaceMembers.length > 1 ? ` as ${currentMember.name}` : ''}.`}
@@ -187,7 +189,7 @@ export function LoginScreen() {
 
               <PinPad value={pin} onChange={setPin} length={PIN_LENGTH} error={error} success={unlocking} disabled={isLockedOut || (busy && !error)} />
 
-              <div className="flex w-full flex-col items-center gap-4 border-t border-border/60 pt-7 dark:border-white/10">
+              <div className="flex w-full flex-col items-center gap-2 border-t border-border/60 pt-2.5 dark:border-white/10 sm:gap-4 sm:pt-7">
                 {canUseBiometrics && !isLockedOut && (
                   <button
                     type="button"

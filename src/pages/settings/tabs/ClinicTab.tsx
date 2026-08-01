@@ -18,6 +18,7 @@ export function ClinicTab() {
   const { theme, setTheme } = useTheme()
   const [form, setForm] = useState(clinicSettings)
   const [saving, setSaving] = useState(false)
+  const isDirty = JSON.stringify(form) !== JSON.stringify(clinicSettings)
 
   const set = <K extends keyof typeof form>(k: K) => (v: typeof form[K]) => setForm((prev) => ({ ...prev, [k]: v }))
 
@@ -159,8 +160,9 @@ export function ClinicTab() {
         </CardContent>
       </Card>
 
-      <div className="flex justify-end">
-        <Button onClick={handleSave} loading={saving}>Save Changes</Button>
+      <div className="flex items-center justify-end gap-3">
+        {isDirty && !saving && <p className="text-xs text-muted-foreground">Unsaved changes</p>}
+        <Button onClick={handleSave} loading={saving} disabled={!isDirty}>Save Changes</Button>
       </div>
     </div>
   )

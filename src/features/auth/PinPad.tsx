@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Delete } from 'lucide-react'
+import { Delete, Eye, EyeOff } from 'lucide-react'
 import { PinDots } from './PinDots'
 import { cn } from '@/lib/utils'
 
@@ -19,7 +19,7 @@ const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
  * backgrounds.
  */
 const KEY_CLASS = cn(
-  'relative flex h-20 w-20 items-center justify-center rounded-full text-2xl font-semibold text-foreground select-none',
+  'relative flex h-16 w-16 touch-manipulation items-center justify-center rounded-full text-2xl font-semibold text-foreground select-none sm:h-20 sm:w-20',
   'bg-gradient-to-b from-card to-card/85 border border-black/[0.06]',
   'shadow-[inset_0_1px_0_rgba(255,255,255,0.85),inset_0_-1px_1px_rgba(15,23,42,0.03),0_1px_2px_rgba(15,23,42,0.05),0_10px_16px_-8px_rgba(15,23,42,0.16)]',
   'dark:from-white/[0.10] dark:to-white/[0.035] dark:border-white/[0.12]',
@@ -57,6 +57,7 @@ interface PinPadProps {
  */
 export function PinPad({ value, onChange, length = 4, error = false, success = false, disabled = false }: PinPadProps) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const [revealed, setRevealed] = useState(false)
 
   useEffect(() => {
     if (!disabled) inputRef.current?.focus()
@@ -75,7 +76,7 @@ export function PinPad({ value, onChange, length = 4, error = false, success = f
   }
 
   return (
-    <div className="flex flex-col items-center gap-11">
+    <div className="flex flex-col items-center gap-5 sm:gap-11">
       <input
         ref={inputRef}
         type="text"
@@ -88,8 +89,24 @@ export function PinPad({ value, onChange, length = 4, error = false, success = f
         aria-label="Enter your 4-digit PIN"
         className="sr-only"
       />
-      <PinDots length={length} filled={value.length} error={error} success={success} />
-      <div className="grid grid-cols-3 gap-4">
+      <div className="relative flex items-center justify-center">
+        <PinDots length={length} filled={value.length} value={value} revealed={revealed} error={error} success={success} />
+        <button
+          type="button"
+          onClick={() => setRevealed((v) => !v)}
+          disabled={disabled}
+          aria-label={revealed ? 'Hide PIN digits' : 'Show PIN digits'}
+          aria-pressed={revealed}
+          className={cn(
+            'absolute left-full ml-2 flex h-8 w-8 touch-manipulation items-center justify-center rounded-full text-muted-foreground transition-colors',
+            'hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+            disabled && 'pointer-events-none opacity-40',
+          )}
+        >
+          {revealed ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+        </button>
+      </div>
+      <div className="grid grid-cols-3 gap-3 sm:gap-4">
         {KEYS.map((digit) => (
           <motion.button
             key={digit}

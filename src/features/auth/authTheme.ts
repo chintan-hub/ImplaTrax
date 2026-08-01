@@ -48,7 +48,7 @@ export const AUTH_BACKDROP_CLASS =
  * distinct surface rather than blending into the page.
  */
 export const AUTH_CARD_CLASS =
-  'relative w-full max-w-[21.5rem] rounded-[28px] border border-white/70 bg-gradient-to-b from-white/75 to-white/45 px-7 py-9 backdrop-blur-2xl sm:px-8 ' +
+  'relative w-full max-w-[21.5rem] rounded-[28px] border border-white/70 bg-gradient-to-b from-white/75 to-white/45 px-6 py-5 backdrop-blur-2xl sm:px-8 sm:py-9 ' +
   'shadow-[inset_0_1px_0_rgba(255,255,255,0.7),inset_0_0_0_1px_rgba(255,255,255,0.15),0_1px_2px_rgba(15,23,42,0.04),0_28px_60px_-20px_rgba(15,23,42,0.28)] ' +
   'dark:border-white/[0.12] dark:bg-gradient-to-b dark:from-white/[0.08] dark:to-white/[0.025] ' +
   'dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),inset_0_0_0_1px_rgba(255,255,255,0.04),0_1px_2px_rgba(0,0,0,0.5),0_50px_100px_-20px_rgba(0,0,0,0.85),0_0_80px_-22px_hsl(var(--primary)/0.4)]'
@@ -104,7 +104,7 @@ export const STEP_TRANSITION = {
  * still reads as vivid against the darker card fill.
  */
 export const CTA_BUTTON_CLASS =
-  'h-12 rounded-xl transition-all duration-200 ease-out ' +
+  'h-12 touch-manipulation rounded-xl transition-all duration-200 ease-out ' +
   'bg-gradient-to-b from-primary to-primary-800 hover:from-primary-hover hover:to-primary-800 ' +
   'shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_1px_2px_rgba(0,0,0,0.15),0_10px_24px_-8px_hsl(var(--primary)/0.55)] ' +
   'hover:-translate-y-0.5 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_1px_2px_rgba(0,0,0,0.15),0_16px_32px_-8px_hsl(var(--primary)/0.65)] ' +
@@ -124,3 +124,21 @@ export const AUTH_INPUT_CLASS =
   'hover:border-primary/40 ' +
   'focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/15 focus-visible:shadow-[0_0_0_1px_hsl(var(--primary))] ' +
   'dark:bg-black/25 dark:hover:border-primary/50'
+
+/**
+ * Shared shell for the content (non-showcase) side of the split layout,
+ * used identically by LoginScreen and OnboardingFlow. Spacing is
+ * deliberately tight at the base (sub-640px phone) breakpoint — enough
+ * that the PIN keypad and the first onboarding field land above the fold
+ * without scrolling — and restores the original, more generous rhythm at
+ * `sm:` and up where there's headroom to spare. The bottom padding adds
+ * the device's safe-area inset on top of the base value so content never
+ * sits under a home-indicator/gesture-bar cutout.
+ */
+export const AUTH_CONTENT_WRAPPER_CLASS =
+  'relative flex w-full flex-1 flex-col items-center gap-4 px-5 pt-2 sm:gap-11 sm:px-6 sm:pt-12 md:w-[68%] md:justify-center lg:w-[60%] ' +
+  'pb-[max(0.625rem,env(safe-area-inset-bottom))] sm:pb-12'
+
+/** Mobile-only-shrunk showcase panel sizing — full sizing restored from `sm:` up (see AUTH_SHOWCASE_BG_CLASS usage). */
+export const AUTH_SHOWCASE_PANEL_CLASS =
+  'flex h-[5vh] w-full items-center justify-center sm:h-[30vh] md:sticky md:top-0 md:h-dvh md:w-[32%] lg:w-[40%]'

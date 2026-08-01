@@ -19,6 +19,7 @@ export function ProfileTab() {
   const [saving, setSaving] = useState(false)
   const [pinDialogOpen, setPinDialogOpen] = useState(false)
   const [biometricsBusy, setBiometricsBusy] = useState(false)
+  const isDirty = name.trim() !== (currentMember?.name ?? '') || contact.trim() !== (currentMember?.contact ?? '')
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -74,8 +75,9 @@ export function ProfileTab() {
               <Input id="profile-contact" value={contact} onChange={(e) => setContact(e.target.value)} />
             </div>
           </div>
-          <div className="flex justify-end">
-            <Button onClick={handleSave} loading={saving}>
+          <div className="flex items-center justify-end gap-3">
+            {isDirty && !saving && <p className="text-xs text-muted-foreground">Unsaved changes</p>}
+            <Button onClick={handleSave} loading={saving} disabled={!isDirty}>
               Save Changes
             </Button>
           </div>
