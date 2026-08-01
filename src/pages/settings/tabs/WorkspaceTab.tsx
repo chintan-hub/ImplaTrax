@@ -62,7 +62,7 @@ function WorkspaceLogoCard() {
         <CardTitle className="flex items-center gap-1.5">
           <ImageIcon className="h-4 w-4" /> Workspace Logo
         </CardTitle>
-        <CardDescription>Shown in the app sidebar and as the primary brand on invoices, challans, and reports</CardDescription>
+        <CardDescription>Appears as the primary brand on invoices, challans, and reports you export or print</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">

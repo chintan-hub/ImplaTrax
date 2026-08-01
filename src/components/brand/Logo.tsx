@@ -11,7 +11,7 @@ export function Logo({ className }: { className?: string }) {
       src={resolvedTheme === 'dark' ? logoDark : logoLight}
       alt="ImplaTrax"
       draggable={false}
-      className={cn('h-7 w-auto select-none', className)}
+      className={cn('h-7 w-auto shrink-0 select-none object-contain', className)}
     />
   )
 }

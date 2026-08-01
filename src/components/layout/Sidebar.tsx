@@ -1,10 +1,8 @@
 import { NavLink, useMatch } from 'react-router-dom'
-import { Building2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { IconHelp } from '@/components/ui/help-tooltip'
 import { Logo } from '@/components/brand/Logo'
 import { useData } from '@/store/DataContext'
-import { useAuth } from '@/features/auth/AuthContext'
 import { NAV_ITEMS, NAV_GROUPS, type NavItem } from './nav'
 
 function SidebarLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
@@ -46,28 +44,16 @@ function SidebarLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => v
 }
 
 /**
- * ImplaTrax's own wordmark always leads — that's the main brand identity.
- * The active workspace's logo + name, when set, rides just below it in a
- * quieter register: enough to orient a user who belongs to more than one
- * workspace without competing with the primary brand.
+ * The web app chrome is ImplaTrax-branded only — a workspace's own logo is
+ * customer-facing white-label material (documents, the Settings preview),
+ * not something that belongs in the SaaS product's own navigation. Sized
+ * up from the old h-6 treatment so the wordmark reads as a confident,
+ * legible enterprise mark rather than an afterthought in the corner.
  */
 export function SidebarBrand() {
-  const { clinicSettings } = useData()
-  const { currentWorkspace } = useAuth()
-
   return (
-    <div className="flex flex-col justify-center gap-1 px-5 py-2.5 border-b border-border shrink-0">
-      <Logo className="h-6" />
-      {currentWorkspace && (
-        <div className="flex items-center gap-1.5 min-w-0">
-          {clinicSettings.logoDataUrl ? (
-            <img src={clinicSettings.logoDataUrl} alt="" className="h-3.5 w-3.5 shrink-0 rounded-sm object-contain" />
-          ) : (
-            <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-          )}
-          <span className="truncate text-[11px] font-medium text-muted-foreground">{currentWorkspace.name}</span>
-        </div>
-      )}
+    <div className="flex h-16 items-center px-5 border-b border-border shrink-0">
+      <Logo className="h-9 w-auto sm:h-10" />
     </div>
   )
 }
