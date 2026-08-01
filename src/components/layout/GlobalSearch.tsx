@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Package, Users, FolderKanban, FlaskConical, Barcode as BarcodeIcon } from 'lucide-react'
+import { Package, Users, FolderKanban, FlaskConical, Truck, Receipt, HandCoins, ClipboardList } from 'lucide-react'
 import { CommandDialog, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command'
 import { useData } from '@/store/DataContext'
 import { patientFullName } from '@/mocks/patients'
 
 export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const { products, patients, cases, labs } = useData()
+  const { products, patients, cases, labs, vendors, sales, loans, purchaseOrders } = useData()
   const [query, setQuery] = useState('')
   const navigate = useNavigate()
 
@@ -44,16 +44,45 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
     [labs, q],
   )
 
+  const matchedVendors = useMemo(
+    () => (q.length === 0 ? [] : vendors.filter((v) => v.name.toLowerCase().includes(q)).slice(0, 5)),
+    [vendors, q],
+  )
+
+  const matchedSales = useMemo(
+    () => (q.length === 0 ? [] : sales.filter((s) => s.saleNumber.toLowerCase().includes(q)).slice(0, 5)),
+    [sales, q],
+  )
+
+  const matchedLoans = useMemo(
+    () => (q.length === 0 ? [] : loans.filter((l) => l.loanNumber.toLowerCase().includes(q)).slice(0, 5)),
+    [loans, q],
+  )
+
+  const matchedPOs = useMemo(
+    () => (q.length === 0 ? [] : purchaseOrders.filter((po) => po.poNumber.toLowerCase().includes(q)).slice(0, 5)),
+    [purchaseOrders, q],
+  )
+
   const go = (path: string) => {
     navigate(path)
     onOpenChange(false)
   }
 
-  const hasResults = matchedProducts.length + matchedPatients.length + matchedCases.length + matchedLabs.length > 0
+  const hasResults =
+    matchedProducts.length +
+      matchedPatients.length +
+      matchedCases.length +
+      matchedLabs.length +
+      matchedVendors.length +
+      matchedSales.length +
+      matchedLoans.length +
+      matchedPOs.length >
+    0
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
-      <CommandInput placeholder="Search SKU, barcode, patient, case ID, product..." value={query} onValueChange={setQuery} />
+      <CommandInput placeholder="Search products, patients, cases, vendors, sales, loans, POs..." value={query} onValueChange={setQuery} />
       <CommandList>
         {!hasResults && <CommandEmpty>No results found.</CommandEmpty>}
 
@@ -110,12 +139,47 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
           </CommandGroup>
         )}
 
-        {q.length > 0 && (
-          <CommandGroup heading="Barcode lookup">
-            <CommandItem value="barcode-hint" disabled>
-              <BarcodeIcon className="text-muted-foreground" />
-              <span className="text-muted-foreground">Scan or type a barcode to jump straight to a product</span>
-            </CommandItem>
+        {matchedVendors.length > 0 && (
+          <CommandGroup heading="Vendors">
+            {matchedVendors.map((v) => (
+              <CommandItem key={v.id} value={`vendor-${v.id}`} onSelect={() => go(`/vendors/${v.id}`)}>
+                <Truck className="text-muted-foreground" />
+                <span>{v.name}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {matchedSales.length > 0 && (
+          <CommandGroup heading="Sales">
+            {matchedSales.map((s) => (
+              <CommandItem key={s.id} value={`sale-${s.id}`} onSelect={() => go(`/sales/${s.id}`)}>
+                <Receipt className="text-muted-foreground" />
+                <span>{s.saleNumber}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {matchedLoans.length > 0 && (
+          <CommandGroup heading="Loans">
+            {matchedLoans.map((l) => (
+              <CommandItem key={l.id} value={`loan-${l.id}`} onSelect={() => go(`/loans/${l.id}`)}>
+                <HandCoins className="text-muted-foreground" />
+                <span>{l.loanNumber}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {matchedPOs.length > 0 && (
+          <CommandGroup heading="Purchase Orders">
+            {matchedPOs.map((po) => (
+              <CommandItem key={po.id} value={`po-${po.id}`} onSelect={() => go(`/purchase-orders/${po.id}`)}>
+                <ClipboardList className="text-muted-foreground" />
+                <span>{po.poNumber}</span>
+              </CommandItem>
+            ))}
           </CommandGroup>
         )}
       </CommandList>

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Combobox } from '@/components/ui/combobox'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { AdjustmentDialog } from '@/components/inventory/AdjustmentDialog'
 import { useData } from '@/store/DataContext'
@@ -130,7 +131,6 @@ export function InventoryPage() {
   const patientOptions = [{ value: 'all', label: 'All patients' }, ...patients.map((p) => ({ value: p.id, label: `${patientFullName(p)} · ${p.patientCode}` }))]
   const vendorOptions = [{ value: 'all', label: 'All vendors' }, ...vendors.map((v) => ({ value: v.id, label: v.name }))]
   const labOptions = [{ value: 'all', label: 'All labs' }, ...labs.map((l) => ({ value: l.id, label: l.name }))]
-  const typeOptions = [{ value: 'all', label: 'All movement types' }, ...FILTERABLE_TYPES.map((t) => ({ value: t, label: TYPE_LABEL[t] }))]
 
   return (
     <div>
@@ -161,7 +161,13 @@ export function InventoryPage() {
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="Search product, reason, reference..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <Combobox className="w-full sm:w-44" options={typeOptions} value={typeFilter} onChange={setTypeFilter} placeholder="Movement Type" searchPlaceholder="Search types..." triggerAriaLabel="Filter by movement type" />
+        <Select value={typeFilter} onValueChange={setTypeFilter}>
+          <SelectTrigger className="w-full sm:w-44" aria-label="Filter by movement type"><SelectValue placeholder="Movement Type" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All movement types</SelectItem>
+            {FILTERABLE_TYPES.map((t) => <SelectItem key={t} value={t}>{TYPE_LABEL[t]}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <Combobox className="w-full sm:w-52" options={productOptions} value={productFilter} onChange={setProductFilter} placeholder="Product" searchPlaceholder="Search products..." triggerAriaLabel="Filter by product" />
         <Combobox className="w-full sm:w-48" options={doctorOptions} value={doctorFilter} onChange={setDoctorFilter} placeholder="Doctor" searchPlaceholder="Search doctors..." triggerAriaLabel="Filter by doctor" />
         <Combobox className="w-full sm:w-48" options={patientOptions} value={patientFilter} onChange={setPatientFilter} placeholder="Patient" searchPlaceholder="Search patients..." triggerAriaLabel="Filter by patient" />

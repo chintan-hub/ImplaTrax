@@ -353,13 +353,16 @@
 - **Estimated complexity:** Small.
 - **Acceptance criteria:** A deliberately-thrown test error anywhere in the tree shows a recoverable error screen, not a blank page. Every list/summary page has a consistent empty-state treatment via the shared component.
 
-### P3-F — Search & Filter Consistency
+### P3-F — Search & Filter Consistency ✅ Complete
 - **Objective:** Extend `⌘K` to search Vendors, Sales, Loans, and Purchase Orders (currently only Products/Patients/Cases/Labs); remove or explain the dead "barcode lookup" placeholder in the palette; decide and apply one consistent rule for filter depth (which pages get dropdown filters beyond search) and for Tabs-vs-Select (Inventory's type filter is the one outlier using Tabs where every other equivalent filter uses Select).
 - **Files affected:** `src/components/layout/GlobalSearch.tsx`, filter sections across list pages.
 - **Risks:** Low.
 - **Dependencies:** None.
 - **Estimated complexity:** Medium.
 - **Acceptance criteria:** `⌘K` searches every major entity type; the dead barcode-lookup placeholder is either removed or made real; a stated, documented rule governs which pages get which filter pattern, and pages match it.
+
+*Status update (2026-07-30): `GlobalSearch.tsx` now also matches Vendors (by name), Sales (by `saleNumber`), Loans (by `loanNumber`), and Purchase Orders (by `poNumber`), each its own `CommandGroup` linking straight to that record's detail page — the same pattern the existing Products/Patients/Cases/Labs groups already used. Removed the disabled "Barcode lookup" placeholder group entirely rather than building a separate barcode-scanning flow: barcode matching already works today (the Products group already matches on `p.barcode`), so the placeholder was purely decorative and never did anything when "selected." Updated both search-entry placeholders (`Topbar.tsx`'s trigger button and `GlobalSearch.tsx`'s `CommandInput`) to reflect the wider scope.
+Re: "Tabs-vs-Select" — the literal Tabs-based filter named in the original audit no longer exists in the codebase (already changed to a `Combobox` at some point before this pass), so the concrete, current-state issue was different: every other small-fixed-enum filter in the app (status, category, manufacturer) uses `Select`, but Inventory's Movement Type filter — also a small, fixed, 6-value enum — used `Combobox` instead, the one real inconsistency. Documented rule applied app-wide: **`Select` for small, fixed, closed enums** (status, category, manufacturer, movement type); **`Combobox` for filters over open-ended, growing master-data lists** (a specific product, vendor, lab, doctor, or patient), where in-dropdown search is genuinely useful. Fixed Inventory's Movement Type filter to `Select` to match; its other 5 filters (Product/Doctor/Patient/Vendor/Lab) correctly stay `Combobox` under this rule. Verified with Playwright: all 4 new search groups resolve and link correctly, the empty-search state shows no stray groups, and Inventory's Movement Type `Select` still filters rows correctly after the swap.*
 
 ---
 
