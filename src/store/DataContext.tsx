@@ -23,7 +23,7 @@ import type {
   POStatus,
 } from '@/types'
 import * as mock from '@/mocks'
-import { currentUser } from '@/mocks/users'
+import { getCurrentActor } from './currentActor'
 import { nextInternalId, createSequence, createTimestampIdGenerator, getInternalIdCounter, restoreInternalIdCounter } from '@/lib/idGenerator'
 import { canSubmitPO, canReceivePO, canCancelPO } from '@/lib/poWorkflow'
 import { canAdvanceCaseStatus } from '@/lib/caseWorkflow'
@@ -36,6 +36,33 @@ import { loadPersistedSnapshot, savePersistedSnapshot } from './persistence'
 // keeps freshly-generated IDs from colliding with previously-persisted ones.
 const persisted = loadPersistedSnapshot()
 if (persisted) restoreInternalIdCounter(persisted.internalIdCounter)
+
+/**
+ * Demo/seed data (everything under src/mocks/) exists purely so local
+ * development, tests, and design review are never staring at an empty app —
+ * it must never reach a real customer. A production build (`vite build`,
+ * what actually gets deployed) always starts from a genuinely empty
+ * workspace; the dev server and Vitest (both `import.meta.env.PROD ===
+ * false`) keep the rich seed data, so this file's own test suite and local
+ * `npm run dev` are completely unaffected by this gate.
+ */
+const SEED = import.meta.env.PROD
+  ? {
+      products: [] as Product[],
+      inventoryMovements: [] as InventoryMovement[],
+      purchaseOrders: [] as PurchaseOrder[],
+      vendors: [] as Vendor[],
+      patients: [] as Patient[],
+      cases: [] as Case[],
+      labs: [] as Lab[],
+      sales: [] as Sale[],
+      loans: [] as Loan[],
+      users: [] as AppUser[],
+      batches: [] as ProductBatch[],
+      doctors: [] as Doctor[],
+      defaultClinicSettings: mock.emptyClinicSettings,
+    }
+  : mock
 
 /**
  * Business-rule validation lives here, in the action functions, not just in
@@ -95,10 +122,10 @@ function makeQtyTracker(products: Product[]) {
 // ARCHITECTURE.md §6.3). Using the persisted length is safe because nothing
 // in this app deletes records — array length and highest-assigned sequence
 // number always match.
-const nextProductSeq = createSequence((persisted?.products.length ?? mock.products.length) + 1)
-const nextLoanSeq = createSequence((persisted?.loans.length ?? mock.loans.length) + 1)
-const nextSaleSeq = createSequence((persisted?.sales.length ?? mock.sales.length) + 1)
-const nextPatientSeq = createSequence((persisted?.patients.length ?? mock.patients.length) + 1)
+const nextProductSeq = createSequence((persisted?.products.length ?? SEED.products.length) + 1)
+const nextLoanSeq = createSequence((persisted?.loans.length ?? SEED.loans.length) + 1)
+const nextSaleSeq = createSequence((persisted?.sales.length ?? SEED.sales.length) + 1)
+const nextPatientSeq = createSequence((persisted?.patients.length ?? SEED.patients.length) + 1)
 
 // Purchase Order IDs are timestamp-based (YYYYMMDDHHmm), a business rule
 // specific to this entity — see src/lib/idGenerator.ts.
@@ -110,7 +137,7 @@ const nextPoNumber = createTimestampIdGenerator()
 const caseSeqByYear = new Map<number, () => number>()
 function nextCaseSeq(year: number): number {
   if (!caseSeqByYear.has(year)) {
-    const sourceCases = persisted?.cases ?? mock.cases
+    const sourceCases = persisted?.cases ?? SEED.cases
     const existing = sourceCases.filter((c) => c.caseId.includes(`-${year}-`)).length
     caseSeqByYear.set(year, createSequence(existing + 1))
   }
@@ -189,28 +216,28 @@ interface DataContextValue {
 const DataContext = createContext<DataContextValue | null>(null)
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const [products, setProducts] = useState<Product[]>(persisted?.products ?? mock.products)
-  const [movements, setMovements] = useState<InventoryMovement[]>(persisted?.movements ?? mock.inventoryMovements)
-  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(persisted?.purchaseOrders ?? mock.purchaseOrders)
-  const [vendors, setVendors] = useState<Vendor[]>(persisted?.vendors ?? mock.vendors)
-  const [patients, setPatients] = useState<Patient[]>(persisted?.patients ?? mock.patients)
-  const [cases, setCases] = useState<Case[]>(persisted?.cases ?? mock.cases)
-  const [labs, setLabs] = useState<Lab[]>(persisted?.labs ?? mock.labs)
-  const [sales, setSales] = useState<Sale[]>(persisted?.sales ?? mock.sales)
-  const [loans, setLoans] = useState<Loan[]>(persisted?.loans ?? mock.loans)
-  const [users, setUsers] = useState<AppUser[]>(persisted?.users ?? mock.users)
+  const [products, setProducts] = useState<Product[]>(persisted?.products ?? SEED.products)
+  const [movements, setMovements] = useState<InventoryMovement[]>(persisted?.movements ?? SEED.inventoryMovements)
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(persisted?.purchaseOrders ?? SEED.purchaseOrders)
+  const [vendors, setVendors] = useState<Vendor[]>(persisted?.vendors ?? SEED.vendors)
+  const [patients, setPatients] = useState<Patient[]>(persisted?.patients ?? SEED.patients)
+  const [cases, setCases] = useState<Case[]>(persisted?.cases ?? SEED.cases)
+  const [labs, setLabs] = useState<Lab[]>(persisted?.labs ?? SEED.labs)
+  const [sales, setSales] = useState<Sale[]>(persisted?.sales ?? SEED.sales)
+  const [loans, setLoans] = useState<Loan[]>(persisted?.loans ?? SEED.loans)
+  const [users, setUsers] = useState<AppUser[]>(persisted?.users ?? SEED.users)
   // Spread over the default rather than using a persisted snapshot as-is —
   // older snapshots predate fields like country/logoDataUrl, and without
   // this merge those would come back `undefined` and turn their form
   // controls uncontrolled.
-  const [clinicSettings, setClinicSettings] = useState<ClinicSettings>({ ...mock.defaultClinicSettings, ...persisted?.clinicSettings })
-  const [batches, setBatches] = useState<ProductBatch[]>(persisted?.batches ?? mock.batches)
-  const [doctors, setDoctors] = useState<Doctor[]>(persisted?.doctors ?? mock.doctors)
+  const [clinicSettings, setClinicSettings] = useState<ClinicSettings>({ ...SEED.defaultClinicSettings, ...persisted?.clinicSettings })
+  const [batches, setBatches] = useState<ProductBatch[]>(persisted?.batches ?? SEED.batches)
+  const [doctors, setDoctors] = useState<Doctor[]>(persisted?.doctors ?? SEED.doctors)
 
   const addMovement = useCallback<DataContextValue['addMovement']>((input) => {
     const movement: InventoryMovement = {
       id: nextInternalId('mv'),
-      performedBy: currentUser.id,
+      performedBy: getCurrentActor().id,
       createdAt: new Date().toISOString(),
       ...input,
     }
@@ -292,7 +319,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [vendors, addMovement])
 
   const poEvent = useCallback((poId: string, label: string, description: string, date: string): PurchaseOrderEvent => {
-    return { id: nextInternalId('poevt'), poId, label, description, date, actor: currentUser.name }
+    return { id: nextInternalId('poevt'), poId, label, description, date, actor: getCurrentActor().name }
   }, [])
 
   // A Purchase Order never changes inventory itself — only receivePurchaseOrder
@@ -443,7 +470,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [poEvent])
 
   const loanEvent = useCallback((loanId: string, label: string, description: string, date: string): LoanEvent => {
-    return { id: nextInternalId('lnevt'), loanId, label, description, date, actor: currentUser.name }
+    return { id: nextInternalId('lnevt'), loanId, label, description, date, actor: getCurrentActor().name }
   }, [])
 
   const createLoan = useCallback<DataContextValue['createLoan']>((labId, lines, dueDate, notes) => {
@@ -460,7 +487,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       labId,
       status: 'open',
       lines: lines.map((l, i) => ({ id: `${id}_line_${i + 1}`, productId: l.productId, quantityLoaned: l.quantityLoaned, quantityReturned: 0, quantityLost: 0, batchLot: l.batchLot })),
-      issuedBy: currentUser.id,
+      issuedBy: getCurrentActor().id,
       issuedAt: now,
       dueDate,
       notes,
@@ -579,7 +606,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       caseId,
       lines,
       total: lines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0),
-      soldBy: currentUser.id,
+      soldBy: getCurrentActor().id,
       createdAt: new Date().toISOString(),
     }
     setSales((prev) => [sale, ...prev])
@@ -620,7 +647,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const caseEvent = useCallback((caseId: string, label: string, description: string, date: string): CaseTimelineEvent => {
-    return { id: nextInternalId('cseevt'), caseId, label, description, date, actor: currentUser.name }
+    return { id: nextInternalId('cseevt'), caseId, label, description, date, actor: getCurrentActor().name }
   }, [])
 
   const addCase = useCallback<DataContextValue['addCase']>((input) => {

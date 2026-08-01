@@ -3,6 +3,7 @@ import { hashPin, generateSalt } from './crypto'
 import { isPlatformAuthenticatorAvailable, registerPasskey, verifyPasskey } from './webauthn'
 import { loadAccountSnapshot, saveAccountSnapshot, clearAccountSnapshot, randomId } from './authPersistence'
 import { WORKSPACE_MANAGER_ROLES } from './accountTypes'
+import { setCurrentActor } from '@/store/currentActor'
 import type { AccountRole, AccountSnapshot, AuditAction, AuditEntry, MemberRecord, WorkspaceRecord } from './accountTypes'
 
 export type AuthStatus = 'onboarding' | 'locked' | 'unlocked'
@@ -134,6 +135,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
   const activeWorkspaceMembers = useMemo(() => workspaceMembers.filter((m) => m.status === 'active'), [workspaceMembers])
   const auditLog = useMemo(() => snapshot.auditLog.filter((e) => e.workspaceId === snapshot.currentWorkspaceId), [snapshot.auditLog, snapshot.currentWorkspaceId])
+
+  // Keep DataContext's action-attribution bridge in sync — see
+  // src/store/currentActor.ts for why this isn't done via context.
+  useEffect(() => {
+    setCurrentActor(currentMember ? { id: currentMember.id, name: currentMember.name } : null)
+  }, [currentMember])
 
   const completeOnboarding = useCallback(
     async (input: OnboardingInput) => {

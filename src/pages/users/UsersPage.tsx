@@ -1,16 +1,17 @@
 import { useState } from 'react'
-import { Plus, ShieldCheck, Download } from 'lucide-react'
+import { Plus, ShieldCheck, Download, UserCog } from 'lucide-react'
 import { StickyActionHeader } from '@/components/shared/StickyActionHeader'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { EmptyState } from '@/components/shared/EmptyState'
 import { UserFormDialog } from '@/components/users/UserFormDialog'
 import { useData } from '@/store/DataContext'
 import { formatDate, initials } from '@/lib/utils'
 import { exportToCsv } from '@/lib/documents/csv'
-import { PAGE_INTROS } from '@/content/helpText'
+import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
 import type { UserRole } from '@/types'
 
 const ROLE_LABEL: Record<UserRole, string> = {
@@ -68,38 +69,53 @@ export function UsersPage() {
         }
       />
 
-      <div className="rounded-xl border border-border bg-card mb-6">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>User</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Joined</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {users.map((u) => (
-              <TableRow key={u.id}>
-                <TableCell>
-                  <div className="flex items-center gap-2.5">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback style={{ backgroundColor: u.avatarColor, color: 'white' }} className="text-xs">{initials(u.name)}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">{u.name}</p>
-                      <p className="text-xs text-muted-foreground">{u.email}</p>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell><Badge variant={ROLE_VARIANT[u.role]}>{ROLE_LABEL[u.role]}</Badge></TableCell>
-                <TableCell><Badge variant={u.active ? 'success' : 'secondary'}>{u.active ? 'Active' : 'Inactive'}</Badge></TableCell>
-                <TableCell className="text-muted-foreground whitespace-nowrap">{formatDate(u.createdAt)}</TableCell>
+      {users.length === 0 ? (
+        <div className="mb-6">
+          <EmptyState
+            icon={UserCog}
+            title={EMPTY_STATES.users.title}
+            description={EMPTY_STATES.users.description}
+            action={
+              <Button size="sm" onClick={() => setFormOpen(true)}>
+                <Plus className="h-4 w-4" /> {EMPTY_STATES.users.actionLabel}
+              </Button>
+            }
+          />
+        </div>
+      ) : (
+        <div className="rounded-xl border border-border bg-card mb-6">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>User</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Joined</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+            </TableHeader>
+            <TableBody>
+              {users.map((u) => (
+                <TableRow key={u.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-2.5">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback style={{ backgroundColor: u.avatarColor, color: 'white' }} className="text-xs">{initials(u.name)}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium">{u.name}</p>
+                        <p className="text-xs text-muted-foreground">{u.email}</p>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell><Badge variant={ROLE_VARIANT[u.role]}>{ROLE_LABEL[u.role]}</Badge></TableCell>
+                  <TableCell><Badge variant={u.active ? 'success' : 'secondary'}>{u.active ? 'Active' : 'Inactive'}</Badge></TableCell>
+                  <TableCell className="text-muted-foreground whitespace-nowrap">{formatDate(u.createdAt)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       <Card>
         <CardHeader>

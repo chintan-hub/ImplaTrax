@@ -284,8 +284,8 @@ export interface EmptyStateEntry {
 
 export const EMPTY_STATES = {
   loans: {
-    title: 'No Active Loans',
-    description: 'Loans are components temporarily sent to dental laboratories. Click New Loan to create one.',
+    title: 'No Loans Yet',
+    description: 'A loan tracks components temporarily sent to a dental laboratory until they’re returned or used. Issue your first loan to start tracking one.',
     actionLabel: 'Issue Loan',
   },
   loanReturns: {
@@ -293,48 +293,53 @@ export const EMPTY_STATES = {
     description: 'Once a lab sends components back on an open loan, the return will show up here automatically.',
   },
   products: {
-    title: 'No Products Found',
-    description: 'No components match your search or filters. Try clearing a filter, or add a new product to your catalog.',
-    actionLabel: 'Quick Add',
+    title: 'No Products Yet',
+    description: 'Products are the implants, abutments, and components in your catalog. Add your first product to start tracking stock.',
+    actionLabel: 'Add Product',
   },
   inventory: {
-    title: 'No Stock Movements Found',
-    description: 'A stock movement is recorded every time a purchase, sale, loan, return, or manual adjustment changes your inventory. Try a different filter, or record an adjustment.',
+    title: 'No Stock Movements Yet',
+    description: 'A stock movement is recorded every time a purchase, sale, loan, return, or manual adjustment changes your inventory. Receive your first stock or record an adjustment to see it here.',
     actionLabel: 'New Adjustment',
   },
   purchaseOrders: {
-    title: 'No Purchase Orders Found',
-    description: 'A purchase order tracks components you ordered from a vendor before they arrive. Create one to start restocking.',
+    title: 'No Purchase Orders Yet',
+    description: 'A purchase order tracks components you ordered from a vendor before they arrive. Create your first purchase order to start restocking.',
     actionLabel: 'New Purchase Order',
   },
   vendors: {
-    title: 'No Vendors Found',
-    description: 'Vendors are the companies you buy implant components from. Add one to start creating purchase orders.',
+    title: 'No Vendors Yet',
+    description: 'Vendors are the companies you buy implant components from. Add your first vendor to start creating purchase orders.',
     actionLabel: 'Add Vendor',
   },
   patients: {
-    title: 'No Patients Found',
-    description: 'Patients are the people receiving implant treatment at your clinic. Add a patient to start tracking their cases.',
+    title: 'No Patients Yet',
+    description: 'Patients are the people receiving implant treatment at your clinic. Add your first patient to start tracking their cases.',
     actionLabel: 'Add Patient',
   },
   cases: {
-    title: 'No Cases Found',
-    description: 'A case is one implant treatment linked to a patient, with its own timeline and Case ID. Create one to get started.',
+    title: 'No Cases Yet',
+    description: 'A case is one implant treatment linked to a patient, with its own timeline and Case ID. Create your first case to get started.',
     actionLabel: 'New Case',
   },
   labs: {
-    title: 'No Labs Found',
-    description: 'Labs are the dental laboratories you send loaned components to. Add one before issuing your first loan.',
+    title: 'No Labs Yet',
+    description: 'Labs are the dental laboratories you send loaned components to. Add your first lab before issuing a loan.',
     actionLabel: 'Add Lab',
   },
   sales: {
-    title: 'No Sales Found',
-    description: 'A sale means a component was permanently used or sold, usually as part of a patient case. Record one to see it here.',
+    title: 'No Sales Yet',
+    description: 'A sale means a component was permanently used or sold, usually as part of a patient case. Record your first sale to see it here.',
     actionLabel: 'Record Sale',
   },
   batches: {
     title: 'No Batch/Lot Data Yet',
-    description: 'Lots appear here once a batch-tracked product is received with a lot number. Go to Purchase Orders and receive one to get started.',
+    description: 'Lots appear here once a batch-tracked product is received with a lot number. Go to Purchase Orders and receive your first shipment to get started.',
+  },
+  users: {
+    title: 'No Team Members Yet',
+    description: 'Add the people on your team so everyone has their own login and the right level of access.',
+    actionLabel: 'Add User',
   },
 } as const satisfies Record<string, EmptyStateEntry>
 
