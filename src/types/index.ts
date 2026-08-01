@@ -356,6 +356,9 @@ export interface ClinicSettings {
   address: string
   phone: string
   email: string
+  country: string
+  /** Data URI of an uploaded logo, resized client-side — empty string means no logo set. */
+  logoDataUrl: string
   currency: string
   priceVisibilityDefault: boolean
   barcodeFormat: 'CODE128' | 'CODE39' | 'EAN13'

@@ -5,6 +5,8 @@ export const defaultClinicSettings: ClinicSettings = {
   address: '4820 Meridian Ave, Suite 210, Austin, TX 78745',
   phone: '+1 (512) 555-0148',
   email: 'info@dentocrafts.com',
+  country: 'United States',
+  logoDataUrl: '',
   currency: 'USD',
   priceVisibilityDefault: true,
   barcodeFormat: 'CODE128',

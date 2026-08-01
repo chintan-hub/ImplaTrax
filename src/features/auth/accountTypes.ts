@@ -26,8 +26,13 @@ export interface MemberRecord {
   status: 'active' | 'disabled'
   pinHash: string | null
   pinSalt: string | null
+  /** Account-level credential (prep for Supabase auth) — set at workspace creation, used by "Log In" on a device that doesn't already have a PIN for this member. Members invited via "Add Team Member" have no password; an admin issues their PIN directly instead. */
+  passwordHash: string | null
+  passwordSalt: string | null
+  /** Which device's localStorage this PIN was created for. A PIN is only ever valid on the device it was set up on — on any other device (once Supabase can actually tell them apart), the member must re-verify with their password and set a new PIN there. */
+  pinDeviceId: string | null
   webauthnCredentialId: string | null
-  /** Set true by an admin-triggered "reset this user's PIN" — forces a Create-PIN step on next unlock before granting access. */
+  /** Set true by an admin-triggered "reset this user's PIN" (or by logging in via password on a device with no matching PIN yet) — forces a Create-PIN step on next unlock before granting access. */
   mustChangePin: boolean
   createdAt: string
   lastLoginAt: string | null

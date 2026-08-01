@@ -1,16 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { toast } from 'sonner'
+import { Image as ImageIcon, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Combobox } from '@/components/ui/combobox'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { useAuth } from './AuthContext'
+import { useData } from '@/store/DataContext'
 import { AuthShowcasePanel } from './AuthShowcasePanel'
 import { AuthBrandBlock } from './AuthBrandBlock'
 import { PinPad } from './PinPad'
 import { AuthScreenHeader } from './AuthScreenHeader'
+import { LogInWithEmailForm } from './LogInWithEmailForm'
 import { isPlatformAuthenticatorAvailable } from './webauthn'
+import { COUNTRIES } from './countries'
+import { fileToResizedDataUrl } from '@/lib/imageResize'
 import {
   AUTH_BACKDROP_CLASS,
   AUTH_CARD_CLASS,
@@ -23,17 +30,68 @@ import {
 } from './authTheme'
 
 const PIN_LENGTH = 4
+const DRAFT_KEY = 'implatrax:onboarding:draft:v1'
 
-type Step = 'welcome' | 'details' | 'pin'
+type Step = 'welcome' | 'account' | 'company' | 'pin'
 type PinPhase = 'create' | 'confirm'
+
+interface Draft {
+  workspaceName: string
+  name: string
+  email: string
+  companyName: string
+  country: string
+  currency: string
+  logoDataUrl: string
+}
+
+const EMPTY_DRAFT: Draft = { workspaceName: '', name: '', email: '', companyName: '', country: '', currency: 'USD', logoDataUrl: '' }
+
+function loadDraft(): Draft {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY)
+    if (!raw) return EMPTY_DRAFT
+    return { ...EMPTY_DRAFT, ...(JSON.parse(raw) as Partial<Draft>) }
+  } catch {
+    return EMPTY_DRAFT
+  }
+}
+
+function saveDraft(draft: Draft) {
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
+  } catch {
+    // best-effort — losing the draft just means retyping on resume
+  }
+}
+
+function clearDraft() {
+  try {
+    localStorage.removeItem(DRAFT_KEY)
+  } catch {
+    // best-effort, same as above
+  }
+}
 
 export function OnboardingFlow() {
   const { completeOnboarding } = useAuth()
-  const [step, setStep] = useState<Step>('welcome')
+  const { updateClinicSettings } = useData()
+  const initialDraft = useRef(loadDraft()).current
+  // A draft with any data means the wizard was interrupted mid-way — land
+  // straight back on the account step, already filled in, instead of
+  // making them click through the welcome screen again.
+  const hasDraft = Boolean(initialDraft.workspaceName || initialDraft.name || initialDraft.email)
+  const [step, setStep] = useState<Step>(hasDraft ? 'account' : 'welcome')
+  const [showLogIn, setShowLogIn] = useState(false)
+  const [workspaceName, setWorkspaceName] = useState(initialDraft.workspaceName)
+  const [name, setName] = useState(initialDraft.name)
+  const [email, setEmail] = useState(initialDraft.email)
+  const [password, setPassword] = useState('')
 
-  const [workspaceName, setWorkspaceName] = useState('')
-  const [name, setName] = useState('')
-  const [contact, setContact] = useState('')
+  const [companyName, setCompanyName] = useState(initialDraft.companyName)
+  const [country, setCountry] = useState(initialDraft.country)
+  const [currency, setCurrency] = useState(initialDraft.currency)
+  const [logoDataUrl, setLogoDataUrl] = useState(initialDraft.logoDataUrl)
 
   const [pinPhase, setPinPhase] = useState<PinPhase>('create')
   const [createdPin, setCreatedPin] = useState('')
@@ -43,10 +101,18 @@ export function OnboardingFlow() {
   const [biometricsSupported, setBiometricsSupported] = useState(false)
   const [finishing, setFinishing] = useState(false)
 
-  const detailsValid = workspaceName.trim().length > 0 && name.trim().length > 0 && contact.trim().length > 0
+  const accountValid = workspaceName.trim().length > 0 && name.trim().length > 0 && /\S+@\S+\.\S+/.test(email.trim()) && password.length >= 8
   const [pinConfirmed, setPinConfirmed] = useState(false)
 
-  // Each step can differ in height from the last (e.g. "details" is much
+  // Resumable if interrupted: everything except the password (never worth
+  // persisting, even briefly) and the PIN (a device secret, not a draft
+  // field) is saved as it's typed, so closing the tab mid-wizard and coming
+  // back just means retyping the password, not starting over.
+  useEffect(() => {
+    saveDraft({ workspaceName, name, email, companyName, country, currency, logoDataUrl })
+  }, [workspaceName, name, email, companyName, country, currency, logoDataUrl])
+
+  // Each step can differ in height from the last (e.g. "account" is much
   // taller than "welcome") — reset scroll to the top on every step change
   // so the new step's first control always opens already in view, instead
   // of wherever the previous step happened to leave the scroll position.
@@ -54,7 +120,18 @@ export function OnboardingFlow() {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: firstMount.current ? 'auto' : 'smooth' })
     firstMount.current = false
-  }, [step, pinPhase, pinConfirmed])
+  }, [step, showLogIn, pinPhase, pinConfirmed])
+
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    try {
+      setLogoDataUrl(await fileToResizedDataUrl(file))
+    } catch {
+      toast.error('Could not use that image', { description: 'Try a different file.' })
+    }
+  }
 
   const handlePinComplete = (value: string) => {
     setPin(value)
@@ -85,7 +162,9 @@ export function OnboardingFlow() {
   const handleFinish = async () => {
     setFinishing(true)
     try {
-      await completeOnboarding({ workspaceName: workspaceName.trim(), name: name.trim(), contact: contact.trim(), pin: createdPin, enableBiometrics })
+      await completeOnboarding({ workspaceName: workspaceName.trim(), name: name.trim(), contact: email.trim(), password, pin: createdPin, enableBiometrics })
+      updateClinicSettings({ clinicName: companyName.trim() || workspaceName.trim(), country, currency, logoDataUrl })
+      clearDraft()
     } catch {
       toast.error('Something went wrong finishing setup', { description: 'Please try again.' })
       setFinishing(false)
@@ -101,19 +180,42 @@ export function OnboardingFlow() {
 
         <motion.div {...AUTH_CARD_MOTION} className={`overflow-hidden ${AUTH_CARD_CLASS}`}>
           <AnimatePresence mode="wait">
-            {step === 'welcome' && (
+            {step === 'welcome' && !showLogIn && (
               <motion.div key="welcome" {...STEP_TRANSITION} className="flex flex-col items-center gap-6 sm:gap-11">
                 <AuthScreenHeader title="Welcome to ImplaTrax" subtitle="Let's get your workspace set up." />
-                <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} onClick={() => setStep('details')}>
-                  Create Workspace
-                </Button>
+                <div className="flex w-full flex-col gap-3">
+                  <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} onClick={() => setStep('account')}>
+                    Create Workspace
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => setShowLogIn(true)}
+                    className="rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  >
+                    Already have a workspace? Log in
+                  </button>
+                </div>
               </motion.div>
             )}
 
-            {step === 'details' && (
-              <motion.div key="details" {...STEP_TRANSITION} className="flex flex-col items-center gap-6 sm:gap-11">
+            {step === 'welcome' && showLogIn && (
+              <motion.div key="login" {...STEP_TRANSITION} className="flex flex-col items-center gap-6 sm:gap-11">
+                <AuthScreenHeader title="Log In" subtitle="Sign in with the email and password from your workspace." />
+                <LogInWithEmailForm onSuccess={() => {}} />
+                <button
+                  type="button"
+                  onClick={() => setShowLogIn(false)}
+                  className="rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  Back
+                </button>
+              </motion.div>
+            )}
+
+            {step === 'account' && (
+              <motion.div key="account" {...STEP_TRANSITION} className="flex flex-col items-center gap-6 sm:gap-11">
                 <AuthScreenHeader title="Set Up Your Workspace" subtitle="Tell us a little about your practice." />
-                <div className="flex w-full flex-col gap-3 sm:gap-5">
+                <div className="flex w-full flex-col gap-3 sm:gap-4">
                   <div className="flex flex-col gap-1.5 sm:gap-2">
                     <Label htmlFor="workspaceName">Workspace Name</Label>
                     <Input
@@ -127,26 +229,107 @@ export function OnboardingFlow() {
                   </div>
                   <div className="flex flex-col gap-1.5 sm:gap-2">
                     <Label htmlFor="yourName">Your Name</Label>
-                    <Input
-                      id="yourName"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Full name"
-                      className={AUTH_INPUT_CLASS}
-                    />
+                    <Input id="yourName" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" className={AUTH_INPUT_CLASS} />
                   </div>
                   <div className="flex flex-col gap-1.5 sm:gap-2">
-                    <Label htmlFor="contact">Mobile Number or Email</Label>
+                    <Label htmlFor="email">Email</Label>
                     <Input
-                      id="contact"
-                      value={contact}
-                      onChange={(e) => setContact(e.target.value)}
+                      id="email"
+                      type="email"
+                      autoComplete="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       placeholder="you@example.com"
                       className={AUTH_INPUT_CLASS}
                     />
                   </div>
+                  <div className="flex flex-col gap-1.5 sm:gap-2">
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      autoComplete="new-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className={AUTH_INPUT_CLASS}
+                    />
+                    <p className="text-xs text-muted-foreground">At least 8 characters. This is your account password — separate from the 4-digit PIN you'll set up next.</p>
+                  </div>
                 </div>
-                <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} disabled={!detailsValid} onClick={() => setStep('pin')}>
+                <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} disabled={!accountValid} onClick={() => setStep('company')}>
+                  Continue
+                </Button>
+              </motion.div>
+            )}
+
+            {step === 'company' && (
+              <motion.div key="company" {...STEP_TRANSITION} className="flex flex-col items-center gap-6 sm:gap-11">
+                <AuthScreenHeader title="About Your Practice" subtitle="Optional — you can change all of this later in Settings." />
+                <div className="flex w-full flex-col gap-3 sm:gap-4">
+                  <div className="flex flex-col gap-1.5 sm:gap-2">
+                    <Label htmlFor="companyName">Company Name (optional)</Label>
+                    <Input
+                      id="companyName"
+                      autoFocus
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      placeholder={workspaceName || 'Same as workspace name'}
+                      className={AUTH_INPUT_CLASS}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5 sm:gap-2">
+                    <Label>Company Logo (optional)</Label>
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border/70 bg-background/60 dark:bg-black/25">
+                        {logoDataUrl ? (
+                          <img src={logoDataUrl} alt="Company logo preview" className="h-full w-full object-contain" />
+                        ) : (
+                          <ImageIcon className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+                        )}
+                      </div>
+                      <label className="cursor-pointer rounded-md border border-border/70 bg-background/60 px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:border-primary/40 dark:bg-black/25">
+                        {logoDataUrl ? 'Replace' : 'Upload'}
+                        <input type="file" accept="image/*" className="sr-only" onChange={handleLogoChange} />
+                      </label>
+                      {logoDataUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setLogoDataUrl('')}
+                          aria-label="Remove logo"
+                          className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
+                        >
+                          <X className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5 sm:gap-2">
+                    <Label>Country</Label>
+                    <Combobox
+                      options={COUNTRIES.map((c) => ({ value: c, label: c }))}
+                      value={country}
+                      onChange={setCountry}
+                      placeholder="Select country"
+                      searchPlaceholder="Search countries..."
+                      emptyText="No countries found."
+                      triggerAriaLabel="Country"
+                      className={AUTH_INPUT_CLASS}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5 sm:gap-2">
+                    <Label>Currency</Label>
+                    <Select value={currency} onValueChange={setCurrency}>
+                      <SelectTrigger className={AUTH_INPUT_CLASS}><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="USD">USD ($)</SelectItem>
+                        <SelectItem value="EUR">EUR (€)</SelectItem>
+                        <SelectItem value="GBP">GBP (£)</SelectItem>
+                        <SelectItem value="INR">INR (₹)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} onClick={() => setStep('pin')}>
                   Continue
                 </Button>
               </motion.div>
@@ -156,7 +339,7 @@ export function OnboardingFlow() {
               <motion.div key="pin" {...STEP_TRANSITION} className="flex flex-col items-center gap-6 sm:gap-11">
                 <AuthScreenHeader
                   title={pinPhase === 'create' ? 'Create Your PIN' : 'Confirm Your PIN'}
-                  subtitle={pinPhase === 'create' ? 'Choose a 4-digit PIN to secure your workspace.' : 'Re-enter your PIN to confirm.'}
+                  subtitle={pinPhase === 'create' ? 'Choose a 4-digit PIN to secure your workspace on this device.' : 'Re-enter your PIN to confirm.'}
                 />
                 <PinPad value={pin} onChange={handlePinComplete} length={PIN_LENGTH} error={pinError} />
               </motion.div>

@@ -62,6 +62,7 @@ function migrateLegacySnapshot(): AccountSnapshot | null {
   const now = new Date().toISOString()
   const workspaceId = randomId()
   const memberId = randomId()
+  const base = emptySnapshot()
   const owner: MemberRecord = {
     id: memberId,
     name: legacy.identity?.name ?? 'Owner',
@@ -70,6 +71,12 @@ function migrateLegacySnapshot(): AccountSnapshot | null {
     status: 'active',
     pinHash: legacy.pinHash,
     pinSalt: legacy.pinSalt,
+    // The legacy single-user app had no multi-device concept — this PIN was
+    // only ever entered on this one device, so it's fair to treat it as
+    // already belonging to this (freshly-generated) device id.
+    pinDeviceId: legacy.pinHash ? base.deviceId : null,
+    passwordHash: null,
+    passwordSalt: null,
     webauthnCredentialId: legacy.webauthnCredentialId,
     mustChangePin: false,
     createdAt: now,
@@ -79,7 +86,7 @@ function migrateLegacySnapshot(): AccountSnapshot | null {
   const workspace: WorkspaceRecord = { id: workspaceId, name: 'My Workspace', createdAt: now, memberIds: [memberId] }
 
   const snapshot: AccountSnapshot = {
-    ...emptySnapshot(),
+    ...base,
     hasOnboarded: true,
     workspaces: [workspace],
     members: [owner],

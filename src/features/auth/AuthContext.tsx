@@ -11,9 +11,13 @@ export interface OnboardingInput {
   workspaceName: string
   name: string
   contact: string
+  /** Account-level credential (prep for Supabase auth / cross-device login) — optional only so older test fixtures without one still compile; the onboarding UI always supplies it. */
+  password?: string
   pin: string
   enableBiometrics: boolean
 }
+
+export type LogInResult = { ok: true; needsNewPin: boolean } | { ok: false; error: string }
 
 export interface AuthIdentity {
   name: string
@@ -43,6 +47,7 @@ interface AuthContextValue {
   lockedUntil: string | null
 
   completeOnboarding: (input: OnboardingInput) => Promise<{ workspaceName: string; name: string; contact: string }>
+  logInWithPassword: (email: string, password: string) => Promise<LogInResult>
   verifyPin: (pin: string) => Promise<boolean>
   verifyBiometrics: () => Promise<boolean>
   completeForcedPinChange: (newPin: string) => Promise<void>
@@ -134,6 +139,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (input: OnboardingInput) => {
       const salt = generateSalt()
       const pinHash = await hashPin(input.pin, salt)
+      let passwordHash: string | null = null
+      let passwordSalt: string | null = null
+      if (input.password) {
+        passwordSalt = generateSalt()
+        passwordHash = await hashPin(input.password, passwordSalt)
+      }
       const webauthnCredentialId = input.enableBiometrics ? await registerPasskey(input.name, input.contact) : null
       const now = new Date().toISOString()
       const workspaceId = randomId()
@@ -146,6 +157,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         status: 'active',
         pinHash,
         pinSalt: salt,
+        passwordHash,
+        passwordSalt,
+        pinDeviceId: null, // set to this device's id inside the updater below, from the live snapshot rather than a possibly-stale closure
         webauthnCredentialId,
         mustChangePin: false,
         createdAt: now,
@@ -154,14 +168,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       const workspace: WorkspaceRecord = { id: workspaceId, name: input.workspaceName, createdAt: now, memberIds: [memberId] }
 
-      updateSnapshot((prev) =>
-        withAudit(
-          { ...prev, hasOnboarded: true, workspaces: [...prev.workspaces, workspace], members: [...prev.members, owner], currentWorkspaceId: workspaceId, currentMemberId: memberId, unlockedAt: now },
+      updateSnapshot((prev) => {
+        const ownerForThisDevice = { ...owner, pinDeviceId: prev.deviceId }
+        return withAudit(
+          { ...prev, hasOnboarded: true, workspaces: [...prev.workspaces, workspace], members: [...prev.members, ownerForThisDevice], currentWorkspaceId: workspaceId, currentMemberId: memberId, unlockedAt: now },
           'onboarding_completed',
           undefined,
-          owner,
-        ),
-      )
+          ownerForThisDevice,
+        )
+      })
       setStatus('unlocked')
       return { workspaceName: input.workspaceName, name: input.name, contact: input.contact }
     },
@@ -211,7 +226,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const now = new Date().toISOString()
       updateSnapshot((prev) =>
         withAudit(
-          { ...prev, members: prev.members.map((m) => (m.id === currentMember.id ? { ...m, pinHash, pinSalt: salt, mustChangePin: false, lastLoginAt: now, lastActiveAt: now } : m)), unlockedAt: now },
+          {
+            ...prev,
+            members: prev.members.map((m) =>
+              m.id === currentMember.id ? { ...m, pinHash, pinSalt: salt, pinDeviceId: prev.deviceId, mustChangePin: false, lastLoginAt: now, lastActiveAt: now } : m,
+            ),
+            unlockedAt: now,
+          },
           'pin_changed',
           'via forced reset',
         ),
@@ -254,7 +275,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (candidate !== currentMember.pinHash) return false
       const salt = generateSalt()
       const pinHash = await hashPin(newPin, salt)
-      updateSnapshot((prev) => withAudit({ ...prev, members: prev.members.map((m) => (m.id === currentMember.id ? { ...m, pinHash, pinSalt: salt } : m)) }, 'pin_changed'))
+      updateSnapshot((prev) => withAudit({ ...prev, members: prev.members.map((m) => (m.id === currentMember.id ? { ...m, pinHash, pinSalt: salt, pinDeviceId: prev.deviceId } : m)) }, 'pin_changed'))
       return true
     },
     [currentMember, updateSnapshot],
@@ -314,6 +335,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         status: 'active',
         pinHash,
         pinSalt: salt,
+        // No account-level password for invited members — an admin issues their
+        // PIN directly (here, in person/on this device), so there's nothing to
+        // verify a password against; "Log In" via email+password only applies
+        // to members who set one themselves (currently: the workspace owner).
+        passwordHash: null,
+        passwordSalt: null,
+        pinDeviceId: snapshot.deviceId,
         webauthnCredentialId: null,
         mustChangePin: false,
         createdAt: now,
@@ -329,7 +357,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       )
       return { ok: true, id }
     },
-    [currentMember, currentWorkspace, workspaceMembers, updateSnapshot],
+    [currentMember, currentWorkspace, workspaceMembers, snapshot.deviceId, updateSnapshot],
+  )
+
+  const logInWithPassword = useCallback(
+    async (email: string, password: string): Promise<LogInResult> => {
+      const trimmed = email.trim().toLowerCase()
+      if (!trimmed || !password) return { ok: false, error: 'Enter your email and password.' }
+      const member = snapshot.members.find((m) => m.contact.trim().toLowerCase() === trimmed && m.passwordHash && m.passwordSalt)
+      if (!member) {
+        return { ok: false, error: "We couldn't find an account with that email on this device." }
+      }
+      const candidate = await hashPin(password, member.passwordSalt!)
+      if (candidate !== member.passwordHash) return { ok: false, error: 'Incorrect password.' }
+
+      const workspace = snapshot.workspaces.find((w) => w.memberIds.includes(member.id))
+      const needsNewPin = !member.pinHash || member.pinDeviceId !== snapshot.deviceId
+
+      updateSnapshot((prev) =>
+        withAudit(
+          {
+            ...prev,
+            currentWorkspaceId: workspace?.id ?? prev.currentWorkspaceId,
+            currentMemberId: member.id,
+            failedPinAttempts: 0,
+            lockedUntil: null,
+            members: needsNewPin ? prev.members.map((m) => (m.id === member.id ? { ...m, mustChangePin: true } : m)) : prev.members,
+          },
+          'login',
+          'via password',
+          member,
+        ),
+      )
+      setStatus('locked')
+      return { ok: true, needsNewPin }
+    },
+    [snapshot, updateSnapshot],
   )
 
   const disableMember = useCallback(
@@ -418,6 +481,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         status: 'active',
         pinHash: null,
         pinSalt: null,
+        // Same person, same login — carry their existing password credential
+        // over to the new workspace's owner record rather than leaving it
+        // unset (which would make "Log In" unable to find this workspace).
+        passwordHash: currentMember?.passwordHash ?? null,
+        passwordSalt: currentMember?.passwordSalt ?? null,
+        pinDeviceId: null,
         webauthnCredentialId: null,
         mustChangePin: true,
         createdAt: now,
@@ -515,6 +584,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       failedPinAttempts: snapshot.failedPinAttempts,
       lockedUntil: snapshot.lockedUntil,
       completeOnboarding,
+      logInWithPassword,
       verifyPin,
       verifyBiometrics,
       completeForcedPinChange,
@@ -554,6 +624,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       snapshot.failedPinAttempts,
       snapshot.lockedUntil,
       completeOnboarding,
+      logInWithPassword,
       verifyPin,
       verifyBiometrics,
       completeForcedPinChange,

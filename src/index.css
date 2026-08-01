@@ -106,6 +106,19 @@
     @apply bg-background text-foreground;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
+
+  /* iOS Safari auto-zooms the page on focusing any form control smaller
+     than 16px — our default input/select text is 14px (text-sm). Below the
+     sm: breakpoint (where that zoom-on-focus behavior actually applies),
+     bump form controls up to 16px so focusing an input never yanks the
+     viewport in. */
+  @media (max-width: 639px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
 }
 
 /*

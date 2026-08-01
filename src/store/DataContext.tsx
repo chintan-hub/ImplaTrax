@@ -199,7 +199,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [sales, setSales] = useState<Sale[]>(persisted?.sales ?? mock.sales)
   const [loans, setLoans] = useState<Loan[]>(persisted?.loans ?? mock.loans)
   const [users, setUsers] = useState<AppUser[]>(persisted?.users ?? mock.users)
-  const [clinicSettings, setClinicSettings] = useState<ClinicSettings>(persisted?.clinicSettings ?? mock.defaultClinicSettings)
+  // Spread over the default rather than using a persisted snapshot as-is —
+  // older snapshots predate fields like country/logoDataUrl, and without
+  // this merge those would come back `undefined` and turn their form
+  // controls uncontrolled.
+  const [clinicSettings, setClinicSettings] = useState<ClinicSettings>({ ...mock.defaultClinicSettings, ...persisted?.clinicSettings })
   const [batches, setBatches] = useState<ProductBatch[]>(persisted?.batches ?? mock.batches)
   const [doctors, setDoctors] = useState<Doctor[]>(persisted?.doctors ?? mock.doctors)
 

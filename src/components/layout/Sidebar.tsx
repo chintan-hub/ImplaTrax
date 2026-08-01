@@ -18,6 +18,7 @@ function SidebarLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => v
       to={item.to}
       end={item.to === '/'}
       onClick={onNavigate}
+      data-tour={item.tourId}
       className={cn(
         'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors',
         isActive
