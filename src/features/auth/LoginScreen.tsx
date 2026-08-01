@@ -11,6 +11,7 @@ import { AuthShowcasePanel } from './AuthShowcasePanel'
 import { AuthBrandBlock } from './AuthBrandBlock'
 import { PinPad } from './PinPad'
 import { AuthScreenHeader } from './AuthScreenHeader'
+import { LogInWithEmailForm } from './LogInWithEmailForm'
 import { ROLE_LABEL } from './roles'
 import { AUTH_BACKDROP_CLASS, AUTH_CARD_CLASS, AUTH_CARD_MOTION, AUTH_CONTENT_WRAPPER_CLASS, AUTH_SHOWCASE_PANEL_CLASS, PREMIUM_EASE } from './authTheme'
 
@@ -54,6 +55,7 @@ export function LoginScreen() {
   const [busy, setBusy] = useState(false)
   const [unlocking, setUnlocking] = useState(false)
   const [forgotOpen, setForgotOpen] = useState(false)
+  const [showEmailLogin, setShowEmailLogin] = useState(false)
 
   const [newPinPhase, setNewPinPhase] = useState<'create' | 'confirm'>('create')
   const [createdNewPin, setCreatedNewPin] = useState('')
@@ -64,15 +66,27 @@ export function LoginScreen() {
   const canUseBiometrics = hasBiometrics && platformAuthAvailable
   const lockoutSecondsLeft = useLockoutCountdown(lockedUntil)
   const isLockedOut = lockoutSecondsLeft > 0
-  const showPicker = !currentMember && activeWorkspaceMembers.length > 0
+  const showPicker = !currentMember && activeWorkspaceMembers.length > 0 && !showEmailLogin
   const showSetNewPin = Boolean(currentMember) && mustChangePin
 
-  // The picker / set-new-PIN / enter-PIN states can differ in height —
-  // keep whichever one is showing anchored to the top of the viewport
-  // instead of leaving scroll wherever a previous state left it.
+  // The picker / set-new-PIN / enter-PIN / email-login states can differ in
+  // height — keep whichever one is showing anchored to the top of the
+  // viewport instead of leaving scroll wherever a previous state left it.
   useEffect(() => {
     window.scrollTo(0, 0)
-  }, [showPicker, showSetNewPin])
+  }, [showPicker, showSetNewPin, showEmailLogin])
+
+  const handleEmailLoginSuccess = (needsNewPin: boolean) => {
+    setShowEmailLogin(false)
+    if (!needsNewPin) {
+      // They just proved who they are with their password — no need to also
+      // demand the PIN they said they'd forgotten.
+      setUnlocking(true)
+      setTimeout(() => unlock(), FEEDBACK_MS)
+    }
+    // If a new PIN is needed, mustChangePin is now true for currentMember —
+    // the existing showSetNewPin branch below picks it up on its own.
+  }
 
   useEffect(() => {
     if (pin.length !== PIN_LENGTH || busy || isLockedOut) return
@@ -176,9 +190,21 @@ export function LoginScreen() {
             <div className="flex flex-col items-center gap-6 sm:gap-11">
               <AuthScreenHeader
                 title={newPinPhase === 'create' ? 'Set a New PIN' : 'Confirm Your New PIN'}
-                subtitle={newPinPhase === 'create' ? 'Your PIN was reset. Choose a new 4-digit PIN.' : 'Re-enter your new PIN to confirm.'}
+                subtitle={newPinPhase === 'create' ? 'For your security, choose a new 4-digit PIN for this device.' : 'Re-enter your new PIN to confirm.'}
               />
               <PinPad value={newPinValue} onChange={handleNewPinComplete} length={PIN_LENGTH} error={newPinError} disabled={newPinBusy} />
+            </div>
+          ) : showEmailLogin ? (
+            <div className="flex flex-col items-center gap-6 sm:gap-11">
+              <AuthScreenHeader title="Log In" subtitle="Use your email and password instead of your PIN." />
+              <LogInWithEmailForm onSuccess={handleEmailLoginSuccess} />
+              <button
+                type="button"
+                onClick={() => setShowEmailLogin(false)}
+                className="rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                Back to PIN
+              </button>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-6 sm:gap-11">
@@ -211,13 +237,23 @@ export function LoginScreen() {
                     Switch User
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => setForgotOpen(true)}
-                  className="rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                >
-                  Forgot PIN
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowEmailLogin(true)}
+                    className="rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  >
+                    Log in with email
+                  </button>
+                  <span className="text-border" aria-hidden="true">·</span>
+                  <button
+                    type="button"
+                    onClick={() => setForgotOpen(true)}
+                    className="rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  >
+                    Forgot PIN
+                  </button>
+                </div>
               </div>
             </div>
           )}

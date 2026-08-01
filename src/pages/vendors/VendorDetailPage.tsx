@@ -1,12 +1,13 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Star, Mail, Phone, MapPin, Building2 } from 'lucide-react'
+import { ArrowLeft, Star, Mail, Phone, MapPin, Building2, Pencil } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { StatCard } from '@/components/shared/StatCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { VendorFormDialog } from '@/components/vendors/VendorFormDialog'
 import { useData } from '@/store/DataContext'
 import { useCurrencyFormat } from '@/hooks/useCurrencyFormat'
 import { formatDate } from '@/lib/utils'
@@ -17,6 +18,7 @@ export function VendorDetailPage() {
   const navigate = useNavigate()
   const { vendors, purchaseOrders } = useData()
   const { format } = useCurrencyFormat()
+  const [editing, setEditing] = useState(false)
 
   const vendor = vendors.find((v) => v.id === vendorId)
   const vendorPOs = useMemo(
@@ -44,10 +46,17 @@ export function VendorDetailPage() {
             {vendor.manufacturers.map((m) => <Badge key={m} variant="outline">{m}</Badge>)}
           </div>
         </div>
-        <span className="flex items-center gap-1 text-lg font-semibold">
-          <Star className="h-4 w-4 fill-warning-500 text-warning-500" /> {Math.round(vendor.onTimeRate * 100)}% on-time
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1 text-lg font-semibold">
+            <Star className="h-4 w-4 fill-warning-500 text-warning-500" /> {Math.round(vendor.onTimeRate * 100)}% on-time
+          </span>
+          <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+            <Pencil className="h-3.5 w-3.5" /> Edit
+          </Button>
+        </div>
       </div>
+
+      <VendorFormDialog open={editing} onOpenChange={setEditing} vendor={vendor} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-6">
         <StatCard label="Total Purchase Orders" value={String(vendorPOs.length)} icon={ClipboardList} />

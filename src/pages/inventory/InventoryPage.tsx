@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { ArrowDownToLine, ArrowUpFromLine, SlidersHorizontal, Plus, Search, Download } from 'lucide-react'
-import { PageHeader } from '@/components/shared/PageHeader'
-import { StickyToolbar } from '@/components/shared/StickyToolbar'
+import { StickyActionHeader } from '@/components/shared/StickyActionHeader'
 import { StatCard } from '@/components/shared/StatCard'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Button } from '@/components/ui/button'
@@ -11,10 +10,12 @@ import { Combobox } from '@/components/ui/combobox'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { AdjustmentDialog } from '@/components/inventory/AdjustmentDialog'
 import { useData } from '@/store/DataContext'
+import { useAuth } from '@/features/auth/AuthContext'
 import { patientFullName } from '@/mocks/patients'
 import { formatDateTime } from '@/lib/utils'
 import { exportToCsv } from '@/lib/documents/csv'
 import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
+import { productComboboxOptions } from '@/lib/productOptions'
 import type { MovementType } from '@/types'
 
 const TYPE_LABEL: Record<MovementType, string> = {
@@ -43,7 +44,8 @@ const TYPE_VARIANT: Record<MovementType, 'success' | 'danger' | 'warning' | 'acc
 const FILTERABLE_TYPES: MovementType[] = ['inbound', 'adjustment', 'loan-out', 'loan-return', 'sale', 'lost']
 
 export function InventoryPage() {
-  const { movements, products, users, vendors, labs, patients, doctors, clinicSettings } = useData()
+  const { movements, products, vendors, labs, patients, doctors, clinicSettings } = useData()
+  const { workspaceMembers } = useAuth()
   const [typeFilter, setTypeFilter] = useState('all')
   const [productFilter, setProductFilter] = useState('all')
   const [doctorFilter, setDoctorFilter] = useState('all')
@@ -56,7 +58,7 @@ export function InventoryPage() {
   const [adjustOpen, setAdjustOpen] = useState(false)
 
   const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products])
-  const userById = useMemo(() => new Map(users.map((u) => [u.id, u])), [users])
+  const userById = useMemo(() => new Map(workspaceMembers.map((m) => [m.id, m])), [workspaceMembers])
   const vendorById = useMemo(() => new Map(vendors.map((v) => [v.id, v])), [vendors])
   const labById = useMemo(() => new Map(labs.map((l) => [l.id, l])), [labs])
   const patientById = useMemo(() => new Map(patients.map((p) => [p.id, p])), [patients])
@@ -125,7 +127,7 @@ export function InventoryPage() {
     exportToCsv(rows, `inventory-movements-${new Date().toISOString().slice(0, 10)}.csv`)
   }
 
-  const productOptions = [{ value: 'all', label: 'All products' }, ...products.map((p) => ({ value: p.id, label: `${p.name} · ${p.sku}` }))]
+  const productOptions = [{ value: 'all', label: 'All products' }, ...productComboboxOptions(products, (p) => `${p.name} · ${p.sku}`)]
   const doctorOptions = [{ value: 'all', label: 'All doctors' }, ...doctors.map((d) => ({ value: `Dr. ${d.name}`, label: `Dr. ${d.name}`, searchValue: d.name }))]
   const patientOptions = [{ value: 'all', label: 'All patients' }, ...patients.map((p) => ({ value: p.id, label: `${patientFullName(p)} · ${p.patientCode}` }))]
   const vendorOptions = [{ value: 'all', label: 'All vendors' }, ...vendors.map((v) => ({ value: v.id, label: v.name }))]
@@ -134,7 +136,14 @@ export function InventoryPage() {
 
   return (
     <div>
-      <PageHeader
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+        <StatCard label="Total Stock Movements" value={String(stats.total)} icon={SlidersHorizontal} helpTerm="stockMovement" />
+        <StatCard label="Units Inbound" value={String(stats.inbound)} icon={ArrowDownToLine} tone="success" />
+        <StatCard label="Units Outbound" value={String(stats.outbound)} icon={ArrowUpFromLine} tone="danger" />
+        <StatCard label="Manual Adjustments" value={String(stats.adjustments)} icon={SlidersHorizontal} tone="warning" helpTerm="adjustment" />
+      </div>
+
+      <StickyActionHeader
         title={PAGE_INTROS.inventory.title}
         description={PAGE_INTROS.inventory.description}
         actions={
@@ -147,32 +156,27 @@ export function InventoryPage() {
             </Button>
           </>
         }
+        toolbarClassName="sm:flex-wrap"
+        toolbar={
+          <>
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="Search product, reason, reference..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+            <Combobox className="w-full sm:w-44" options={typeOptions} value={typeFilter} onChange={setTypeFilter} placeholder="Movement Type" searchPlaceholder="Search types..." triggerAriaLabel="Filter by movement type" />
+            <Combobox className="w-full sm:w-52" options={productOptions} value={productFilter} onChange={setProductFilter} placeholder="Product" searchPlaceholder="Search products..." triggerAriaLabel="Filter by product" />
+            <Combobox className="w-full sm:w-48" options={doctorOptions} value={doctorFilter} onChange={setDoctorFilter} placeholder="Doctor" searchPlaceholder="Search doctors..." triggerAriaLabel="Filter by doctor" />
+            <Combobox className="w-full sm:w-48" options={patientOptions} value={patientFilter} onChange={setPatientFilter} placeholder="Patient" searchPlaceholder="Search patients..." triggerAriaLabel="Filter by patient" />
+            <Combobox className="w-full sm:w-44" options={vendorOptions} value={vendorFilter} onChange={setVendorFilter} placeholder="Vendor" searchPlaceholder="Search vendors..." triggerAriaLabel="Filter by vendor" />
+            <Combobox className="w-full sm:w-44" options={labOptions} value={labFilter} onChange={setLabFilter} placeholder="Lab" searchPlaceholder="Search labs..." triggerAriaLabel="Filter by lab" />
+            <div className="flex items-center gap-1.5">
+              <Input type="date" aria-label="From date" className="w-full sm:w-36" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+              <span className="text-xs text-muted-foreground">to</span>
+              <Input type="date" aria-label="To date" className="w-full sm:w-36" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            </div>
+          </>
+        }
       />
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
-        <StatCard label="Total Stock Movements" value={String(stats.total)} icon={SlidersHorizontal} helpTerm="stockMovement" />
-        <StatCard label="Units Inbound" value={String(stats.inbound)} icon={ArrowDownToLine} tone="success" />
-        <StatCard label="Units Outbound" value={String(stats.outbound)} icon={ArrowUpFromLine} tone="danger" />
-        <StatCard label="Manual Adjustments" value={String(stats.adjustments)} icon={SlidersHorizontal} tone="warning" helpTerm="adjustment" />
-      </div>
-
-      <StickyToolbar className="sm:flex-wrap">
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search product, reason, reference..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </div>
-        <Combobox className="w-full sm:w-44" options={typeOptions} value={typeFilter} onChange={setTypeFilter} placeholder="Movement Type" searchPlaceholder="Search types..." triggerAriaLabel="Filter by movement type" />
-        <Combobox className="w-full sm:w-52" options={productOptions} value={productFilter} onChange={setProductFilter} placeholder="Product" searchPlaceholder="Search products..." triggerAriaLabel="Filter by product" />
-        <Combobox className="w-full sm:w-48" options={doctorOptions} value={doctorFilter} onChange={setDoctorFilter} placeholder="Doctor" searchPlaceholder="Search doctors..." triggerAriaLabel="Filter by doctor" />
-        <Combobox className="w-full sm:w-48" options={patientOptions} value={patientFilter} onChange={setPatientFilter} placeholder="Patient" searchPlaceholder="Search patients..." triggerAriaLabel="Filter by patient" />
-        <Combobox className="w-full sm:w-44" options={vendorOptions} value={vendorFilter} onChange={setVendorFilter} placeholder="Vendor" searchPlaceholder="Search vendors..." triggerAriaLabel="Filter by vendor" />
-        <Combobox className="w-full sm:w-44" options={labOptions} value={labFilter} onChange={setLabFilter} placeholder="Lab" searchPlaceholder="Search labs..." triggerAriaLabel="Filter by lab" />
-        <div className="flex items-center gap-1.5">
-          <Input type="date" aria-label="From date" className="w-full sm:w-36" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-          <span className="text-xs text-muted-foreground">to</span>
-          <Input type="date" aria-label="To date" className="w-full sm:w-36" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-        </div>
-      </StickyToolbar>
 
       {filtered.length === 0 ? (
         <EmptyState

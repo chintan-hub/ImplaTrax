@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { AuthProvider, useAuth } from './AuthContext'
+import { loadAccountSnapshot, saveAccountSnapshot } from './authPersistence'
 
 function setup() {
   return renderHook(() => useAuth(), { wrapper: AuthProvider })
@@ -282,5 +283,92 @@ describe('AuthContext', () => {
     })
     expect(result.current.status).toBe('unlocked')
     expect(result.current.mustChangePin).toBe(false)
+  })
+
+  it('logInWithPassword rejects an unknown email or a wrong password, without changing status', async () => {
+    const { result } = setup()
+    await act(async () => {
+      await result.current.completeOnboarding({
+        workspaceName: 'Meridian Dental Implants',
+        name: 'Dr. Sarah Chen',
+        contact: 'sarah@meridiandental.com',
+        password: 'correct-horse-battery',
+        pin: '1234',
+        enableBiometrics: false,
+      })
+    })
+    act(() => result.current.lock())
+
+    let unknownEmail: Awaited<ReturnType<typeof result.current.logInWithPassword>> | undefined
+    await act(async () => {
+      unknownEmail = await result.current.logInWithPassword('nobody@example.com', 'whatever')
+    })
+    expect(unknownEmail?.ok).toBe(false)
+    expect(result.current.status).toBe('locked')
+
+    let wrongPassword: Awaited<ReturnType<typeof result.current.logInWithPassword>> | undefined
+    await act(async () => {
+      wrongPassword = await result.current.logInWithPassword('sarah@meridiandental.com', 'nope')
+    })
+    expect(wrongPassword?.ok).toBe(false)
+    expect(result.current.status).toBe('locked')
+  })
+
+  it('logInWithPassword succeeds without requiring a new PIN when this device already has one for that member', async () => {
+    const { result } = setup()
+    await act(async () => {
+      await result.current.completeOnboarding({
+        workspaceName: 'Meridian Dental Implants',
+        name: 'Dr. Sarah Chen',
+        contact: 'sarah@meridiandental.com',
+        password: 'correct-horse-battery',
+        pin: '1234',
+        enableBiometrics: false,
+      })
+    })
+    act(() => result.current.lock())
+
+    let logIn: Awaited<ReturnType<typeof result.current.logInWithPassword>> | undefined
+    await act(async () => {
+      logIn = await result.current.logInWithPassword('sarah@meridiandental.com', 'correct-horse-battery')
+    })
+    expect(logIn).toEqual({ ok: true, needsNewPin: false })
+    expect(result.current.mustChangePin).toBe(false)
+    expect(result.current.currentMember?.name).toBe('Dr. Sarah Chen')
+  })
+
+  it('logInWithPassword requires a fresh device PIN when the stored PIN belongs to a different device', async () => {
+    const first = setup()
+    await act(async () => {
+      await first.result.current.completeOnboarding({
+        workspaceName: 'Meridian Dental Implants',
+        name: 'Dr. Sarah Chen',
+        contact: 'sarah@meridiandental.com',
+        password: 'correct-horse-battery',
+        pin: '1234',
+        enableBiometrics: false,
+      })
+    })
+    act(() => first.result.current.lock())
+
+    // Simulate this PIN having been set up on a different device (the one
+    // scenario Supabase sync will make real: the same account, opened for
+    // the first time in a browser that has never seen it before).
+    const snapshot = loadAccountSnapshot()
+    saveAccountSnapshot({ ...snapshot, members: snapshot.members.map((m) => ({ ...m, pinDeviceId: 'some-other-device' })) })
+
+    const second = setup()
+    let logIn: Awaited<ReturnType<typeof second.result.current.logInWithPassword>> | undefined
+    await act(async () => {
+      logIn = await second.result.current.logInWithPassword('sarah@meridiandental.com', 'correct-horse-battery')
+    })
+    expect(logIn).toEqual({ ok: true, needsNewPin: true })
+    expect(second.result.current.mustChangePin).toBe(true)
+
+    await act(async () => {
+      await second.result.current.completeForcedPinChange('4242')
+    })
+    expect(second.result.current.status).toBe('unlocked')
+    expect(second.result.current.mustChangePin).toBe(false)
   })
 })

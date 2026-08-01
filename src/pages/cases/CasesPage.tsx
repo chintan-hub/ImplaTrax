@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Search, Download } from 'lucide-react'
-import { PageHeader } from '@/components/shared/PageHeader'
-import { StickyToolbar } from '@/components/shared/StickyToolbar'
+import { StickyActionHeader } from '@/components/shared/StickyActionHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Button } from '@/components/ui/button'
@@ -73,7 +72,7 @@ export function CasesPage() {
 
   return (
     <div>
-      <PageHeader
+      <StickyActionHeader
         title={PAGE_INTROS.cases.title}
         helpTerm="case"
         description={`${PAGE_INTROS.cases.description} ${cases.length} cases tracked.`}
@@ -87,38 +86,40 @@ export function CasesPage() {
             </Button>
           </>
         }
+        toolbarClassName="sm:flex-wrap"
+        toolbar={
+          <>
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="Search Case ID or patient..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Combobox
+              className="w-full sm:w-52"
+              options={[{ value: 'all', label: 'All doctors' }, ...doctors.map((d) => ({ value: `Dr. ${d.name}`, label: `Dr. ${d.name}`, searchValue: d.name }))]}
+              value={doctor}
+              onChange={setDoctor}
+              placeholder="Doctor"
+              searchPlaceholder="Search doctors..."
+              emptyText="No doctors found."
+              triggerAriaLabel="Filter by doctor"
+            />
+            <Select value={labFilter} onValueChange={setLabFilter}>
+              <SelectTrigger className="w-full sm:w-52"><SelectValue placeholder="Lab" /></SelectTrigger>
+              <SelectContent className="max-h-72">
+                <SelectItem value="all">All labs</SelectItem>
+                {labs.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </>
+        }
       />
-
-      <StickyToolbar className="sm:flex-wrap">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search Case ID or patient..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </div>
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Combobox
-          className="w-full sm:w-52"
-          options={[{ value: 'all', label: 'All doctors' }, ...doctors.map((d) => ({ value: `Dr. ${d.name}`, label: `Dr. ${d.name}`, searchValue: d.name }))]}
-          value={doctor}
-          onChange={setDoctor}
-          placeholder="Doctor"
-          searchPlaceholder="Search doctors..."
-          emptyText="No doctors found."
-          triggerAriaLabel="Filter by doctor"
-        />
-        <Select value={labFilter} onValueChange={setLabFilter}>
-          <SelectTrigger className="w-full sm:w-52"><SelectValue placeholder="Lab" /></SelectTrigger>
-          <SelectContent className="max-h-72">
-            <SelectItem value="all">All labs</SelectItem>
-            {labs.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </StickyToolbar>
 
       {filtered.length === 0 ? (
         <EmptyState

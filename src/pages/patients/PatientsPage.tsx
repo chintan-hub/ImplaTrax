@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Search, Download } from 'lucide-react'
-import { PageHeader } from '@/components/shared/PageHeader'
-import { StickyToolbar } from '@/components/shared/StickyToolbar'
+import { StickyActionHeader } from '@/components/shared/StickyActionHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -59,7 +58,7 @@ export function PatientsPage() {
 
   return (
     <div>
-      <PageHeader
+      <StickyActionHeader
         title={PAGE_INTROS.patients.title}
         helpTerm="patient"
         description={`${PAGE_INTROS.patients.description} ${patients.length} patients on record.`}
@@ -73,14 +72,13 @@ export function PatientsPage() {
             </Button>
           </>
         }
+        toolbar={
+          <div className="relative max-w-sm flex-1">
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input placeholder="Search patients, code, doctor..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+        }
       />
-
-      <StickyToolbar>
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search patients, code, doctor..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </div>
-      </StickyToolbar>
 
       {filtered.length === 0 ? (
         <EmptyState

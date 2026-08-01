@@ -6,10 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import { Combobox } from '@/components/ui/combobox'
 import { useData } from '@/store/DataContext'
 import { patientFullName } from '@/mocks/patients'
 import { simulateLatency } from '@/lib/utils'
 import { useCurrencyFormat } from '@/hooks/useCurrencyFormat'
+import { productComboboxOptions } from '@/lib/productOptions'
 import type { SaleLine } from '@/types'
 
 export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
@@ -62,11 +64,16 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     }
     setSubmitting(true)
     await simulateLatency()
-    const sale = createSale(lines, patientId === 'none' ? undefined : patientId, caseId === 'none' ? undefined : caseId)
-    toast.success(`Sale ${sale.saleNumber} recorded`, { description: `${format(sale.total)} · stock updated` })
-    setSubmitting(false)
-    reset()
-    onOpenChange(false)
+    try {
+      const sale = createSale(lines, patientId === 'none' ? undefined : patientId, caseId === 'none' ? undefined : caseId)
+      toast.success(`Sale ${sale.saleNumber} recorded`, { description: `${format(sale.total)} · stock updated` })
+      reset()
+      onOpenChange(false)
+    } catch (err) {
+      toast.error('Could not record sale', { description: err instanceof Error ? err.message : undefined })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -114,15 +121,16 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
               return (
                 <div key={i} className="rounded-lg border border-border p-2">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <Select
+                    <Combobox
+                      className="flex-1"
+                      options={productComboboxOptions(products, (p) => `${p.name} (${p.quantityOnHand} in stock)`)}
                       value={line.productId}
-                      onValueChange={(v) => updateLine(i, { productId: v, unitPrice: products.find((p) => p.id === v)?.unitPrice ?? line.unitPrice, batchLot: undefined })}
-                    >
-                      <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
-                      <SelectContent className="max-h-72">
-                        {products.map((p) => <SelectItem key={p.id} value={p.id}>{p.name} ({p.quantityOnHand} in stock)</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                      onChange={(v) => updateLine(i, { productId: v, unitPrice: products.find((p) => p.id === v)?.unitPrice ?? line.unitPrice, batchLot: undefined })}
+                      placeholder="Select product"
+                      searchPlaceholder="Search name, SKU, system, diameter..."
+                      emptyText="No products found."
+                      triggerAriaLabel="Product"
+                    />
                     <div className="flex items-center gap-2">
                       <Input type="number" className="w-16" min={1} aria-label="Quantity" value={line.quantity} onChange={(e) => updateLine(i, { quantity: Math.max(1, Number(e.target.value) || 1) })} />
                       <Input type="number" className="w-24" step="0.01" aria-label="Unit price" value={line.unitPrice} onChange={(e) => updateLine(i, { unitPrice: Math.max(0, Number(e.target.value) || 0) })} />

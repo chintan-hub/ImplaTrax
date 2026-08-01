@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { Plus } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Combobox } from '@/components/ui/combobox'
 import { DoctorCombobox } from '@/components/shared/DoctorCombobox'
+import { PatientFormDialog } from '@/components/patients/PatientFormDialog'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { useData } from '@/store/DataContext'
@@ -32,6 +34,7 @@ export function CaseFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const [status, setStatus] = useState<CaseStatus>('planning')
   const [scheduledDate, setScheduledDate] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [addingPatient, setAddingPatient] = useState(false)
 
   const handleSubmit = async () => {
     if (!patientId) {
@@ -59,6 +62,7 @@ export function CaseFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
@@ -67,7 +71,12 @@ export function CaseFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
         </DialogHeader>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="col-span-1 space-y-1.5 sm:col-span-2">
-            <Label>Patient</Label>
+            <div className="flex items-center justify-between">
+              <Label>Patient</Label>
+              <button type="button" className="flex items-center gap-1 text-xs font-medium text-primary hover:underline" onClick={() => setAddingPatient(true)}>
+                <Plus className="h-3 w-3" /> Add New Patient
+              </button>
+            </div>
             <Combobox
               options={patients.map((p) => ({ value: p.id, label: `${patientFullName(p)} · ${p.patientCode}` }))}
               value={patientId}
@@ -124,5 +133,12 @@ export function CaseFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <PatientFormDialog
+      open={addingPatient}
+      onOpenChange={setAddingPatient}
+      onCreated={(created) => setPatientId(created.id)}
+    />
+    </>
   )
 }

@@ -503,38 +503,10 @@ describe('Purchase Order workflow (Phase 3)', () => {
     act(() => {
       result.current.submitPurchaseOrder(po.id)
     })
-    let updated = result.current.purchaseOrders.find((p) => p.id === po.id)!
+    const updated = result.current.purchaseOrders.find((p) => p.id === po.id)!
     expect(updated.history).toHaveLength(2)
     expect(updated.history[0].label).toBe('Purchase Order Created') // original entry preserved, not overwritten
     expect(updated.history[1].label).toBe('Submitted to Vendor')
-
-    act(() => {
-      result.current.confirmPurchaseOrder(po.id)
-    })
-    updated = result.current.purchaseOrders.find((p) => p.id === po.id)!
-    expect(updated.history).toHaveLength(3)
-    expect(updated.history[2].label).toBe('Confirmed by Vendor')
-    expect(updated.confirmedAt).toBeTruthy()
-  })
-
-  it('confirmPurchaseOrder only allows the submitted -> confirmed transition', () => {
-    const { result } = setup()
-    const po = createDraftPO(result)
-
-    // Still draft — confirming before submitting is rejected.
-    expect(() => result.current.confirmPurchaseOrder(po.id)).toThrow(/only a submitted purchase order/i)
-
-    act(() => {
-      result.current.submitPurchaseOrder(po.id)
-    })
-    act(() => {
-      result.current.confirmPurchaseOrder(po.id)
-    })
-    const confirmed = result.current.purchaseOrders.find((p) => p.id === po.id)!
-    expect(confirmed.status).toBe('confirmed')
-
-    // Already confirmed — confirming again is rejected.
-    expect(() => result.current.confirmPurchaseOrder(po.id)).toThrow(/only a submitted purchase order/i)
   })
 
   it('submitPurchaseOrder only allows the draft -> submitted transition', () => {
@@ -785,6 +757,52 @@ describe('Case lifecycle (P1-A)', () => {
 
     const unchanged = result.current.cases.find((c) => c.id === caseRecord.id)!
     expect(unchanged.implants).toHaveLength(0)
+  })
+
+  it('addImplantToCase deducts stock, records a movement, and creates a Sale linked to the case and patient, atomically', () => {
+    const { result } = setup()
+    const caseRecord = createCase(result)
+    const product = result.current.products.find((p) => p.quantityOnHand >= 1)!
+    const before = product.quantityOnHand
+    const saleCountBefore = result.current.sales.length
+    const movementCountBefore = result.current.movements.length
+
+    act(() => {
+      result.current.addImplantToCase(caseRecord.id, { productId: product.id, tooth: '36', quantity: 1 })
+    })
+
+    const updatedProduct = result.current.products.find((p) => p.id === product.id)!
+    expect(updatedProduct.quantityOnHand).toBe(before - 1)
+
+    expect(result.current.sales).toHaveLength(saleCountBefore + 1)
+    const sale = result.current.sales[0]
+    expect(sale.caseId).toBe(caseRecord.id)
+    expect(sale.patientId).toBe(caseRecord.patientId)
+    expect(sale.lines).toMatchObject([{ productId: product.id, quantity: 1 }])
+
+    expect(result.current.movements).toHaveLength(movementCountBefore + 1)
+    const movement = result.current.movements[0]
+    expect(movement).toMatchObject({ productId: product.id, type: 'sale', quantity: -1, caseId: caseRecord.id, patientId: caseRecord.patientId })
+
+    const updatedCase = result.current.cases.find((c) => c.id === caseRecord.id)!
+    expect(updatedCase.implants).toHaveLength(1)
+  })
+
+  it('addImplantToCase rejects when stock is insufficient, leaving the case, stock, and sales untouched', () => {
+    const { result } = setup()
+    const caseRecord = createCase(result)
+    const product = result.current.products[0]
+    const saleCountBefore = result.current.sales.length
+
+    expect(() =>
+      result.current.addImplantToCase(caseRecord.id, { productId: product.id, tooth: '36', quantity: product.quantityOnHand + 1000 }),
+    ).toThrow(/not enough stock/i)
+
+    const unchangedProduct = result.current.products.find((p) => p.id === product.id)!
+    expect(unchangedProduct.quantityOnHand).toBe(product.quantityOnHand)
+    expect(result.current.sales).toHaveLength(saleCountBefore)
+    const unchangedCase = result.current.cases.find((c) => c.id === caseRecord.id)!
+    expect(unchangedCase.implants).toHaveLength(0)
   })
 })
 

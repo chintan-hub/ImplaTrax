@@ -67,6 +67,7 @@ export function Topbar({ onOpenSearch }: { onOpenSearch: () => void }) {
         <button
           onClick={onOpenSearch}
           aria-label="Search components, patients, cases and more"
+          data-tour="global-search"
           className="flex flex-1 min-w-0 max-w-md items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-muted-foreground shadow-sm transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -187,7 +188,7 @@ export function Topbar({ onOpenSearch }: { onOpenSearch: () => void }) {
           <DropdownMenuItem onSelect={() => navigate('/settings?tab=profile')}>Profile</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => navigate('/settings?tab=security')}>Security</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => navigate('/settings')}>Clinic Settings</DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => navigate('/users')}>Manage Users</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => navigate('/settings?tab=workspace')}>Manage Team</DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => lock()}>
             <Lock className="mr-2 h-4 w-4" /> Lock App

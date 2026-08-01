@@ -18,7 +18,18 @@ function editForm(patient: Patient) {
   return { firstName: patient.firstName, lastName: patient.lastName, dob: patient.dob, phone: patient.phone, email: patient.email, notes: patient.notes ?? '' }
 }
 
-export function PatientFormDialog({ open, onOpenChange, patient }: { open: boolean; onOpenChange: (v: boolean) => void; patient?: Patient }) {
+export function PatientFormDialog({
+  open,
+  onOpenChange,
+  patient,
+  onCreated,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  patient?: Patient
+  /** When set, a newly created patient is handed back here instead of navigating to their profile — used to keep the caller (e.g. Case creation) in its own flow. */
+  onCreated?: (patient: Patient) => void
+}) {
   const { addPatient, updatePatient } = useData()
   const navigate = useNavigate()
   const isEdit = !!patient
@@ -52,17 +63,26 @@ export function PatientFormDialog({ open, onOpenChange, patient }: { open: boole
     }
     setSubmitting(true)
     await simulateLatency()
-    if (isEdit && patient) {
-      updatePatient(patient.id, { ...form, sex, primaryDoctor: doctor })
-      toast.success(`${form.firstName} ${form.lastName} updated`)
+    try {
+      if (isEdit && patient) {
+        updatePatient(patient.id, { ...form, sex, primaryDoctor: doctor })
+        toast.success(`${form.firstName} ${form.lastName} updated`)
+        onOpenChange(false)
+      } else {
+        const created = addPatient({ ...form, sex, primaryDoctor: doctor })
+        onOpenChange(false)
+        if (onCreated) {
+          toast.success(`Patient ${form.firstName} ${form.lastName} added`)
+          onCreated(created)
+        } else {
+          toast.success(`Patient ${form.firstName} ${form.lastName} added`, { description: 'Opening their profile...' })
+          navigate(`/patients/${created.id}`)
+        }
+      }
+    } catch (err) {
+      toast.error(isEdit ? 'Could not update patient' : 'Could not add patient', { description: err instanceof Error ? err.message : undefined })
+    } finally {
       setSubmitting(false)
-      onOpenChange(false)
-    } else {
-      const created = addPatient({ ...form, sex, primaryDoctor: doctor })
-      toast.success(`Patient ${form.firstName} ${form.lastName} added`, { description: 'Opening their profile...' })
-      setSubmitting(false)
-      onOpenChange(false)
-      navigate(`/patients/${created.id}`)
     }
   }
 

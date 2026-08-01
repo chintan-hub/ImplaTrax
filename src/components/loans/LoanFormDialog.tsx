@@ -7,9 +7,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import { Combobox } from '@/components/ui/combobox'
 import { useData } from '@/store/DataContext'
 import { MICROCOPY } from '@/content/helpText'
 import { simulateLatency } from '@/lib/utils'
+import { productComboboxOptions } from '@/lib/productOptions'
 
 interface Line {
   productId: string
@@ -72,11 +74,16 @@ export function LoanFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     }
     setSubmitting(true)
     await simulateLatency()
-    const loan = createLoan(labId, lines, new Date(dueDate).toISOString(), notes || undefined)
-    toast.success(`Loan ${loan.loanNumber} issued`, { description: 'Stock has been deducted for the loaned products.' })
-    setSubmitting(false)
-    reset()
-    onOpenChange(false)
+    try {
+      const loan = createLoan(labId, lines, new Date(dueDate).toISOString(), notes || undefined)
+      toast.success(`Loan ${loan.loanNumber} issued`, { description: 'Stock has been deducted for the loaned products.' })
+      reset()
+      onOpenChange(false)
+    } catch (err) {
+      toast.error('Could not issue loan', { description: err instanceof Error ? err.message : undefined })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -118,12 +125,16 @@ export function LoanFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
               return (
                 <div key={i} className="rounded-lg border border-border p-2">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <Select value={line.productId} onValueChange={(v) => updateLine(i, { productId: v, batchLot: undefined })}>
-                      <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
-                      <SelectContent className="max-h-72">
-                        {products.map((p) => <SelectItem key={p.id} value={p.id}>{p.name} ({p.quantityOnHand} in stock)</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <Combobox
+                      className="flex-1"
+                      options={productComboboxOptions(products, (p) => `${p.name} (${p.quantityOnHand} in stock)`)}
+                      value={line.productId}
+                      onChange={(v) => updateLine(i, { productId: v, batchLot: undefined })}
+                      placeholder="Select product"
+                      searchPlaceholder="Search name, SKU, system, diameter..."
+                      emptyText="No products found."
+                      triggerAriaLabel="Product"
+                    />
                     <div className="flex items-center gap-2">
                       <Input type="number" className="w-20" min={1} aria-label="Quantity" value={line.quantityLoaned} onChange={(e) => updateLine(i, { quantityLoaned: Math.max(1, Number(e.target.value) || 1) })} />
                       <Button type="button" size="icon" variant="ghost" className="shrink-0" onClick={() => removeLine(i)} aria-label="Remove product from loan">

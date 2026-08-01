@@ -5,11 +5,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Combobox } from '@/components/ui/combobox'
 import { useData } from '@/store/DataContext'
 import { MICROCOPY } from '@/content/helpText'
 import { simulateLatency } from '@/lib/utils'
+import { productComboboxOptions } from '@/lib/productOptions'
 
 interface Line {
   productId: string
@@ -20,7 +20,7 @@ interface Line {
 export function POFormDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const { vendors, products, createPurchaseOrder } = useData()
   const [vendorId, setVendorId] = useState('')
-  const [eta, setEta] = useState(() => new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10))
+  const [eta, setEta] = useState('')
   const [lines, setLines] = useState<Line[]>([])
   const [submitting, setSubmitting] = useState(false)
 
@@ -29,7 +29,7 @@ export function POFormDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   const addLine = () => {
     const p = vendorProducts[0]
     if (!p) return
-    setLines((prev) => [...prev, { productId: p.id, quantityOrdered: 10, unitCost: p.unitCost }])
+    setLines((prev) => [...prev, { productId: p.id, quantityOrdered: 1, unitCost: p.unitCost }])
   }
 
   const updateLine = (i: number, patch: Partial<Line>) => {
@@ -40,6 +40,7 @@ export function POFormDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 
   const reset = () => {
     setVendorId('')
+    setEta('')
     setLines([])
   }
 
@@ -52,13 +53,22 @@ export function POFormDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       toast.error('Add at least one line item.')
       return
     }
+    if (!eta) {
+      toast.error('Select an expected delivery date.')
+      return
+    }
     setSubmitting(true)
     await simulateLatency()
-    const po = createPurchaseOrder(vendorId, lines, new Date(eta).toISOString())
-    toast.success(`Purchase order ${po.poNumber} created`, { description: 'Saved as draft.' })
-    setSubmitting(false)
-    reset()
-    onOpenChange(false)
+    try {
+      const po = createPurchaseOrder(vendorId, lines, new Date(eta).toISOString())
+      toast.success(`Purchase order ${po.poNumber} created`, { description: 'Saved as draft.' })
+      reset()
+      onOpenChange(false)
+    } catch (err) {
+      toast.error('Could not create purchase order', { description: err instanceof Error ? err.message : undefined })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -108,16 +118,21 @@ export function POFormDialog({ open, onOpenChange }: { open: boolean; onOpenChan
             <div className="space-y-2">
               {lines.map((line, i) => (
                 <div key={i} className="flex flex-col gap-2 rounded-lg border border-border p-2 sm:flex-row sm:items-center">
-                  <Select value={line.productId} onValueChange={(v) => updateLine(i, { productId: v, unitCost: products.find((p) => p.id === v)?.unitCost ?? line.unitCost })}>
-                    <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
-                    <SelectContent className="max-h-72">
-                      {vendorProducts.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Combobox
+                    className="flex-1"
+                    options={productComboboxOptions(vendorProducts)}
+                    value={line.productId}
+                    onChange={(v) => updateLine(i, { productId: v, unitCost: products.find((p) => p.id === v)?.unitCost ?? line.unitCost })}
+                    placeholder="Select product"
+                    searchPlaceholder="Search name, SKU, system, diameter..."
+                    emptyText="No products found."
+                    triggerAriaLabel="Product"
+                  />
                   <div className="flex items-center gap-2">
                     <Input
                       type="number"
                       className="w-20"
+                      min={1}
                       aria-label="Quantity"
                       value={line.quantityOrdered}
                       onChange={(e) => updateLine(i, { quantityOrdered: Math.max(1, Number(e.target.value) || 1) })}

@@ -3,7 +3,7 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { PageHeader } from '@/components/shared/PageHeader'
+import { StickyActionHeader } from '@/components/shared/StickyActionHeader'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -47,7 +47,7 @@ export function ReportsPage() {
       d.setMonth(d.getMonth() - i, 1)
       months.push({ key: `${d.getFullYear()}-${d.getMonth()}`, label: d.toLocaleDateString('en-US', { month: 'short' }), revenue: 0 })
     }
-    sales.forEach((s) => {
+    sales.filter((s) => !s.voidedAt).forEach((s) => {
       const d = new Date(s.createdAt)
       const key = `${d.getFullYear()}-${d.getMonth()}`
       const bucket = months.find((m) => m.key === key)
@@ -80,7 +80,7 @@ export function ReportsPage() {
   }, [purchaseOrders, vendors])
 
   const inventoryValue = products.reduce((s, p) => s + p.quantityOnHand * p.unitCost, 0)
-  const totalRevenue = sales.reduce((s, sale) => s + sale.total, 0)
+  const totalRevenue = sales.filter((s) => !s.voidedAt).reduce((s, sale) => s + sale.total, 0)
   const totalPOSpend = purchaseOrders.reduce((s, po) => s + po.lines.reduce((a, l) => a + l.unitCost * l.quantityOrdered, 0), 0)
   const lostUnits = movements.filter((m) => m.type === 'lost').reduce((s, m) => s + Math.abs(m.quantity), 0)
 
@@ -119,7 +119,7 @@ export function ReportsPage() {
     cases.forEach((c) => {
       ensure(c.doctor).caseCount += 1
     })
-    sales.forEach((s) => {
+    sales.filter((s) => !s.voidedAt).forEach((s) => {
       if (!s.caseId) return
       const caseRecord = cases.find((c) => c.id === s.caseId)
       if (!caseRecord) return
@@ -143,7 +143,7 @@ export function ReportsPage() {
 
   return (
     <div>
-      <PageHeader title={PAGE_INTROS.reports.title} description={PAGE_INTROS.reports.description} />
+      <StickyActionHeader title={PAGE_INTROS.reports.title} description={PAGE_INTROS.reports.description} />
 
       <Tabs defaultValue="inventory">
         <TabsList className="h-auto flex-wrap justify-start">

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 import { Fingerprint } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
@@ -11,6 +11,8 @@ import { simulateLatency, initials } from '@/lib/utils'
 import { useAuth } from '@/features/auth/AuthContext'
 import { ROLE_LABEL } from '@/features/auth/roles'
 import { ChangePinDialog } from '@/features/auth/components/ChangePinDialog'
+import { useDirtyState } from '@/hooks/useDirtyState'
+import { useRegisterSettingsSaveAction } from '../SettingsHeaderActionContext'
 
 export function ProfileTab() {
   const { currentMember, updateProfile, hasBiometrics, platformAuthAvailable, enableBiometrics, disableBiometrics } = useAuth()
@@ -19,9 +21,12 @@ export function ProfileTab() {
   const [saving, setSaving] = useState(false)
   const [pinDialogOpen, setPinDialogOpen] = useState(false)
   const [biometricsBusy, setBiometricsBusy] = useState(false)
-  const isDirty = name.trim() !== (currentMember?.name ?? '') || contact.trim() !== (currentMember?.contact ?? '')
+  const isDirty = useDirtyState(
+    { name: currentMember?.name ?? '', contact: currentMember?.contact ?? '' },
+    { name: name.trim(), contact: contact.trim() },
+  )
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!name.trim()) {
       toast.error('Name is required.')
       return
@@ -31,7 +36,9 @@ export function ProfileTab() {
     updateProfile(name.trim(), contact.trim())
     toast.success('Profile updated')
     setSaving(false)
-  }
+  }, [name, contact, updateProfile])
+
+  useRegisterSettingsSaveAction({ isDirty, saving, onSave: handleSave })
 
   const handleBiometricsToggle = async (checked: boolean) => {
     setBiometricsBusy(true)
@@ -74,12 +81,6 @@ export function ProfileTab() {
               <Label htmlFor="profile-contact">Mobile or email</Label>
               <Input id="profile-contact" value={contact} onChange={(e) => setContact(e.target.value)} />
             </div>
-          </div>
-          <div className="flex items-center justify-end gap-3">
-            {isDirty && !saving && <p className="text-xs text-muted-foreground">Unsaved changes</p>}
-            <Button onClick={handleSave} loading={saving} disabled={!isDirty}>
-              Save Changes
-            </Button>
           </div>
         </CardContent>
       </Card>

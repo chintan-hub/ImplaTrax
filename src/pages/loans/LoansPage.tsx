@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Search, HandCoins, Undo2 } from 'lucide-react'
-import { PageHeader } from '@/components/shared/PageHeader'
-import { StickyToolbar } from '@/components/shared/StickyToolbar'
+import { StickyActionHeader } from '@/components/shared/StickyActionHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { StatCard } from '@/components/shared/StatCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
@@ -65,7 +64,13 @@ export function LoansPage() {
 
   return (
     <div>
-      <PageHeader
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-6">
+        <StatCard label="Open Loans" value={String(stats.openCount)} icon={HandCoins} tone="warning" helpTerm="loan" />
+        <StatCard label="Outstanding Items" value={String(stats.outstandingItems)} icon={Undo2} tone="accent" />
+        <StatCard label="Lost Products (all time)" value={String(stats.lostItems)} icon={AlertTriangle} tone="danger" />
+      </div>
+
+      <StickyActionHeader
         title={PAGE_INTROS.loans.title}
         helpTerm="loan"
         description="Loans are issued only to labs and may remain open for months with partial returns."
@@ -74,34 +79,29 @@ export function LoansPage() {
             <Plus className="h-4 w-4" /> Issue Loan
           </Button>
         }
+        toolbar={
+          <>
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="Search loan # or lab..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={labFilter} onValueChange={setLabFilter}>
+              <SelectTrigger className="w-full sm:w-52"><SelectValue placeholder="Lab" /></SelectTrigger>
+              <SelectContent className="max-h-72">
+                <SelectItem value="all">All labs</SelectItem>
+                {labs.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </>
+        }
       />
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-6">
-        <StatCard label="Open Loans" value={String(stats.openCount)} icon={HandCoins} tone="warning" helpTerm="loan" />
-        <StatCard label="Outstanding Items" value={String(stats.outstandingItems)} icon={Undo2} tone="accent" />
-        <StatCard label="Lost Products (all time)" value={String(stats.lostItems)} icon={AlertTriangle} tone="danger" />
-      </div>
-
-      <StickyToolbar>
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search loan # or lab..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </div>
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={labFilter} onValueChange={setLabFilter}>
-          <SelectTrigger className="w-full sm:w-52"><SelectValue placeholder="Lab" /></SelectTrigger>
-          <SelectContent className="max-h-72">
-            <SelectItem value="all">All labs</SelectItem>
-            {labs.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </StickyToolbar>
 
       {filtered.length === 0 ? (
         <EmptyState

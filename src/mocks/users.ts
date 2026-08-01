@@ -14,6 +14,11 @@ const SEED_USERS: { name: string; email: string; role: UserRole }[] = [
   { name: 'Devon Park', email: 'devon.park@dentocrafts.com', role: 'inventory-manager' },
 ]
 
+// Only consumed by other seed generators (purchaseOrders/sales/loans/
+// inventory) to pick a realistic "actor" name for dev/demo history — never
+// rendered as a real Users list; see DataContext.tsx's removal of the old
+// AppUser-based /users page, superseded by the real Auth workspace_members
+// system (Settings > Workspace tab).
 export const users: AppUser[] = SEED_USERS.map((u, i) => ({
   id: `usr_${i + 1}`,
   name: u.name,
@@ -23,5 +28,3 @@ export const users: AppUser[] = SEED_USERS.map((u, i) => ({
   active: true,
   createdAt: iso(daysAgo(ri(100, 900))),
 }))
-
-export const currentUser = users[0]

@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Search, Receipt } from 'lucide-react'
-import { PageHeader } from '@/components/shared/PageHeader'
-import { StickyToolbar } from '@/components/shared/StickyToolbar'
+import { StickyActionHeader } from '@/components/shared/StickyActionHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { StatCard } from '@/components/shared/StatCard'
 import { Button } from '@/components/ui/button'
@@ -38,9 +37,10 @@ export function SalesPage() {
   const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products])
 
   const stats = useMemo(() => {
-    const totalRevenue = sales.reduce((s, sale) => s + sale.total, 0)
-    const totalUnits = sales.reduce((s, sale) => s + sale.lines.reduce((a, l) => a + l.quantity, 0), 0)
-    const avgSale = sales.length ? totalRevenue / sales.length : 0
+    const active = sales.filter((s) => !s.voidedAt)
+    const totalRevenue = active.reduce((s, sale) => s + sale.total, 0)
+    const totalUnits = active.reduce((s, sale) => s + sale.lines.reduce((a, l) => a + l.quantity, 0), 0)
+    const avgSale = active.length ? totalRevenue / active.length : 0
     return { totalRevenue, totalUnits, avgSale }
   }, [sales])
 
@@ -60,7 +60,13 @@ export function SalesPage() {
 
   return (
     <div>
-      <PageHeader
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-6">
+        <StatCard label="Total Revenue" value={format(stats.totalRevenue)} icon={DollarSign} tone="success" />
+        <StatCard label="Units Sold" value={String(stats.totalUnits)} icon={Package} />
+        <StatCard label="Average Sale" value={format(Math.round(stats.avgSale))} icon={TrendingUp} tone="accent" />
+      </div>
+
+      <StickyActionHeader
         title={PAGE_INTROS.sales.title}
         description={PAGE_INTROS.sales.description}
         actions={
@@ -68,20 +74,13 @@ export function SalesPage() {
             <Plus className="h-4 w-4" /> Record Sale
           </Button>
         }
+        toolbar={
+          <div className="relative max-w-sm flex-1">
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input placeholder="Search sale #, patient, case ID..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+        }
       />
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-6">
-        <StatCard label="Total Revenue" value={format(stats.totalRevenue)} icon={DollarSign} tone="success" />
-        <StatCard label="Units Sold" value={String(stats.totalUnits)} icon={Package} />
-        <StatCard label="Average Sale" value={format(Math.round(stats.avgSale))} icon={TrendingUp} tone="accent" />
-      </div>
-
-      <StickyToolbar>
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search sale #, patient, case ID..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </div>
-      </StickyToolbar>
 
       {filtered.length === 0 ? (
         <EmptyState
@@ -113,7 +112,12 @@ export function SalesPage() {
                 const caseRecord = s.caseId ? caseById.get(s.caseId) : undefined
                 return (
                   <TableRow key={s.id} className="cursor-pointer" onClick={() => navigate(`/sales/${s.id}`)}>
-                    <TableCell className="font-medium">{s.saleNumber}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-1.5">
+                        {s.saleNumber}
+                        {s.voidedAt && <Badge variant="secondary">Voided</Badge>}
+                      </div>
+                    </TableCell>
                     <TableCell>{patient ? patientFullName(patient) : <span className="text-muted-foreground">Direct sale</span>}</TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">{caseRecord?.caseId ?? '—'}</TableCell>
                     <TableCell>

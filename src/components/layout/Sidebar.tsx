@@ -12,12 +12,17 @@ function SidebarLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => v
   // its className prop as a string — a function value there gets stringified
   // into the class attribute instead of invoked, silently dropping all
   // layout classes. useMatch lets us compute isActive ourselves up front.
-  const isActive = Boolean(useMatch({ path: item.to, end: item.to === '/' }))
+  // item.to may carry a query string (e.g. the Team link into Settings'
+  // Workspace tab) — useMatch's `path` only understands a pathname, so it's
+  // stripped here; NavLink's `to` still gets the full string with query.
+  const [pathname] = item.to.split('?')
+  const isActive = Boolean(useMatch({ path: pathname, end: pathname === '/' }))
   const link = (
     <NavLink
       to={item.to}
-      end={item.to === '/'}
+      end={pathname === '/'}
       onClick={onNavigate}
+      data-tour={item.tourId}
       className={cn(
         'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors',
         isActive

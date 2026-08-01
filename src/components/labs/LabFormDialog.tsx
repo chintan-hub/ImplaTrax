@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -6,11 +6,19 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useData } from '@/store/DataContext'
 import { simulateLatency } from '@/lib/utils'
+import type { Lab } from '@/types'
 
-export function LabFormDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
-  const { addLab } = useData()
-  const [form, setForm] = useState({ name: '', contactName: '', email: '', phone: '', address: '' })
+const EMPTY_FORM = { name: '', contactName: '', email: '', phone: '', address: '' }
+
+export function LabFormDialog({ open, onOpenChange, lab }: { open: boolean; onOpenChange: (v: boolean) => void; lab?: Lab }) {
+  const { addLab, updateLab } = useData()
+  const isEdit = !!lab
+  const [form, setForm] = useState(EMPTY_FORM)
   const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (open) setForm(lab ? { name: lab.name, contactName: lab.contactName, email: lab.email, phone: lab.phone, address: lab.address } : EMPTY_FORM)
+  }, [open, lab])
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((prev) => ({ ...prev, [k]: e.target.value }))
 
@@ -21,19 +29,28 @@ export function LabFormDialog({ open, onOpenChange }: { open: boolean; onOpenCha
     }
     setSubmitting(true)
     await simulateLatency()
-    addLab({ ...form, specialties: [], rating: 4, turnaroundDays: 10 })
-    toast.success(`Lab "${form.name}" added`, { description: 'It now appears in your lab directory.' })
-    setSubmitting(false)
-    setForm({ name: '', contactName: '', email: '', phone: '', address: '' })
-    onOpenChange(false)
+    try {
+      if (isEdit && lab) {
+        updateLab(lab.id, form)
+        toast.success(`Lab "${form.name}" updated`)
+      } else {
+        addLab({ ...form, specialties: [], rating: 4, turnaroundDays: 10 })
+        toast.success(`Lab "${form.name}" added`, { description: 'It now appears in your lab directory.' })
+      }
+      onOpenChange(false)
+    } catch (err) {
+      toast.error(isEdit ? 'Could not update lab' : 'Could not add lab', { description: err instanceof Error ? err.message : undefined })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add Lab</DialogTitle>
-          <DialogDescription>Add a new dental lab to your directory.</DialogDescription>
+          <DialogTitle>{isEdit ? 'Edit Lab' : 'Add Lab'}</DialogTitle>
+          <DialogDescription>{isEdit ? "Update this lab's details." : 'Add a new dental lab to your directory.'}</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="col-span-1 space-y-1.5 sm:col-span-2">
@@ -59,7 +76,7 @@ export function LabFormDialog({ open, onOpenChange }: { open: boolean; onOpenCha
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
-          <Button onClick={handleSubmit} loading={submitting}>Add Lab</Button>
+          <Button onClick={handleSubmit} loading={submitting}>{isEdit ? 'Save Changes' : 'Add Lab'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -13,13 +13,14 @@ import {
   Legend,
 } from 'recharts'
 import { DollarSign, AlertTriangle, HandCoins, ClipboardList, FolderKanban, TrendingUp } from 'lucide-react'
-import { PageHeader } from '@/components/shared/PageHeader'
+import { StickyActionHeader } from '@/components/shared/StickyActionHeader'
 import { StatCard } from '@/components/shared/StatCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useData } from '@/store/DataContext'
+import { useAuth } from '@/features/auth/AuthContext'
 import { useChartColors } from '@/lib/chartColors'
 import { useCurrencyFormat } from '@/hooks/useCurrencyFormat'
 import { formatDate, initials } from '@/lib/utils'
@@ -27,7 +28,8 @@ import { openLoanValue } from '@/mocks/loans'
 import { PAGE_INTROS, BRAND } from '@/content/helpText'
 
 export function DashboardPage() {
-  const { products, movements, purchaseOrders, loans, cases, sales, labs, users } = useData()
+  const { products, movements, purchaseOrders, loans, cases, sales, labs } = useData()
+  const { workspaceMembers } = useAuth()
   const colors = useChartColors()
   const { format } = useCurrencyFormat()
   const navigate = useNavigate()
@@ -42,7 +44,7 @@ export function DashboardPage() {
     const casesThisMonth = cases.filter((c) => new Date(c.createdAt) >= thisMonth)
     const last30 = new Date()
     last30.setDate(last30.getDate() - 30)
-    const revenue30d = sales.filter((s) => new Date(s.createdAt) >= last30).reduce((sum, s) => sum + s.total, 0)
+    const revenue30d = sales.filter((s) => !s.voidedAt && new Date(s.createdAt) >= last30).reduce((sum, s) => sum + s.total, 0)
 
     return { inventoryValue, lowStock, openLoans, pendingPOs, casesThisMonth, revenue30d }
   }, [products, loans, purchaseOrders, cases, sales])
@@ -79,8 +81,8 @@ export function DashboardPage() {
 
   return (
     <div>
-      <PageHeader title={PAGE_INTROS.dashboard.title} description={PAGE_INTROS.dashboard.description} />
-      <p className="-mt-4 mb-6 text-xs font-medium uppercase tracking-wide text-primary-700 dark:text-primary-300">
+      <StickyActionHeader title={PAGE_INTROS.dashboard.title} description={PAGE_INTROS.dashboard.description} />
+      <p className="-mt-3 mb-6 text-xs font-medium uppercase tracking-wide text-primary-700 dark:text-primary-300">
         {BRAND.tagline}
       </p>
 
@@ -166,13 +168,11 @@ export function DashboardPage() {
           <CardContent className="space-y-3">
             {recentMovements.map((m) => {
               const product = products.find((p) => p.id === m.productId)
-              const user = users.find((u) => u.id === m.performedBy)
+              const actor = workspaceMembers.find((wm) => wm.id === m.performedBy)
               return (
                 <div key={m.id} className="flex items-start gap-3 text-sm">
                   <Avatar className="h-7 w-7 mt-0.5">
-                    <AvatarFallback style={{ backgroundColor: user?.avatarColor, color: 'white' }} className="text-[10px]">
-                      {user ? initials(user.name) : '—'}
-                    </AvatarFallback>
+                    <AvatarFallback className="text-[10px]">{actor ? initials(actor.name) : '—'}</AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">
                     <p className="truncate">

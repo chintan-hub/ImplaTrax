@@ -9,8 +9,7 @@ import {
   type SortingState,
 } from '@tanstack/react-table'
 import { LayoutGrid, List, Plus, ArrowUpDown, Search, Download, Upload } from 'lucide-react'
-import { PageHeader } from '@/components/shared/PageHeader'
-import { StickyToolbar } from '@/components/shared/StickyToolbar'
+import { StickyActionHeader } from '@/components/shared/StickyActionHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -156,7 +155,7 @@ export function ProductsPage() {
 
   return (
     <div>
-      <PageHeader
+      <StickyActionHeader
         title={PAGE_INTROS.products.title}
         description={`${PAGE_INTROS.products.description} ${products.length} products across ${MANUFACTURERS.length} manufacturers.`}
         actions={
@@ -191,36 +190,37 @@ export function ProductsPage() {
             </IconHelp>
           </>
         }
+        toolbar={
+          <>
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="Search name, SKU, barcode..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+            <Select value={manufacturer} onValueChange={setManufacturer}>
+              <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Manufacturer" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All manufacturers</SelectItem>
+                {MANUFACTURERS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Category" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                {PRODUCT_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={stockFilter} onValueChange={setStockFilter}>
+              <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="Stock" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All stock</SelectItem>
+                <SelectItem value="low">Low stock</SelectItem>
+                <SelectItem value="out">Out of stock</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
+        }
       />
-
-      <StickyToolbar>
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search name, SKU, barcode..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </div>
-        <Select value={manufacturer} onValueChange={setManufacturer}>
-          <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Manufacturer" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All manufacturers</SelectItem>
-            {MANUFACTURERS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={category} onValueChange={setCategory}>
-          <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Category" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All categories</SelectItem>
-            {PRODUCT_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={stockFilter} onValueChange={setStockFilter}>
-          <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="Stock" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All stock</SelectItem>
-            <SelectItem value="low">Low stock</SelectItem>
-            <SelectItem value="out">Out of stock</SelectItem>
-          </SelectContent>
-        </Select>
-      </StickyToolbar>
 
       {filtered.length === 0 ? (
         <EmptyState
