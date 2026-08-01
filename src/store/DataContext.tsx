@@ -18,6 +18,7 @@ import type {
   Loan,
   LoanEvent,
   AppUser,
+  UserRole,
   ClinicSettings,
   MovementType,
   POStatus,
@@ -182,6 +183,8 @@ interface DataContextValue {
   addLab: (input: Omit<Lab, 'id' | 'createdAt'>) => Lab
   addVendor: (input: Omit<Vendor, 'id' | 'createdAt' | 'totalOrders' | 'onTimeRate'>) => Vendor
   addUser: (input: Omit<AppUser, 'id' | 'createdAt'>) => AppUser
+  updateUserRole: (id: string, role: UserRole) => void
+  setUserActive: (id: string, active: boolean) => void
   updateClinicSettings: (patch: Partial<ClinicSettings>) => void
   addDoctor: (input: { name: string; active?: boolean }) => Doctor
 }
@@ -722,6 +725,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return user
   }, [])
 
+  const updateUserRole = useCallback((id: string, role: UserRole) => {
+    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, role } : u)))
+  }, [])
+
+  const setUserActive = useCallback((id: string, active: boolean) => {
+    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, active } : u)))
+  }, [])
+
   const updateClinicSettings = useCallback((patch: Partial<ClinicSettings>) => {
     setClinicSettings((prev) => ({ ...prev, ...patch }))
   }, [])
@@ -770,6 +781,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addLab,
       addVendor,
       addUser,
+      updateUserRole,
+      setUserActive,
       updateClinicSettings,
       addDoctor,
     }),
@@ -809,6 +822,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addLab,
       addVendor,
       addUser,
+      updateUserRole,
+      setUserActive,
       updateClinicSettings,
       addDoctor,
     ],
