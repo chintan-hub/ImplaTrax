@@ -313,7 +313,9 @@
 
 *Ship the visible outcome pragmatically here; Priority 4 generalizes into fully reusable primitives once there's a second/third consumer (a bulk-action bar) that actually needs the generalized version.*
 
-### P3-A — Sticky Page Headers
+### P3-A — Sticky Page Headers ✅ Complete
+*Status update (2026-07-30): `PageHeader.tsx` is now `sticky top-0` at `sm:` and above, with a `min-h-[104px]` matching the tallest header observed across every list page (Products, whose description text wraps to 2 lines). `StickyToolbar.tsx` sticks directly below it at a matching fixed `top-[104px]` offset — both meet exactly, no gap, no overlap, verified live on Products (tallest header), Inventory (typical header), and Settings (no toolbar). A first pass left a visible gap on shorter-header pages where scrolled content bled through underneath — fixed by giving PageHeader a consistent min-height instead of guessing an offset that only worked for one page. Below `sm`, the header wraps to a taller column layout that this fixed offset can't account for, so stickiness is deliberately scoped to `sm:` and above for now — verified this doesn't regress mobile (zero `position: sticky` elements at 375px width, same as before this milestone). Real responsive handling is P3-C's job; P4-A later replaces this fixed-offset approach with a real auto-measuring stack.*
+
 - **Objective:** `PageHeader` sticks to the top of the page (stacked correctly above the M17 toolbar, which already sticks below it) on every page that has one.
 - **Files affected:** `src/components/shared/PageHeader.tsx`.
 - **Risks:** Low — `PageHeader`'s height is fairly predictable; a pragmatic fixed/known offset is likely sufficient here without the full auto-measuring system (see P4-A).

@@ -15,7 +15,7 @@ export function PageHeader({
   helpTerm?: TermKey
 }) {
   return (
-    <div className="flex flex-col gap-4 pb-6 sm:flex-row sm:items-center sm:justify-between">
+    <div className="z-20 flex flex-col gap-4 bg-background pb-6 sm:sticky sm:top-0 sm:min-h-[104px] sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h1 className="flex items-center gap-1.5 text-2xl font-semibold tracking-tight">
           {title}
