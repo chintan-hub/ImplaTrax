@@ -4,6 +4,7 @@ import {
   FieldTable, InvariantCallout, ScreenshotFrame, ScrewMotif,
 } from '../components'
 import { COLORS, FONT } from '../styles'
+import { MANUAL_SCREENSHOTS } from '../screenshots'
 
 export function Chapter10Settings() {
   return (
@@ -31,6 +32,7 @@ export function Chapter10Settings() {
         </P>
         <ScreenshotFrame
           title="Settings / Workspace / Workspace Logo"
+          imageSrc={MANUAL_SCREENSHOTS.settingsWorkspaceLogo}
           caption="Upload, Change, and Remove — the logo syncs live across the app the instant it changes, no save step or page reload required."
           callouts={[
             { number: 1, text: 'Live preview of the current logo, or a clean placeholder when none is set.' },

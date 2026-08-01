@@ -4,6 +4,7 @@ import {
   InvariantCallout, WorkflowStepper, ScreenshotFrame, FieldTable, ScrewMotif,
 } from '../components'
 import { COLORS, FONT } from '../styles'
+import { MANUAL_SCREENSHOTS } from '../screenshots'
 
 export function Chapter02GettingStarted() {
   return (
@@ -45,6 +46,7 @@ export function Chapter02GettingStarted() {
         </P>
         <ScreenshotFrame
           title="Onboarding — Account step"
+          imageSrc={MANUAL_SCREENSHOTS.onboardingAccount}
           caption="The account step collects the workspace name and the owner's credentials in a single, focused screen."
           callouts={[
             { number: 1, text: 'Workspace name — shown throughout the app and on every exported document.' },

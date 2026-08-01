@@ -4,6 +4,7 @@ import {
   FieldTable, InvariantCallout, ScreenshotFrame, ScrewMotif,
 } from '../components'
 import { COLORS, FONT } from '../styles'
+import { MANUAL_SCREENSHOTS } from '../screenshots'
 
 export function Chapter05Inventory() {
   return (
@@ -86,6 +87,7 @@ export function Chapter05Inventory() {
 
         <ScreenshotFrame
           title="Product detail — movement history"
+          imageSrc={MANUAL_SCREENSHOTS.productDetailMovements}
           caption="Every row on this timeline is an immutable inventory_movements entry — the running total at the top is simply their sum."
           callouts={[
             { number: 1, text: 'Current quantity on hand, low-stock threshold, and batch-tracking status.' },

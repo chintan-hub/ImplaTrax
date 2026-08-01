@@ -4,6 +4,7 @@ import {
   InfoCardGrid, ScreenshotFrame, InvariantCallout, ScrewMotif,
 } from '../components'
 import { COLORS, FONT } from '../styles'
+import { MANUAL_SCREENSHOTS } from '../screenshots'
 
 export function Chapter03Dashboard() {
   return (
@@ -46,6 +47,7 @@ export function Chapter03Dashboard() {
         />
         <ScreenshotFrame
           title="Dashboard — KPI row + trend charts"
+          imageSrc={MANUAL_SCREENSHOTS.dashboardKpi}
           caption="Every number here is a live read of current workspace state, not a nightly batch export."
           callouts={[
             { number: 1, text: 'KPI cards — Inventory Value, Low Stock, Open Loans, Pending POs, Cases This Month, Revenue.' },

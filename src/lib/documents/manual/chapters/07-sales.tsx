@@ -4,6 +4,7 @@ import {
   InvariantCallout, WorkflowStepper, ScreenshotFrame, ScrewMotif,
 } from '../components'
 import { COLORS, FONT } from '../styles'
+import { MANUAL_SCREENSHOTS } from '../screenshots'
 
 export function Chapter07Sales() {
   return (
@@ -65,6 +66,7 @@ export function Chapter07Sales() {
         </P>
         <ScreenshotFrame
           title="Sales Invoice — white-label header"
+          imageSrc={MANUAL_SCREENSHOTS.salesInvoiceHeader}
           caption="The workspace's uploaded logo leads the header at full size; ImplaTrax appears only as a small 'Powered by' mark in the footer, roughly a quarter the size."
           callouts={[
             { number: 1, text: 'Workspace logo + clinic name/address — the primary, large-format brand.' },

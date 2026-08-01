@@ -38,7 +38,7 @@ export function ScreenshotFrame({ title, caption, imageSrc, aspectRatio = 16 / 9
   const width = 470
   const height = width / aspectRatio
   return (
-    <View wrap={false} style={{ marginVertical: 12, borderWidth: 1, borderColor: COLORS.slate200, borderRadius: 6, backgroundColor: COLORS.white }}>
+    <View wrap={false} style={{ marginVertical: 12, width, borderWidth: 1, borderColor: COLORS.slate200, borderRadius: 6, backgroundColor: COLORS.white }}>
       <View
         style={{
           flexDirection: 'row',
@@ -59,9 +59,9 @@ export function ScreenshotFrame({ title, caption, imageSrc, aspectRatio = 16 / 9
       </View>
 
       {imageSrc ? (
-        <Image src={imageSrc} style={{ width, height }} />
+        <Image src={imageSrc} style={{ width: '100%', height, objectFit: 'contain', borderRadius: 6 }} />
       ) : (
-        <View style={{ width, height, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.slate100, gap: 6 }}>
+        <View style={{ width: '100%', height, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.slate100, gap: 6 }}>
           <PlaceholderGlyph />
           <Text style={{ fontSize: 8.5, color: COLORS.slate400, fontFamily: FONT.bold }}>SCREENSHOT PLACEHOLDER</Text>
           <Text style={{ fontSize: 8, color: COLORS.slate400, maxWidth: 320, textAlign: 'center' }}>{title}</Text>

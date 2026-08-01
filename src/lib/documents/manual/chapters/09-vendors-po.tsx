@@ -4,6 +4,7 @@ import {
   InvariantCallout, WorkflowStepper, ScreenshotFrame, FieldTable, ScrewMotif,
 } from '../components'
 import { COLORS, FONT } from '../styles'
+import { MANUAL_SCREENSHOTS } from '../screenshots'
 
 export function Chapter09VendorsPO() {
   return (
@@ -84,6 +85,7 @@ export function Chapter09VendorsPO() {
         </P>
         <ScreenshotFrame
           title="Receive Purchase Order — partial receipt blocked"
+          imageSrc={MANUAL_SCREENSHOTS.poReceivePartial}
           caption="Entering fewer units than remain outstanding on any line flips the photo field to required; Confirm Receipt stays disabled until at least one photo is attached."
           callouts={[
             { number: 1, text: 'Per-line quantity entry, capped at what remains outstanding for that line.' },
