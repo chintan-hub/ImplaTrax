@@ -162,10 +162,6 @@ export const ICON_HELP = {
     title: 'Process Return',
     description: 'Record components a lab is sending back, in full or in part.',
   },
-  confirmPO: {
-    title: 'Confirm',
-    description: 'Record that the vendor has confirmed this order. Inventory is unaffected until items are received.',
-  },
   copyWhatsApp: {
     title: 'Copy WhatsApp Message',
     description: 'Copies a formatted summary of this purchase order to your clipboard, ready to paste into a WhatsApp chat.',

@@ -18,7 +18,18 @@ function editForm(patient: Patient) {
   return { firstName: patient.firstName, lastName: patient.lastName, dob: patient.dob, phone: patient.phone, email: patient.email, notes: patient.notes ?? '' }
 }
 
-export function PatientFormDialog({ open, onOpenChange, patient }: { open: boolean; onOpenChange: (v: boolean) => void; patient?: Patient }) {
+export function PatientFormDialog({
+  open,
+  onOpenChange,
+  patient,
+  onCreated,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  patient?: Patient
+  /** When set, a newly created patient is handed back here instead of navigating to their profile — used to keep the caller (e.g. Case creation) in its own flow. */
+  onCreated?: (patient: Patient) => void
+}) {
   const { addPatient, updatePatient } = useData()
   const navigate = useNavigate()
   const isEdit = !!patient
@@ -59,10 +70,15 @@ export function PatientFormDialog({ open, onOpenChange, patient }: { open: boole
       onOpenChange(false)
     } else {
       const created = addPatient({ ...form, sex, primaryDoctor: doctor })
-      toast.success(`Patient ${form.firstName} ${form.lastName} added`, { description: 'Opening their profile...' })
       setSubmitting(false)
       onOpenChange(false)
-      navigate(`/patients/${created.id}`)
+      if (onCreated) {
+        toast.success(`Patient ${form.firstName} ${form.lastName} added`)
+        onCreated(created)
+      } else {
+        toast.success(`Patient ${form.firstName} ${form.lastName} added`, { description: 'Opening their profile...' })
+        navigate(`/patients/${created.id}`)
+      }
     }
   }
 

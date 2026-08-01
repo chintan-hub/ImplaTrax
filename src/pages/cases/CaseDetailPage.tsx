@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import { Combobox } from '@/components/ui/combobox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { StatusBadge } from '@/components/shared/StatusBadge'
@@ -20,6 +20,7 @@ import { nextCaseStatuses } from '@/lib/caseWorkflow'
 import { formatDate, formatDateTime, simulateLatency } from '@/lib/utils'
 import { buildCaseSummaryText, buildCaseDocumentData } from '@/lib/documents/case'
 import { CaseDocument } from '@/lib/documents/CaseDocument'
+import { productComboboxOptions } from '@/lib/productOptions'
 import type { CaseImplantUsage, CaseStatus } from '@/types'
 
 const STATUS_LABEL: Record<CaseStatus, string> = {
@@ -40,6 +41,7 @@ function AddImplantDialog({ caseId, open, onOpenChange }: { caseId: string; open
   const [submitting, setSubmitting] = useState(false)
 
   const product = products.find((p) => p.id === productId)
+  const stockIssue = product && quantity > product.quantityOnHand ? { available: product.quantityOnHand, requested: quantity } : null
 
   const reset = () => {
     setProductId(products[0]?.id ?? '')
@@ -51,6 +53,10 @@ function AddImplantDialog({ caseId, open, onOpenChange }: { caseId: string; open
   const handleSubmit = async () => {
     if (!tooth.trim()) {
       toast.error('Enter a tooth number.')
+      return
+    }
+    if (stockIssue) {
+      toast.error('Not enough stock to place this implant.')
       return
     }
     setSubmitting(true)
@@ -73,17 +79,20 @@ function AddImplantDialog({ caseId, open, onOpenChange }: { caseId: string; open
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Add Implant</DialogTitle>
-          <DialogDescription>Record a product used in this case.</DialogDescription>
+          <DialogDescription>Record a product placed in this case. This deducts stock and records a linked sale.</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="col-span-1 space-y-1.5 sm:col-span-2">
             <Label>Product</Label>
-            <Select value={productId} onValueChange={setProductId}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent className="max-h-72">
-                {products.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Combobox
+              options={productComboboxOptions(products, (p) => `${p.name} (${p.quantityOnHand} in stock)`)}
+              value={productId}
+              onChange={setProductId}
+              placeholder="Select product"
+              searchPlaceholder="Search name, SKU, system, diameter..."
+              emptyText="No products found."
+              triggerAriaLabel="Product"
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="implant-tooth">Tooth (FDI)</Label>
@@ -99,10 +108,13 @@ function AddImplantDialog({ caseId, open, onOpenChange }: { caseId: string; open
               <Input id="implant-lot" placeholder="e.g. LOT-12345" value={batchLot} onChange={(e) => setBatchLot(e.target.value)} />
             </div>
           )}
+          {stockIssue && (
+            <p className="col-span-1 text-xs text-danger-600 sm:col-span-2">Only {stockIssue.available} in stock — {stockIssue.requested} requested.</p>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
-          <Button onClick={handleSubmit} loading={submitting}>Add Implant</Button>
+          <Button onClick={handleSubmit} loading={submitting} disabled={!!stockIssue}>Add Implant</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -114,7 +126,6 @@ export function CaseDetailPage() {
   const navigate = useNavigate()
   const { cases, patients, labs, products, advanceCaseStatus, clinicSettings } = useData()
   const [addingImplant, setAddingImplant] = useState(false)
-  const [confirmingStatus, setConfirmingStatus] = useState<CaseStatus | null>(null)
   const [cancelling, setCancelling] = useState(false)
 
   const caseRecord = cases.find((c) => c.id === caseId)
@@ -180,7 +191,7 @@ export function CaseDetailPage() {
         <div className="flex flex-wrap items-center gap-1.5">
           <StatusBadge status={caseRecord.status} />
           {nextForwardStatus && (
-            <Button size="sm" onClick={() => setConfirmingStatus(nextForwardStatus)}>
+            <Button size="sm" onClick={() => handleAdvance(nextForwardStatus)}>
               <ArrowRight className="h-3.5 w-3.5" /> Advance to {STATUS_LABEL[nextForwardStatus]}
             </Button>
           )}
@@ -314,15 +325,6 @@ export function CaseDetailPage() {
       </div>
 
       <AddImplantDialog caseId={caseRecord.id} open={addingImplant} onOpenChange={setAddingImplant} />
-
-      <ConfirmDialog
-        open={confirmingStatus !== null}
-        onOpenChange={(v) => { if (!v) setConfirmingStatus(null) }}
-        title={confirmingStatus ? `Advance case to ${STATUS_LABEL[confirmingStatus]}?` : ''}
-        description={`This records a new timeline event and moves the case status to ${confirmingStatus ? STATUS_LABEL[confirmingStatus] : ''}.`}
-        confirmLabel="Advance"
-        onConfirm={() => { if (confirmingStatus) handleAdvance(confirmingStatus) }}
-      />
 
       <ConfirmDialog
         open={cancelling}

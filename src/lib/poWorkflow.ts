@@ -14,10 +14,6 @@ export function canSubmitPO(po: Pick<PurchaseOrder, 'status'>): boolean {
   return po.status === 'draft'
 }
 
-export function canConfirmPO(po: Pick<PurchaseOrder, 'status'>): boolean {
-  return po.status === 'submitted'
-}
-
 export function canReceivePO(po: Pick<PurchaseOrder, 'status'>): boolean {
   return (['submitted', 'confirmed', 'partially-received'] as POStatus[]).includes(po.status)
 }

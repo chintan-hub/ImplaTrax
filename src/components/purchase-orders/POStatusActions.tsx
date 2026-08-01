@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Send, CheckCircle2, PackageCheck, XCircle } from 'lucide-react'
+import { Send, PackageCheck, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { IconHelp } from '@/components/ui/help-tooltip'
 import { POReceiveDialog } from '@/components/purchase-orders/POReceiveDialog'
 import { useData } from '@/store/DataContext'
-import { canSubmitPO, canConfirmPO, canReceivePO, canCancelPO } from '@/lib/poWorkflow'
+import { canSubmitPO, canReceivePO, canCancelPO } from '@/lib/poWorkflow'
 import type { PurchaseOrder } from '@/types'
 
 /**
@@ -16,10 +16,9 @@ import type { PurchaseOrder } from '@/types'
  * the canXPO() rules in src/lib/poWorkflow.ts.
  */
 export function POStatusActions({ po, size = 'default' }: { po: PurchaseOrder; size?: 'sm' | 'default' }) {
-  const { submitPurchaseOrder, confirmPurchaseOrder, cancelPurchaseOrder } = useData()
+  const { submitPurchaseOrder, cancelPurchaseOrder } = useData()
   const [receiving, setReceiving] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [confirming, setConfirming] = useState(false)
   const [cancelling, setCancelling] = useState(false)
 
   return (
@@ -28,13 +27,6 @@ export function POStatusActions({ po, size = 'default' }: { po: PurchaseOrder; s
         <Button size={size} variant="outline" onClick={() => setSubmitting(true)}>
           <Send className="h-3.5 w-3.5" /> Submit
         </Button>
-      )}
-      {canConfirmPO(po) && (
-        <IconHelp helpKey="confirmPO">
-          <Button size={size} variant="outline" onClick={() => setConfirming(true)}>
-            <CheckCircle2 className="h-3.5 w-3.5" /> Confirm
-          </Button>
-        </IconHelp>
       )}
       {canReceivePO(po) && (
         <IconHelp helpKey="receive">
@@ -66,18 +58,6 @@ export function POStatusActions({ po, size = 'default' }: { po: PurchaseOrder; s
         onConfirm={() => {
           submitPurchaseOrder(po.id)
           toast.success(`${po.poNumber} submitted to vendor`, { description: 'Status updated to Submitted.' })
-        }}
-      />
-
-      <ConfirmDialog
-        open={confirming}
-        onOpenChange={setConfirming}
-        title={`Mark ${po.poNumber} as confirmed?`}
-        description="This records that the vendor has confirmed the order. Inventory only changes once items are received."
-        confirmLabel="Confirm Order"
-        onConfirm={() => {
-          confirmPurchaseOrder(po.id)
-          toast.success(`${po.poNumber} confirmed`, { description: 'Status updated to Confirmed.' })
         }}
       />
 

@@ -6,7 +6,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { StatCard } from '@/components/shared/StatCard'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import { Combobox } from '@/components/ui/combobox'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetBody } from '@/components/ui/sheet'
 import { TermHint } from '@/components/ui/help-tooltip'
@@ -14,6 +14,7 @@ import { useData } from '@/store/DataContext'
 import { summarizeLots, type LotSummary, type BatchEvent } from '@/lib/batches'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
+import { productComboboxOptions } from '@/lib/productOptions'
 
 const EVENT_ICON: Record<BatchEvent['kind'], typeof ArrowDownToLine> = {
   inbound: ArrowDownToLine,
@@ -137,13 +138,16 @@ export function BatchesPage() {
                 <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input placeholder="Search product or lot number..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
               </div>
-              <Select value={productFilter} onValueChange={setProductFilter}>
-                <SelectTrigger className="w-full sm:w-56"><SelectValue placeholder="Product" /></SelectTrigger>
-                <SelectContent className="max-h-72">
-                  <SelectItem value="all">All batch-tracked products</SelectItem>
-                  {batchTrackedProducts.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Combobox
+                className="w-full sm:w-56"
+                options={[{ value: 'all', label: 'All batch-tracked products' }, ...productComboboxOptions(batchTrackedProducts)]}
+                value={productFilter}
+                onChange={setProductFilter}
+                placeholder="Product"
+                searchPlaceholder="Search name, SKU, system, diameter..."
+                emptyText="No products found."
+                triggerAriaLabel="Product"
+              />
             </>
           ) : undefined
         }

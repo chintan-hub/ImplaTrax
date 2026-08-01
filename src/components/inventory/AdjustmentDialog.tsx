@@ -4,11 +4,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Combobox } from '@/components/ui/combobox'
 import { useData } from '@/store/DataContext'
 import { MICROCOPY } from '@/content/helpText'
 import { simulateLatency } from '@/lib/utils'
+import { productComboboxOptions } from '@/lib/productOptions'
 
 export function AdjustmentDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const { products, adjustStock } = useData()
@@ -56,14 +57,15 @@ export function AdjustmentDialog({ open, onOpenChange }: { open: boolean; onOpen
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label>Product</Label>
-            <Select value={productId} onValueChange={setProductId}>
-              <SelectTrigger><SelectValue placeholder="Select a product" /></SelectTrigger>
-              <SelectContent className="max-h-72">
-                {products.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.name} · {p.sku}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              options={productComboboxOptions(products, (p) => `${p.name} · ${p.sku}`)}
+              value={productId}
+              onChange={setProductId}
+              placeholder="Select a product"
+              searchPlaceholder="Search name, SKU, system, diameter..."
+              emptyText="No products found."
+              triggerAriaLabel="Product"
+            />
           </div>
 
           <div className="space-y-1.5">

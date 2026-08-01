@@ -25,7 +25,7 @@ import type {
 import * as mock from '@/mocks'
 import { currentUser } from '@/mocks/users'
 import { nextInternalId, createSequence, createTimestampIdGenerator, getInternalIdCounter, restoreInternalIdCounter } from '@/lib/idGenerator'
-import { canSubmitPO, canConfirmPO, canReceivePO, canCancelPO } from '@/lib/poWorkflow'
+import { canSubmitPO, canReceivePO, canCancelPO } from '@/lib/poWorkflow'
 import { canAdvanceCaseStatus } from '@/lib/caseWorkflow'
 import { canReturnLoan } from '@/lib/loanWorkflow'
 import { loadPersistedSnapshot, savePersistedSnapshot } from './persistence'
@@ -164,7 +164,6 @@ interface DataContextValue {
 
   createPurchaseOrder: (vendorId: string, lines: { productId: string; quantityOrdered: number; unitCost: number }[], eta: string, notes?: string) => PurchaseOrder
   submitPurchaseOrder: (poId: string) => void
-  confirmPurchaseOrder: (poId: string) => void
   receivePurchaseOrder: (poId: string, receipts: { lineId: string; quantityReceived: number; lotNumber?: string; expiryDate?: string }[]) => void
   cancelPurchaseOrder: (poId: string) => void
   attachPhotoToOrder: (poId: string, photoDataUrl: string | undefined) => void
@@ -184,6 +183,7 @@ interface DataContextValue {
   addUser: (input: Omit<AppUser, 'id' | 'createdAt'>) => AppUser
   updateClinicSettings: (patch: Partial<ClinicSettings>) => void
   addDoctor: (input: { name: string; active?: boolean }) => Doctor
+  setDoctorActive: (id: string, active: boolean) => void
 }
 
 const DataContext = createContext<DataContextValue | null>(null)
@@ -293,7 +293,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   // A Purchase Order never changes inventory itself — only receivePurchaseOrder
   // does, via applyQtyDelta below. createPurchaseOrder/submitPurchaseOrder/
-  // confirmPurchaseOrder/cancelPurchaseOrder only ever touch PO status/history.
+  // cancelPurchaseOrder only ever touch PO status/history.
   const createPurchaseOrder = useCallback<DataContextValue['createPurchaseOrder']>((vendorId, lines, eta, notes) => {
     const id = nextInternalId('po')
     const now = new Date()
@@ -321,24 +321,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       prev.map((p) =>
         p.id === poId
           ? { ...p, status: 'submitted' as POStatus, submittedAt: now, history: [...p.history, poEvent(poId, 'Submitted to Vendor', 'Purchase order sent to the vendor.', now)] }
-          : p,
-      ),
-    )
-  }, [purchaseOrders, poEvent])
-
-  const confirmPurchaseOrder = useCallback((poId: string) => {
-    const po = purchaseOrders.find((p) => p.id === poId)
-    if (!po || !canConfirmPO(po)) throw new BusinessRuleError('Only a submitted purchase order can be confirmed.')
-    const now = new Date().toISOString()
-    setPurchaseOrders((prev) =>
-      prev.map((p) =>
-        p.id === poId
-          ? {
-              ...p,
-              status: 'confirmed' as POStatus,
-              confirmedAt: now,
-              history: [...p.history, poEvent(poId, 'Confirmed by Vendor', 'Vendor confirmed the order. Inventory is still unaffected until items are received.', now)],
-            }
           : p,
       ),
     )
@@ -674,16 +656,26 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     )
   }, [cases, caseEvent])
 
-  // Recording that an implant was used in a case is independent of stock
-  // movement — createSale (with a caseId) is the code path that actually
-  // decrements inventory for a case-linked component; this action only
-  // maintains the case's own implant/timeline record.
+  // Placing an implant is a real stock-affecting event, not just a case
+  // note: it must deduct inventory, record a movement, and create a Sale
+  // linked back to this case/patient — all as part of this one action, so
+  // the case's implant list can never drift out of sync with stock/sales.
+  // createSale validates stock availability itself and throws before any
+  // state changes, so if it rejects, the case's implant list is untouched.
   const addImplantToCase = useCallback<DataContextValue['addImplantToCase']>((caseId, usage) => {
     if (!usage.tooth.trim()) throw new BusinessRuleError('A tooth number is required.')
     if (usage.quantity <= 0) throw new BusinessRuleError('Quantity must be greater than zero.')
     const caseRecord = cases.find((c) => c.id === caseId)
     if (!caseRecord) throw new BusinessRuleError('Case not found.')
     const product = products.find((p) => p.id === usage.productId)
+    if (!product) throw new BusinessRuleError('Product not found.')
+
+    createSale(
+      [{ productId: usage.productId, quantity: usage.quantity, unitPrice: product.unitPrice, batchLot: usage.batchLot }],
+      caseRecord.patientId,
+      caseId,
+    )
+
     const now = new Date().toISOString()
     setCases((prev) =>
       prev.map((c) =>
@@ -693,13 +685,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
               implants: [...c.implants, usage],
               history: [
                 ...c.history,
-                caseEvent(caseId, 'Implant Added', `${product?.name ?? 'Implant'} added to case (tooth #${usage.tooth}).`, now),
+                caseEvent(caseId, 'Implant Added', `${product.name} added to case (tooth #${usage.tooth}). Stock deducted and sale recorded.`, now),
               ],
             }
           : c,
       ),
     )
-  }, [cases, products, caseEvent])
+  }, [cases, products, caseEvent, createSale])
 
   const addLab = useCallback<DataContextValue['addLab']>((input) => {
     const id = nextInternalId('lab')
@@ -733,6 +725,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return doctor
   }, [])
 
+  // Doctor is stored as a plain "Dr. <name>" display string on Case/Patient
+  // (no foreign key — PROJECT.md §3), so archiving never orphans a record:
+  // existing cases/patients keep the name exactly as it was. Archiving only
+  // removes the doctor from DoctorCombobox's picker for new selections,
+  // matching the app's append-only/soft-status data model (nothing is ever
+  // hard-deleted, see the Purchase Order/Case status lifecycles above).
+  const setDoctorActive = useCallback<DataContextValue['setDoctorActive']>((id, active) => {
+    setDoctors((prev) => prev.map((d) => (d.id === id ? { ...d, active } : d)))
+  }, [])
+
   const value = useMemo<DataContextValue>(
     () => ({
       products,
@@ -755,7 +757,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       importProducts,
       createPurchaseOrder,
       submitPurchaseOrder,
-      confirmPurchaseOrder,
       receivePurchaseOrder,
       cancelPurchaseOrder,
       attachPhotoToOrder,
@@ -772,6 +773,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addUser,
       updateClinicSettings,
       addDoctor,
+      setDoctorActive,
     }),
     [
       products,
@@ -794,7 +796,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       importProducts,
       createPurchaseOrder,
       submitPurchaseOrder,
-      confirmPurchaseOrder,
       receivePurchaseOrder,
       cancelPurchaseOrder,
       attachPhotoToOrder,
@@ -811,6 +812,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addUser,
       updateClinicSettings,
       addDoctor,
+      setDoctorActive,
     ],
   )
 

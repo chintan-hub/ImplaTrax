@@ -1,18 +1,125 @@
 import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
-import { Sun, Moon, Laptop } from 'lucide-react'
+import { Sun, Moon, Laptop, Stethoscope, Plus } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { TermHint } from '@/components/ui/help-tooltip'
 import { useData } from '@/store/DataContext'
+import { useAuth } from '@/features/auth/AuthContext'
+import { WORKSPACE_MANAGER_ROLES } from '@/features/auth/accountTypes'
 import { useTheme } from '@/components/theme/ThemeProvider'
 import { useDirtyState } from '@/hooks/useDirtyState'
 import { cn, simulateLatency } from '@/lib/utils'
 import { MICROCOPY } from '@/content/helpText'
 import { useRegisterSettingsSaveAction } from '../SettingsHeaderActionContext'
+
+function DoctorsCard() {
+  const { doctors, patients, cases, addDoctor, setDoctorActive } = useData()
+  const { currentMember } = useAuth()
+  const canManage = Boolean(currentMember && WORKSPACE_MANAGER_ROLES.includes(currentMember.role))
+  const [newName, setNewName] = useState('')
+  const sorted = [...doctors].sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name))
+
+  const handleAdd = () => {
+    const name = newName.trim()
+    if (!name) {
+      toast.error('Enter a doctor name.')
+      return
+    }
+    if (doctors.some((d) => d.name.toLowerCase() === name.toLowerCase())) {
+      toast.error('A doctor with that name already exists.')
+      return
+    }
+    addDoctor({ name })
+    toast.success(`Dr. ${name} added`)
+    setNewName('')
+  }
+
+  const linkedRecordCount = (doctorName: string) => {
+    const label = `Dr. ${doctorName}`
+    return patients.filter((p) => p.primaryDoctor === label).length + cases.filter((c) => c.doctor === label).length
+  }
+
+  const handleDelete = (id: string, name: string) => {
+    const linked = linkedRecordCount(name)
+    setDoctorActive(id, false)
+    if (linked > 0) {
+      toast.success(`Dr. ${name} archived`, { description: `${linked} existing patient/case record(s) still reference this doctor and are unaffected.` })
+    } else {
+      toast.success(`Dr. ${name} archived`, { description: 'Removed from the doctor picker for new selections.' })
+    }
+  }
+
+  const handleReactivate = (id: string, name: string) => {
+    setDoctorActive(id, true)
+    toast.success(`Dr. ${name} reactivated`)
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-1.5">
+          <Stethoscope className="h-4 w-4" /> Doctors
+        </CardTitle>
+        <CardDescription>Doctors available when assigning cases and patients</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {canManage && (
+          <div className="mb-4 flex gap-2">
+            <Input placeholder="Doctor name" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAdd()} />
+            <Button onClick={handleAdd} className="shrink-0">
+              <Plus className="h-4 w-4" /> Add Doctor
+            </Button>
+          </div>
+        )}
+        {sorted.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No doctors added yet.</p>
+        ) : (
+          <div className="rounded-xl border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Doctor</TableHead>
+                  <TableHead>Status</TableHead>
+                  {canManage && <TableHead className="text-right">Actions</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sorted.map((d) => (
+                  <TableRow key={d.id}>
+                    <TableCell className="font-medium">Dr. {d.name}</TableCell>
+                    <TableCell>
+                      <Badge variant={d.active ? 'success' : 'secondary'}>{d.active ? 'Active' : 'Archived'}</Badge>
+                    </TableCell>
+                    {canManage && (
+                      <TableCell className="text-right">
+                        {d.active ? (
+                          <Button variant="ghost" size="sm" className="text-danger-700 dark:text-danger-500" onClick={() => handleDelete(d.id, d.name)}>
+                            Delete
+                          </Button>
+                        ) : (
+                          <Button variant="ghost" size="sm" onClick={() => handleReactivate(d.id, d.name)}>
+                            Reactivate
+                          </Button>
+                        )}
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
 
 export function ClinicTab() {
   const { clinicSettings, updateClinicSettings } = useData()
@@ -78,6 +185,8 @@ export function ClinicTab() {
           </div>
         </CardContent>
       </Card>
+
+      <DoctorsCard />
 
       <Card>
         <CardHeader>

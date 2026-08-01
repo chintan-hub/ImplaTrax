@@ -205,6 +205,7 @@ export function ProductDetailSheet({ product, open, onOpenChange }: { product: P
               <Input
                 type="number"
                 className="w-20 text-center"
+                min={1}
                 value={adjustDelta}
                 onChange={(e) => setAdjustDelta(Math.max(1, Number(e.target.value) || 1))}
                 aria-label="Adjustment quantity"

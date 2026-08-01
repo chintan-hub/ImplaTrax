@@ -14,6 +14,7 @@ import { patientFullName } from '@/mocks/patients'
 import { formatDateTime } from '@/lib/utils'
 import { exportToCsv } from '@/lib/documents/csv'
 import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
+import { productComboboxOptions } from '@/lib/productOptions'
 import type { MovementType } from '@/types'
 
 const TYPE_LABEL: Record<MovementType, string> = {
@@ -124,7 +125,7 @@ export function InventoryPage() {
     exportToCsv(rows, `inventory-movements-${new Date().toISOString().slice(0, 10)}.csv`)
   }
 
-  const productOptions = [{ value: 'all', label: 'All products' }, ...products.map((p) => ({ value: p.id, label: `${p.name} · ${p.sku}` }))]
+  const productOptions = [{ value: 'all', label: 'All products' }, ...productComboboxOptions(products, (p) => `${p.name} · ${p.sku}`)]
   const doctorOptions = [{ value: 'all', label: 'All doctors' }, ...doctors.map((d) => ({ value: `Dr. ${d.name}`, label: `Dr. ${d.name}`, searchValue: d.name }))]
   const patientOptions = [{ value: 'all', label: 'All patients' }, ...patients.map((p) => ({ value: p.id, label: `${patientFullName(p)} · ${p.patientCode}` }))]
   const vendorOptions = [{ value: 'all', label: 'All vendors' }, ...vendors.map((v) => ({ value: v.id, label: v.name }))]
