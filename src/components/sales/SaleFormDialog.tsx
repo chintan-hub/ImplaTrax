@@ -64,11 +64,16 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     }
     setSubmitting(true)
     await simulateLatency()
-    const sale = createSale(lines, patientId === 'none' ? undefined : patientId, caseId === 'none' ? undefined : caseId)
-    toast.success(`Sale ${sale.saleNumber} recorded`, { description: `${format(sale.total)} · stock updated` })
-    setSubmitting(false)
-    reset()
-    onOpenChange(false)
+    try {
+      const sale = createSale(lines, patientId === 'none' ? undefined : patientId, caseId === 'none' ? undefined : caseId)
+      toast.success(`Sale ${sale.saleNumber} recorded`, { description: `${format(sale.total)} · stock updated` })
+      reset()
+      onOpenChange(false)
+    } catch (err) {
+      toast.error('Could not record sale', { description: err instanceof Error ? err.message : undefined })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (

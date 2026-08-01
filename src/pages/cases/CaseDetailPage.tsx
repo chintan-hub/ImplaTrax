@@ -61,17 +61,22 @@ function AddImplantDialog({ caseId, open, onOpenChange }: { caseId: string; open
     }
     setSubmitting(true)
     await simulateLatency()
-    const usage: CaseImplantUsage = {
-      productId,
-      tooth: tooth.trim(),
-      quantity,
-      batchLot: clinicSettings.batchLotTrackingEnabled && product?.batchTracked && batchLot.trim() ? batchLot.trim() : undefined,
+    try {
+      const usage: CaseImplantUsage = {
+        productId,
+        tooth: tooth.trim(),
+        quantity,
+        batchLot: clinicSettings.batchLotTrackingEnabled && product?.batchTracked && batchLot.trim() ? batchLot.trim() : undefined,
+      }
+      addImplantToCase(caseId, usage)
+      toast.success('Implant added to case')
+      reset()
+      onOpenChange(false)
+    } catch (err) {
+      toast.error('Could not add implant', { description: err instanceof Error ? err.message : undefined })
+    } finally {
+      setSubmitting(false)
     }
-    addImplantToCase(caseId, usage)
-    toast.success('Implant added to case')
-    setSubmitting(false)
-    reset()
-    onOpenChange(false)
   }
 
   return (

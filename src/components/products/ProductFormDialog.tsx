@@ -96,6 +96,17 @@ export function ProductFormDialog({ open, onOpenChange, product }: { open: boole
   const onSubmit = async (values: FormValues) => {
     setSubmitting(true)
     await simulateLatency()
+    try {
+      submitProduct(values)
+      onOpenChange(false)
+    } catch (err) {
+      toast.error(isEdit ? 'Could not update product' : 'Could not create product', { description: err instanceof Error ? err.message : undefined })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const submitProduct = (values: FormValues) => {
     if (isEdit && product) {
       // quantityOnHand is deliberately excluded here — stock only ever
       // changes through a business action (Manual Adjustment, Sale, Loan,
@@ -142,8 +153,6 @@ export function ProductFormDialog({ open, onOpenChange, product }: { open: boole
       })
       toast.success('Product created', { description: `${values.name} was added to the catalog.` })
     }
-    setSubmitting(false)
-    onOpenChange(false)
   }
 
   return (

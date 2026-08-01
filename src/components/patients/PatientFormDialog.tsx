@@ -63,22 +63,26 @@ export function PatientFormDialog({
     }
     setSubmitting(true)
     await simulateLatency()
-    if (isEdit && patient) {
-      updatePatient(patient.id, { ...form, sex, primaryDoctor: doctor })
-      toast.success(`${form.firstName} ${form.lastName} updated`)
-      setSubmitting(false)
-      onOpenChange(false)
-    } else {
-      const created = addPatient({ ...form, sex, primaryDoctor: doctor })
-      setSubmitting(false)
-      onOpenChange(false)
-      if (onCreated) {
-        toast.success(`Patient ${form.firstName} ${form.lastName} added`)
-        onCreated(created)
+    try {
+      if (isEdit && patient) {
+        updatePatient(patient.id, { ...form, sex, primaryDoctor: doctor })
+        toast.success(`${form.firstName} ${form.lastName} updated`)
+        onOpenChange(false)
       } else {
-        toast.success(`Patient ${form.firstName} ${form.lastName} added`, { description: 'Opening their profile...' })
-        navigate(`/patients/${created.id}`)
+        const created = addPatient({ ...form, sex, primaryDoctor: doctor })
+        onOpenChange(false)
+        if (onCreated) {
+          toast.success(`Patient ${form.firstName} ${form.lastName} added`)
+          onCreated(created)
+        } else {
+          toast.success(`Patient ${form.firstName} ${form.lastName} added`, { description: 'Opening their profile...' })
+          navigate(`/patients/${created.id}`)
+        }
       }
+    } catch (err) {
+      toast.error(isEdit ? 'Could not update patient' : 'Could not add patient', { description: err instanceof Error ? err.message : undefined })
+    } finally {
+      setSubmitting(false)
     }
   }
 

@@ -44,7 +44,11 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Loans', to: '/loans', icon: HandCoins, group: 'Operations', tourId: 'nav-loans' },
   { label: 'Loan Returns', to: '/loan-returns', icon: Undo2, group: 'Operations' },
   { label: 'Reports', to: '/reports', icon: BarChart3, group: 'Operations' },
-  { label: 'Users', to: '/users', icon: UserCog, group: 'System' },
+  // Team access is managed on Settings' Workspace tab (real auth-backed
+  // members, roles, invites) — not a separate page. See DataContext's old
+  // `AppUser`/`addUser`, removed as a dead, disconnected duplicate that never
+  // granted anyone real login access.
+  { label: 'Team', to: '/settings?tab=workspace', icon: UserCog, group: 'System' },
   { label: 'Settings', to: '/settings', icon: Settings, group: 'System', helpKey: 'settings', tourId: 'nav-settings' },
 ]
 

@@ -59,11 +59,16 @@ export function POFormDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     }
     setSubmitting(true)
     await simulateLatency()
-    const po = createPurchaseOrder(vendorId, lines, new Date(eta).toISOString())
-    toast.success(`Purchase order ${po.poNumber} created`, { description: 'Saved as draft.' })
-    setSubmitting(false)
-    reset()
-    onOpenChange(false)
+    try {
+      const po = createPurchaseOrder(vendorId, lines, new Date(eta).toISOString())
+      toast.success(`Purchase order ${po.poNumber} created`, { description: 'Saved as draft.' })
+      reset()
+      onOpenChange(false)
+    } catch (err) {
+      toast.error('Could not create purchase order', { description: err instanceof Error ? err.message : undefined })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (

@@ -74,11 +74,16 @@ export function LoanFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     }
     setSubmitting(true)
     await simulateLatency()
-    const loan = createLoan(labId, lines, new Date(dueDate).toISOString(), notes || undefined)
-    toast.success(`Loan ${loan.loanNumber} issued`, { description: 'Stock has been deducted for the loaned products.' })
-    setSubmitting(false)
-    reset()
-    onOpenChange(false)
+    try {
+      const loan = createLoan(labId, lines, new Date(dueDate).toISOString(), notes || undefined)
+      toast.success(`Loan ${loan.loanNumber} issued`, { description: 'Stock has been deducted for the loaned products.' })
+      reset()
+      onOpenChange(false)
+    } catch (err) {
+      toast.error('Could not issue loan', { description: err instanceof Error ? err.message : undefined })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (

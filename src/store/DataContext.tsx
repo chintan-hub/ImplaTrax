@@ -17,7 +17,6 @@ import type {
   SaleLine,
   Loan,
   LoanEvent,
-  AppUser,
   ClinicSettings,
   MovementType,
   POStatus,
@@ -57,7 +56,6 @@ const SEED = import.meta.env.PROD
       labs: [] as Lab[],
       sales: [] as Sale[],
       loans: [] as Loan[],
-      users: [] as AppUser[],
       batches: [] as ProductBatch[],
       doctors: [] as Doctor[],
       defaultClinicSettings: mock.emptyClinicSettings,
@@ -163,7 +161,6 @@ interface DataContextValue {
   labs: Lab[]
   sales: Sale[]
   loans: Loan[]
-  users: AppUser[]
   clinicSettings: ClinicSettings
   batches: ProductBatch[]
   doctors: Doctor[]
@@ -199,6 +196,7 @@ interface DataContextValue {
   returnLoanLines: (loanId: string, returns: { lineId: string; quantityReturned: number; quantityLost: number; lostReason?: string }[]) => void
 
   createSale: (lines: SaleLine[], patientId?: string, caseId?: string) => Sale
+  voidSale: (saleId: string, reason: string) => void
 
   addPatient: (input: Omit<Patient, 'id' | 'patientCode' | 'createdAt'>) => Patient
   updatePatient: (id: string, patch: Partial<Patient>) => void
@@ -206,8 +204,9 @@ interface DataContextValue {
   advanceCaseStatus: (caseId: string, status: CaseStatus) => void
   addImplantToCase: (caseId: string, usage: CaseImplantUsage) => void
   addLab: (input: Omit<Lab, 'id' | 'createdAt'>) => Lab
+  updateLab: (id: string, patch: Partial<Lab>) => void
   addVendor: (input: Omit<Vendor, 'id' | 'createdAt' | 'totalOrders' | 'onTimeRate'>) => Vendor
-  addUser: (input: Omit<AppUser, 'id' | 'createdAt'>) => AppUser
+  updateVendor: (id: string, patch: Partial<Vendor>) => void
   updateClinicSettings: (patch: Partial<ClinicSettings>) => void
   addDoctor: (input: { name: string; active?: boolean }) => Doctor
   setDoctorActive: (id: string, active: boolean) => void
@@ -225,7 +224,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [labs, setLabs] = useState<Lab[]>(persisted?.labs ?? SEED.labs)
   const [sales, setSales] = useState<Sale[]>(persisted?.sales ?? SEED.sales)
   const [loans, setLoans] = useState<Loan[]>(persisted?.loans ?? SEED.loans)
-  const [users, setUsers] = useState<AppUser[]>(persisted?.users ?? SEED.users)
   // Spread over the default rather than using a persisted snapshot as-is —
   // older snapshots predate fields like country/logoDataUrl, and without
   // this merge those would come back `undefined` and turn their form
@@ -650,6 +648,48 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return { id: nextInternalId('cseevt'), caseId, label, description, date, actor: getCurrentActor().name }
   }, [])
 
+  // The inverse of createSale: restores every line's quantity to stock and
+  // records the sale as voided (never deleted — same append-only convention
+  // as everything else here). A sale's `total` is left untouched so its
+  // original record stays intact; callers must exclude voided sales from
+  // revenue sums themselves (sales.filter(s => !s.voidedAt)).
+  const voidSale = useCallback<DataContextValue['voidSale']>((saleId, reason) => {
+    if (!reason.trim()) throw new BusinessRuleError('A reason is required to void a sale.')
+    const sale = sales.find((s) => s.id === saleId)
+    if (!sale) throw new BusinessRuleError('Sale not found.')
+    if (sale.voidedAt) throw new BusinessRuleError('This sale has already been voided.')
+
+    const track = makeQtyTracker(products)
+    sale.lines.forEach((l) => {
+      const { before, after } = track(l.productId, l.quantity)
+      applyQtyDelta(l.productId, l.quantity)
+      addMovement({
+        productId: l.productId,
+        type: 'adjustment',
+        quantity: l.quantity,
+        quantityBefore: before,
+        quantityAfter: after,
+        reason: `Sale voided: ${reason.trim()}`,
+        reference: sale.saleNumber,
+        batchLot: l.batchLot,
+        patientId: sale.patientId,
+        caseId: sale.caseId,
+      })
+    })
+
+    const now = new Date().toISOString()
+    setSales((prev) => prev.map((s) => (s.id === saleId ? { ...s, voidedAt: now, voidReason: reason.trim() } : s)))
+    if (sale.caseId) {
+      setCases((prev) =>
+        prev.map((c) =>
+          c.id === sale.caseId
+            ? { ...c, history: [...c.history, caseEvent(sale.caseId!, 'Sale Voided', `${sale.saleNumber} was voided: ${reason.trim()}. Stock was restored.`, now)] }
+            : c,
+        ),
+      )
+    }
+  }, [sales, products, applyQtyDelta, addMovement, caseEvent])
+
   const addCase = useCallback<DataContextValue['addCase']>((input) => {
     const id = nextInternalId('cse')
     const year = new Date().getFullYear()
@@ -731,6 +771,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return lab
   }, [])
 
+  const updateLab = useCallback<DataContextValue['updateLab']>((id, patch) => {
+    setLabs((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)))
+  }, [])
+
   const addVendor = useCallback<DataContextValue['addVendor']>((input) => {
     const id = nextInternalId('vnd')
     const vendor: Vendor = { ...input, id, totalOrders: 0, onTimeRate: 1, createdAt: new Date().toISOString() }
@@ -738,11 +782,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return vendor
   }, [])
 
-  const addUser = useCallback<DataContextValue['addUser']>((input) => {
-    const id = nextInternalId('usr')
-    const user: AppUser = { ...input, id, createdAt: new Date().toISOString() }
-    setUsers((prev) => [user, ...prev])
-    return user
+  const updateVendor = useCallback<DataContextValue['updateVendor']>((id, patch) => {
+    setVendors((prev) => prev.map((v) => (v.id === id ? { ...v, ...patch } : v)))
   }, [])
 
   const updateClinicSettings = useCallback((patch: Partial<ClinicSettings>) => {
@@ -777,7 +818,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       labs,
       sales,
       loans,
-      users,
       clinicSettings,
       batches,
       doctors,
@@ -794,14 +834,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       createLoan,
       returnLoanLines,
       createSale,
+      voidSale,
       addPatient,
       updatePatient,
       addCase,
       advanceCaseStatus,
       addImplantToCase,
       addLab,
+      updateLab,
       addVendor,
-      addUser,
+      updateVendor,
       updateClinicSettings,
       addDoctor,
       setDoctorActive,
@@ -816,7 +858,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       labs,
       sales,
       loans,
-      users,
       clinicSettings,
       batches,
       doctors,
@@ -833,14 +874,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       createLoan,
       returnLoanLines,
       createSale,
+      voidSale,
       addPatient,
       updatePatient,
       addCase,
       advanceCaseStatus,
       addImplantToCase,
       addLab,
+      updateLab,
       addVendor,
-      addUser,
+      updateVendor,
       updateClinicSettings,
       addDoctor,
       setDoctorActive,
@@ -861,13 +904,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       labs,
       sales,
       loans,
-      users,
       clinicSettings,
       batches,
       doctors,
       internalIdCounter: getInternalIdCounter(),
     })
-  }, [products, movements, purchaseOrders, vendors, patients, cases, labs, sales, loans, users, clinicSettings, batches, doctors])
+  }, [products, movements, purchaseOrders, vendors, patients, cases, labs, sales, loans, clinicSettings, batches, doctors])
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>
 }

@@ -1,12 +1,13 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Star, Clock, Mail, Phone, MapPin, FlaskConical } from 'lucide-react'
+import { ArrowLeft, Star, Clock, Mail, Phone, MapPin, FlaskConical, Pencil } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { StatCard } from '@/components/shared/StatCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { LabFormDialog } from '@/components/labs/LabFormDialog'
 import { useData } from '@/store/DataContext'
 import { formatDate } from '@/lib/utils'
 import { openLoanValue } from '@/mocks/loans'
@@ -16,6 +17,7 @@ export function LabDetailPage() {
   const { labId } = useParams()
   const navigate = useNavigate()
   const { labs, loans, cases } = useData()
+  const [editing, setEditing] = useState(false)
 
   const lab = labs.find((l) => l.id === labId)
   const labLoans = useMemo(() => loans.filter((l) => l.labId === labId).sort((a, b) => new Date(b.issuedAt).getTime() - new Date(a.issuedAt).getTime()), [loans, labId])
@@ -41,10 +43,17 @@ export function LabDetailPage() {
             {lab.specialties.map((s) => <Badge key={s} variant="outline">{s}</Badge>)}
           </div>
         </div>
-        <span className="flex items-center gap-1 text-lg font-semibold">
-          <Star className="h-4 w-4 fill-warning-500 text-warning-500" /> {lab.rating.toFixed(1)}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1 text-lg font-semibold">
+            <Star className="h-4 w-4 fill-warning-500 text-warning-500" /> {lab.rating.toFixed(1)}
+          </span>
+          <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+            <Pencil className="h-3.5 w-3.5" /> Edit
+          </Button>
+        </div>
       </div>
+
+      <LabFormDialog open={editing} onOpenChange={setEditing} lab={lab} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-6">
         <StatCard label="Outstanding Loan Items" value={String(outstandingItems)} icon={HandCoins} tone="warning" helpTerm="loan" />

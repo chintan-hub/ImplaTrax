@@ -37,13 +37,18 @@ export function AdjustmentDialog({ open, onOpenChange }: { open: boolean; onOpen
     }
     setSubmitting(true)
     await simulateLatency()
-    const delta = direction === 'in' ? quantity : -quantity
-    adjustStock(productId, delta, reason.trim())
-    const product = products.find((p) => p.id === productId)
-    toast.success(`Adjusted ${product?.name}`, { description: `${direction === 'in' ? '+' : '-'}${quantity} · ${reason}` })
-    setSubmitting(false)
-    reset()
-    onOpenChange(false)
+    try {
+      const delta = direction === 'in' ? quantity : -quantity
+      adjustStock(productId, delta, reason.trim())
+      const product = products.find((p) => p.id === productId)
+      toast.success(`Adjusted ${product?.name}`, { description: `${direction === 'in' ? '+' : '-'}${quantity} · ${reason}` })
+      reset()
+      onOpenChange(false)
+    } catch (err) {
+      toast.error('Could not save adjustment', { description: err instanceof Error ? err.message : undefined })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (

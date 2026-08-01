@@ -37,9 +37,10 @@ export function SalesPage() {
   const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products])
 
   const stats = useMemo(() => {
-    const totalRevenue = sales.reduce((s, sale) => s + sale.total, 0)
-    const totalUnits = sales.reduce((s, sale) => s + sale.lines.reduce((a, l) => a + l.quantity, 0), 0)
-    const avgSale = sales.length ? totalRevenue / sales.length : 0
+    const active = sales.filter((s) => !s.voidedAt)
+    const totalRevenue = active.reduce((s, sale) => s + sale.total, 0)
+    const totalUnits = active.reduce((s, sale) => s + sale.lines.reduce((a, l) => a + l.quantity, 0), 0)
+    const avgSale = active.length ? totalRevenue / active.length : 0
     return { totalRevenue, totalUnits, avgSale }
   }, [sales])
 
@@ -111,7 +112,12 @@ export function SalesPage() {
                 const caseRecord = s.caseId ? caseById.get(s.caseId) : undefined
                 return (
                   <TableRow key={s.id} className="cursor-pointer" onClick={() => navigate(`/sales/${s.id}`)}>
-                    <TableCell className="font-medium">{s.saleNumber}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-1.5">
+                        {s.saleNumber}
+                        {s.voidedAt && <Badge variant="secondary">Voided</Badge>}
+                      </div>
+                    </TableCell>
                     <TableCell>{patient ? patientFullName(patient) : <span className="text-muted-foreground">Direct sale</span>}</TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">{caseRecord?.caseId ?? '—'}</TableCell>
                     <TableCell>

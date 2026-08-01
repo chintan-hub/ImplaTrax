@@ -277,6 +277,9 @@ export interface Sale {
   total: number
   soldBy: ID
   createdAt: string
+  /** A voided sale is never deleted (append-only, like every other record here) — its inventory has been restored and it's excluded from revenue totals, but it stays visible with a reason for audit purposes. */
+  voidedAt?: string
+  voidReason?: string
 }
 
 // ---------------------------------------------------------------------------

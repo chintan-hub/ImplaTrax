@@ -261,10 +261,6 @@ export const PAGE_INTROS = {
     title: 'Reports',
     description: 'See how your inventory, sales, loans, and purchasing are trending.',
   },
-  users: {
-    title: 'Users',
-    description: 'Everyone with access to ImplaTrax, and what they can do.',
-  },
   settings: {
     title: 'Settings',
     description: 'Configure your clinic details, pricing visibility, barcodes, and appearance.',
@@ -335,11 +331,6 @@ export const EMPTY_STATES = {
   batches: {
     title: 'No Batch/Lot Data Yet',
     description: 'Lots appear here once a batch-tracked product is received with a lot number. Go to Purchase Orders and receive your first shipment to get started.',
-  },
-  users: {
-    title: 'No Team Members Yet',
-    description: 'Add the people on your team so everyone has their own login and the right level of access.',
-    actionLabel: 'Add User',
   },
 } as const satisfies Record<string, EmptyStateEntry>
 

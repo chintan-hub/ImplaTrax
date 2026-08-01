@@ -10,6 +10,7 @@ import { Combobox } from '@/components/ui/combobox'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { AdjustmentDialog } from '@/components/inventory/AdjustmentDialog'
 import { useData } from '@/store/DataContext'
+import { useAuth } from '@/features/auth/AuthContext'
 import { patientFullName } from '@/mocks/patients'
 import { formatDateTime } from '@/lib/utils'
 import { exportToCsv } from '@/lib/documents/csv'
@@ -43,7 +44,8 @@ const TYPE_VARIANT: Record<MovementType, 'success' | 'danger' | 'warning' | 'acc
 const FILTERABLE_TYPES: MovementType[] = ['inbound', 'adjustment', 'loan-out', 'loan-return', 'sale', 'lost']
 
 export function InventoryPage() {
-  const { movements, products, users, vendors, labs, patients, doctors, clinicSettings } = useData()
+  const { movements, products, vendors, labs, patients, doctors, clinicSettings } = useData()
+  const { workspaceMembers } = useAuth()
   const [typeFilter, setTypeFilter] = useState('all')
   const [productFilter, setProductFilter] = useState('all')
   const [doctorFilter, setDoctorFilter] = useState('all')
@@ -56,7 +58,7 @@ export function InventoryPage() {
   const [adjustOpen, setAdjustOpen] = useState(false)
 
   const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products])
-  const userById = useMemo(() => new Map(users.map((u) => [u.id, u])), [users])
+  const userById = useMemo(() => new Map(workspaceMembers.map((m) => [m.id, m])), [workspaceMembers])
   const vendorById = useMemo(() => new Map(vendors.map((v) => [v.id, v])), [vendors])
   const labById = useMemo(() => new Map(labs.map((l) => [l.id, l])), [labs])
   const patientById = useMemo(() => new Map(patients.map((p) => [p.id, p])), [patients])

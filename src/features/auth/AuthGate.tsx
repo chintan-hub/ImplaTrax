@@ -7,12 +7,9 @@ import { LoginScreen } from './LoginScreen'
 const LAST_PATH_KEY = 'implatrax:lastPath'
 
 /**
- * Sits above the routed app. The workspace name/name/contact captured during
- * onboarding lives only in this feature's own localStorage key — deliberately
- * not written into DataContext's clinicSettings/users, since wiring a real
- * "current user" through the rest of the app is its own larger, separately
- * tracked initiative (see PROJECT.md's permissions/AccessLevel work) and
- * outside this feature's scope.
+ * Sits above the routed app. Action attribution (who performed a movement,
+ * sale, etc.) is bridged into DataContext via src/store/currentActor.ts —
+ * see that file's own comment for why it isn't done via React context.
  *
  * Also remembers where the user was when the app locked (manually, via
  * auto-lock, or a session timeout) and returns them there — once — after

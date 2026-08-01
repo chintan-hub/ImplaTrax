@@ -55,10 +55,15 @@ export function LoanReturnDialog({ loan, open, onOpenChange }: { loan: Loan | nu
     }
     setSubmitting(true)
     await simulateLatency()
-    returnLoanLines(loan.id, returns)
-    toast.success(`Loan ${loan.loanNumber} updated`, { description: 'Stock and history have been updated.' })
-    setSubmitting(false)
-    onOpenChange(false)
+    try {
+      returnLoanLines(loan.id, returns)
+      toast.success(`Loan ${loan.loanNumber} updated`, { description: 'Stock and history have been updated.' })
+      onOpenChange(false)
+    } catch (err) {
+      toast.error('Could not save loan return', { description: err instanceof Error ? err.message : undefined })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (

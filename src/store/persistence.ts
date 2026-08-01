@@ -8,7 +8,6 @@ import type {
   Lab,
   Sale,
   Loan,
-  AppUser,
   ClinicSettings,
   ProductBatch,
   Doctor,
@@ -28,7 +27,6 @@ export interface PersistedSnapshot {
   labs: Lab[]
   sales: Sale[]
   loans: Loan[]
-  users: AppUser[]
   clinicSettings: ClinicSettings
   batches: ProductBatch[]
   doctors: Doctor[]

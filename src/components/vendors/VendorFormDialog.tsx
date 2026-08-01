@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -8,13 +8,23 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { useData } from '@/store/DataContext'
 import { simulateLatency } from '@/lib/utils'
 import { MANUFACTURERS } from '@/types'
-import type { Manufacturer } from '@/types'
+import type { Manufacturer, Vendor } from '@/types'
 
-export function VendorFormDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
-  const { addVendor } = useData()
-  const [form, setForm] = useState({ name: '', contactName: '', email: '', phone: '', address: '', country: 'United States' })
+const EMPTY_FORM = { name: '', contactName: '', email: '', phone: '', address: '', country: 'United States' }
+
+export function VendorFormDialog({ open, onOpenChange, vendor }: { open: boolean; onOpenChange: (v: boolean) => void; vendor?: Vendor }) {
+  const { addVendor, updateVendor } = useData()
+  const isEdit = !!vendor
+  const [form, setForm] = useState(EMPTY_FORM)
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([])
   const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      setForm(vendor ? { name: vendor.name, contactName: vendor.contactName, email: vendor.email, phone: vendor.phone, address: vendor.address, country: vendor.country } : EMPTY_FORM)
+      setManufacturers(vendor?.manufacturers ?? [])
+    }
+  }, [open, vendor])
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((prev) => ({ ...prev, [k]: e.target.value }))
 
@@ -33,20 +43,28 @@ export function VendorFormDialog({ open, onOpenChange }: { open: boolean; onOpen
     }
     setSubmitting(true)
     await simulateLatency()
-    addVendor({ ...form, manufacturers })
-    toast.success(`Vendor "${form.name}" added`, { description: 'It now appears in your vendor directory.' })
-    setSubmitting(false)
-    setForm({ name: '', contactName: '', email: '', phone: '', address: '', country: 'United States' })
-    setManufacturers([])
-    onOpenChange(false)
+    try {
+      if (isEdit && vendor) {
+        updateVendor(vendor.id, { ...form, manufacturers })
+        toast.success(`Vendor "${form.name}" updated`)
+      } else {
+        addVendor({ ...form, manufacturers })
+        toast.success(`Vendor "${form.name}" added`, { description: 'It now appears in your vendor directory.' })
+      }
+      onOpenChange(false)
+    } catch (err) {
+      toast.error(isEdit ? 'Could not update vendor' : 'Could not add vendor', { description: err instanceof Error ? err.message : undefined })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add Vendor</DialogTitle>
-          <DialogDescription>Add a new vendor to your directory.</DialogDescription>
+          <DialogTitle>{isEdit ? 'Edit Vendor' : 'Add Vendor'}</DialogTitle>
+          <DialogDescription>{isEdit ? "Update this vendor's details." : 'Add a new vendor to your directory.'}</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="col-span-1 space-y-1.5 sm:col-span-2">
@@ -88,7 +106,7 @@ export function VendorFormDialog({ open, onOpenChange }: { open: boolean; onOpen
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
-          <Button onClick={handleSubmit} loading={submitting}>Add Vendor</Button>
+          <Button onClick={handleSubmit} loading={submitting}>{isEdit ? 'Save Changes' : 'Add Vendor'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

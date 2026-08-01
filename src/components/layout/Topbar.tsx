@@ -188,7 +188,7 @@ export function Topbar({ onOpenSearch }: { onOpenSearch: () => void }) {
           <DropdownMenuItem onSelect={() => navigate('/settings?tab=profile')}>Profile</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => navigate('/settings?tab=security')}>Security</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => navigate('/settings')}>Clinic Settings</DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => navigate('/users')}>Manage Users</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => navigate('/settings?tab=workspace')}>Manage Team</DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => lock()}>
             <Lock className="mr-2 h-4 w-4" /> Lock App
