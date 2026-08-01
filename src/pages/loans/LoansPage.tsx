@@ -125,12 +125,12 @@ export function LoansPage() {
                   </span>
                 </TableHead>
                 <TableHead>Lab</TableHead>
-                <TableHead>Items</TableHead>
-                <TableHead className="text-right">Outstanding</TableHead>
+                <TableHead className="hidden md:table-cell">Items</TableHead>
+                <TableHead className="hidden sm:table-cell text-right">Outstanding</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Issued</TableHead>
-                <TableHead>Due</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="hidden lg:table-cell">Issued</TableHead>
+                <TableHead className="hidden lg:table-cell">Due</TableHead>
+                <TableHead className="hidden md:table-cell text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -141,12 +141,12 @@ export function LoansPage() {
                   <TableRow key={loan.id} className="cursor-pointer" onClick={() => navigate(`/loans/${loan.id}`)}>
                     <TableCell className="font-medium">{loan.loanNumber}</TableCell>
                     <TableCell>{lab?.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{loan.lines.length} product(s)</TableCell>
-                    <TableCell className="text-right font-medium tabular-nums">{outstanding}</TableCell>
+                    <TableCell className="hidden md:table-cell text-muted-foreground">{loan.lines.length} product(s)</TableCell>
+                    <TableCell className="hidden sm:table-cell text-right font-medium tabular-nums">{outstanding}</TableCell>
                     <TableCell><StatusBadge status={loan.status} /></TableCell>
-                    <TableCell className="text-muted-foreground whitespace-nowrap">{formatDate(loan.issuedAt)}</TableCell>
-                    <TableCell className="text-muted-foreground whitespace-nowrap">{loan.dueDate ? formatDate(loan.dueDate) : '—'}</TableCell>
-                    <TableCell className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                    <TableCell className="hidden lg:table-cell text-muted-foreground whitespace-nowrap">{formatDate(loan.issuedAt)}</TableCell>
+                    <TableCell className="hidden lg:table-cell text-muted-foreground whitespace-nowrap">{loan.dueDate ? formatDate(loan.dueDate) : '—'}</TableCell>
+                    <TableCell className="hidden md:table-cell text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <LoanStatusActions loan={loan} size="sm" />
                     </TableCell>
                   </TableRow>

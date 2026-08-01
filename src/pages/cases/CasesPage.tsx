@@ -142,11 +142,11 @@ export function CasesPage() {
                   </span>
                 </TableHead>
                 <TableHead>Patient</TableHead>
-                <TableHead>Procedure</TableHead>
-                <TableHead>Doctor</TableHead>
-                <TableHead>Lab</TableHead>
+                <TableHead className="hidden md:table-cell">Procedure</TableHead>
+                <TableHead className="hidden lg:table-cell">Doctor</TableHead>
+                <TableHead className="hidden lg:table-cell">Lab</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Created</TableHead>
+                <TableHead className="hidden md:table-cell">Created</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -157,11 +157,11 @@ export function CasesPage() {
                   <TableRow key={c.id} className="cursor-pointer" onClick={() => navigate(`/cases/${c.id}`)}>
                     <TableCell className="font-medium font-mono text-xs">{c.caseId}</TableCell>
                     <TableCell>{patient ? patientFullName(patient) : '—'}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">{c.procedure}</TableCell>
-                    <TableCell className="text-muted-foreground">{c.doctor}</TableCell>
-                    <TableCell className="text-muted-foreground">{lab?.name ?? '—'}</TableCell>
+                    <TableCell className="hidden md:table-cell max-w-[200px] truncate">{c.procedure}</TableCell>
+                    <TableCell className="hidden lg:table-cell text-muted-foreground">{c.doctor}</TableCell>
+                    <TableCell className="hidden lg:table-cell text-muted-foreground">{lab?.name ?? '—'}</TableCell>
                     <TableCell><StatusBadge status={c.status} /></TableCell>
-                    <TableCell className="text-muted-foreground whitespace-nowrap">{formatDate(c.createdAt)}</TableCell>
+                    <TableCell className="hidden md:table-cell text-muted-foreground whitespace-nowrap">{formatDate(c.createdAt)}</TableCell>
                   </TableRow>
                 )
               })}

@@ -24,7 +24,7 @@ import { ProductDetailSheet } from '@/components/products/ProductDetailSheet'
 import { ProductImportDialog } from '@/components/products/ProductImportDialog'
 import { IconHelp } from '@/components/ui/help-tooltip'
 import { useData } from '@/store/DataContext'
-import { formatCurrency } from '@/lib/utils'
+import { cn, formatCurrency } from '@/lib/utils'
 import { exportToCsv } from '@/lib/documents/csv'
 import { PAGE_INTROS, EMPTY_STATES } from '@/content/helpText'
 import { MANUFACTURERS, PRODUCT_CATEGORIES } from '@/types'
@@ -34,6 +34,18 @@ import { stockStatus, availableStock, STOCK_STATUS_LABEL } from '@/lib/stock'
 const STOCK_STATUS_VARIANT = { normal: 'success', low: 'warning', out: 'danger' } as const
 
 const columnHelper = createColumnHelper<Product>()
+
+// Product/on-hand/stock-status/status stay visible at every width; the rest
+// fold in progressively as the viewport widens, so the narrow-viewport table
+// isn't just "technically scrollable" but actually legible without scrolling.
+const COLUMN_RESPONSIVE_CLASS: Record<string, string> = {
+  manufacturer: 'hidden md:table-cell',
+  category: 'hidden lg:table-cell',
+  available: 'hidden lg:table-cell',
+  quantityReserved: 'hidden xl:table-cell',
+  lowStockThreshold: 'hidden xl:table-cell',
+  unitPrice: 'hidden md:table-cell',
+}
 
 export function ProductsPage() {
   const { products } = useData()
@@ -247,7 +259,11 @@ export function ProductsPage() {
               {table.getHeaderGroups().map((hg) => (
                 <TableRow key={hg.id}>
                   {hg.headers.map((header) => (
-                    <TableHead key={header.id} className="cursor-pointer select-none" onClick={header.column.getToggleSortingHandler()}>
+                    <TableHead
+                      key={header.id}
+                      className={cn('cursor-pointer select-none', COLUMN_RESPONSIVE_CLASS[header.column.id])}
+                      onClick={header.column.getToggleSortingHandler()}
+                    >
                       <span className="inline-flex items-center gap-1">
                         {flexRender(header.column.columnDef.header, header.getContext())}
                         {header.column.getCanSort() && <ArrowUpDown className="h-3 w-3 opacity-40" />}
@@ -261,7 +277,9 @@ export function ProductsPage() {
               {table.getRowModel().rows.map((row) => (
                 <TableRow key={row.id} className="cursor-pointer" onClick={() => setSelectedId(row.original.id)}>
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                    <TableCell key={cell.id} className={COLUMN_RESPONSIVE_CLASS[cell.column.id]}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
                   ))}
                 </TableRow>
               ))}
