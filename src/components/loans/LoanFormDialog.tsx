@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Combobox } from '@/components/ui/combobox'
+import { PhotoDropzone } from '@/components/shared/PhotoDropzone'
 import { useData } from '@/store/DataContext'
 import { MICROCOPY } from '@/content/helpText'
 import { simulateLatency } from '@/lib/utils'
@@ -25,6 +26,7 @@ export function LoanFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const [dueDate, setDueDate] = useState(() => new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10))
   const [notes, setNotes] = useState('')
   const [lines, setLines] = useState<Line[]>([])
+  const [photos, setPhotos] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
 
   const addLine = () => setLines((prev) => [...prev, { productId: products[0].id, quantityLoaned: 1 }])
@@ -53,6 +55,7 @@ export function LoanFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     setLabId('')
     setLines([])
     setNotes('')
+    setPhotos([])
   }
 
   const handleSubmit = async () => {
@@ -75,7 +78,7 @@ export function LoanFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     setSubmitting(true)
     await simulateLatency()
     try {
-      const loan = createLoan(labId, lines, new Date(dueDate).toISOString(), notes || undefined)
+      const loan = createLoan(labId, lines, new Date(dueDate).toISOString(), notes || undefined, photos.length > 0 ? photos : undefined)
       toast.success(`Loan ${loan.loanNumber} issued`, { description: 'Stock has been deducted for the loaned products.' })
       reset()
       onOpenChange(false)
@@ -167,6 +170,13 @@ export function LoanFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
           <Label>Notes</Label>
           <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes about this loan..." />
         </div>
+
+        <PhotoDropzone
+          label="Photos (Optional)"
+          photos={photos}
+          onChange={setPhotos}
+          helpText="Record component condition or a clinical delivery slip."
+        />
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>

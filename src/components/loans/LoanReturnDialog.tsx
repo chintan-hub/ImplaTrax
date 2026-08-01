@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PhotoDropzone } from '@/components/shared/PhotoDropzone'
 import { useData } from '@/store/DataContext'
 import { MICROCOPY } from '@/content/helpText'
 import { simulateLatency } from '@/lib/utils'
@@ -18,6 +19,7 @@ interface LineState {
 export function LoanReturnDialog({ loan, open, onOpenChange }: { loan: Loan | null; open: boolean; onOpenChange: (v: boolean) => void }) {
   const { products, returnLoanLines, clinicSettings } = useData()
   const [state, setState] = useState<Record<string, LineState>>({})
+  const [photos, setPhotos] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
@@ -27,6 +29,7 @@ export function LoanReturnDialog({ loan, open, onOpenChange }: { loan: Loan | nu
         initial[l.id] = { quantityReturned: Math.max(0, l.quantityLoaned - l.quantityReturned - l.quantityLost), quantityLost: 0, lostReason: '' }
       })
       setState(initial)
+      setPhotos([])
     }
   }, [loan])
 
@@ -56,7 +59,7 @@ export function LoanReturnDialog({ loan, open, onOpenChange }: { loan: Loan | nu
     setSubmitting(true)
     await simulateLatency()
     try {
-      returnLoanLines(loan.id, returns)
+      returnLoanLines(loan.id, returns, photos.length > 0 ? photos : undefined)
       toast.success(`Loan ${loan.loanNumber} updated`, { description: 'Stock and history have been updated.' })
       onOpenChange(false)
     } catch (err) {
@@ -132,6 +135,13 @@ export function LoanReturnDialog({ loan, open, onOpenChange }: { loan: Loan | nu
             )
           })}
         </div>
+
+        <PhotoDropzone
+          label="Photos (Optional)"
+          photos={photos}
+          onChange={setPhotos}
+          helpText="Record component condition on return."
+        />
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>

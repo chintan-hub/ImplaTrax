@@ -75,8 +75,8 @@ export function AuthShowcasePanel({ className, unlocking = false }: AuthShowcase
             backdrop never changes with the app's light/dark toggle, so the
             logo asset it shows shouldn't either (the theme-aware <Logo>
             component is what the LoginScreen's top-left mark uses instead). */}
-        <img src={logoDark} alt="ImplaTrax" draggable={false} className="h-6 w-auto select-none sm:h-7" />
-        <p className="max-w-xs text-[15px] font-medium leading-snug text-slate-100/90 sm:text-base">{BRAND.tagline}</p>
+        <img src={logoDark} alt="ImplaTrax" draggable={false} className="h-6 w-auto select-none object-contain sm:h-7" />
+        <p className="whitespace-nowrap text-[13px] font-medium tracking-wide text-slate-100/90 lg:text-sm xl:text-base">{BRAND.tagline}</p>
       </motion.div>
     </div>
   )

@@ -180,6 +180,7 @@ interface DataContextValue {
     patientId?: string
     doctor?: string
     caseId?: string
+    photoUrls?: string[]
   }) => void
   adjustStock: (productId: string, delta: number, reason: string, note?: string) => void
   addProduct: (input: Omit<Product, 'id' | 'sku' | 'barcode' | 'qrPayload' | 'createdAt' | 'updatedAt'>) => Product
@@ -188,14 +189,21 @@ interface DataContextValue {
 
   createPurchaseOrder: (vendorId: string, lines: { productId: string; quantityOrdered: number; unitCost: number }[], eta: string, notes?: string) => PurchaseOrder
   submitPurchaseOrder: (poId: string) => void
-  receivePurchaseOrder: (poId: string, receipts: { lineId: string; quantityReceived: number; lotNumber?: string; expiryDate?: string }[]) => void
+  /**
+   * `photoUrls` is mandatory whenever this receipt is partial — i.e. any
+   * line's receipt quantity comes in short of what's currently outstanding
+   * for it, whether under-received or skipped entirely. Enforced here (not
+   * just in POReceiveDialog) so the rule holds for every caller, present
+   * and future.
+   */
+  receivePurchaseOrder: (poId: string, receipts: { lineId: string; quantityReceived: number; lotNumber?: string; expiryDate?: string }[], photoUrls?: string[]) => void
   cancelPurchaseOrder: (poId: string) => void
   attachPhotoToOrder: (poId: string, photoDataUrl: string | undefined) => void
 
-  createLoan: (labId: string, lines: { productId: string; quantityLoaned: number; batchLot?: string }[], dueDate?: string, notes?: string) => Loan
-  returnLoanLines: (loanId: string, returns: { lineId: string; quantityReturned: number; quantityLost: number; lostReason?: string }[]) => void
+  createLoan: (labId: string, lines: { productId: string; quantityLoaned: number; batchLot?: string }[], dueDate?: string, notes?: string, photoUrls?: string[]) => Loan
+  returnLoanLines: (loanId: string, returns: { lineId: string; quantityReturned: number; quantityLost: number; lostReason?: string }[], photoUrls?: string[]) => void
 
-  createSale: (lines: SaleLine[], patientId: string, caseId?: string) => Sale
+  createSale: (lines: SaleLine[], patientId: string, caseId?: string, photoUrls?: string[]) => Sale
   voidSale: (saleId: string, reason: string) => void
 
   addPatient: (input: Omit<Patient, 'id' | 'patientCode' | 'createdAt'>) => Patient
@@ -355,7 +363,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     )
   }, [purchaseOrders, poEvent])
 
-  const receivePurchaseOrder = useCallback<DataContextValue['receivePurchaseOrder']>((poId, receipts) => {
+  const receivePurchaseOrder = useCallback<DataContextValue['receivePurchaseOrder']>((poId, receipts, photoUrls) => {
     if (!receipts.some((r) => r.quantityReceived > 0)) {
       throw new BusinessRuleError('Enter a quantity to receive for at least one line.')
     }
@@ -376,6 +384,23 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // Mandatory Partial Receipt Photo rule (CRITICAL, PROJECT.md §3): a
+    // receipt is "partial" the moment any line's receipt quantity comes in
+    // short of what's currently outstanding for it — whether under-received
+    // this time or skipped entirely. That leaves the order still open, so a
+    // photo of the delivery slip/package is required as evidence of what
+    // actually arrived. A full receipt (every line fully caught up) never
+    // requires one. Enforced here, not just in POReceiveDialog, so it holds
+    // for every caller.
+    const isPartialReceive = po.lines.some((line) => {
+      const remainingQty = line.quantityOrdered - line.quantityReceived
+      const receivingQty = receipts.find((r) => r.lineId === line.id)?.quantityReceived ?? 0
+      return receivingQty < remainingQty
+    })
+    if (isPartialReceive && (!photoUrls || photoUrls.length === 0)) {
+      throw new BusinessRuleError('Please attach at least one photo of the delivery slip or package to document this partial receipt.')
+    }
+
     const now = new Date().toISOString()
     const updatedLines = po.lines.map((line) => {
       const receipt = receipts.find((r) => r.lineId === line.id)
@@ -393,7 +418,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setPurchaseOrders((prev) =>
       prev.map((p) =>
         p.id === poId
-          ? { ...p, lines: updatedLines, status, receivedAt: fullyReceived ? now : p.receivedAt, history: [...p.history, event] }
+          ? {
+              ...p,
+              lines: updatedLines,
+              status,
+              receivedAt: fullyReceived ? now : p.receivedAt,
+              history: [...p.history, event],
+              // Append-only, like batches/history — a PO can accumulate
+              // evidence photos across multiple partial receipts over time.
+              photoUrls: photoUrls && photoUrls.length > 0 ? [...(p.photoUrls ?? []), ...photoUrls] : p.photoUrls,
+            }
           : p,
       ),
     )
@@ -416,6 +450,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         reference: po.poNumber,
         batchLot: lotNumber,
         vendorId: po.vendorId,
+        photoUrls,
       })
       // Batches are append-only, like every other audit trail in this app —
       // the same lot number received across multiple receipts becomes
@@ -471,7 +506,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return { id: nextInternalId('lnevt'), loanId, label, description, date, actor: getCurrentActor().name }
   }, [])
 
-  const createLoan = useCallback<DataContextValue['createLoan']>((labId, lines, dueDate, notes) => {
+  const createLoan = useCallback<DataContextValue['createLoan']>((labId, lines, dueDate, notes, photoUrls) => {
     if (!labs.some((l) => l.id === labId)) throw new BusinessRuleError('Loans can only be issued to a lab.')
     if (lines.length === 0) throw new BusinessRuleError('A loan must include at least one product line.')
     assertStockAvailable(products, lines.map((l) => ({ productId: l.productId, quantity: l.quantityLoaned })))
@@ -490,6 +525,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       dueDate,
       notes,
       history: [loanEvent(id, 'Loan Issued', `Loan issued with ${lines.length} product line(s).`, now)],
+      photoUrls,
     }
     setLoans((prev) => [loan, ...prev])
     const track = makeQtyTracker(products)
@@ -506,12 +542,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         reference: loan.loanNumber,
         batchLot: l.batchLot,
         labId,
+        photoUrls,
       })
     })
     return loan
   }, [labs, products, applyQtyDelta, addMovement, loanEvent])
 
-  const returnLoanLines = useCallback<DataContextValue['returnLoanLines']>((loanId, returns) => {
+  const returnLoanLines = useCallback<DataContextValue['returnLoanLines']>((loanId, returns, photoUrls) => {
     if (!returns.some((r) => r.quantityReturned > 0 || r.quantityLost > 0)) {
       throw new BusinessRuleError('Enter a returned or lost quantity for at least one item.')
     }
@@ -568,6 +605,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           reference: loan.loanNumber,
           batchLot: line.batchLot,
           labId: loan.labId,
+          photoUrls,
         })
       }
       if (r.quantityLost > 0) {
@@ -586,12 +624,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           reference: loan.loanNumber,
           batchLot: line.batchLot,
           labId: loan.labId,
+          photoUrls,
         })
       }
     })
   }, [loans, products, applyQtyDelta, addMovement, loanEvent])
 
-  const createSale = useCallback<DataContextValue['createSale']>((lines, patientId, caseId) => {
+  const createSale = useCallback<DataContextValue['createSale']>((lines, patientId, caseId, photoUrls) => {
     // A Sale represents permanent placement of a component into a patient —
     // it can never exist without one. Enforced here, not just in the
     // calling UI, per this file's own convention (see BusinessRuleError's
@@ -611,6 +650,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       total: lines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0),
       soldBy: getCurrentActor().id,
       createdAt: new Date().toISOString(),
+      photoUrls,
     }
     setSales((prev) => [sale, ...prev])
     // Doctor is only ever knowable via a case link — Sale itself has no
@@ -633,6 +673,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         patientId,
         caseId,
         doctor,
+        photoUrls,
       })
     })
     return sale

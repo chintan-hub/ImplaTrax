@@ -43,10 +43,17 @@ function SidebarLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => v
   )
 }
 
+/**
+ * The web app chrome is ImplaTrax-branded only — a workspace's own logo is
+ * customer-facing white-label material (documents, the Settings preview),
+ * not something that belongs in the SaaS product's own navigation. Sized
+ * up from the old h-6 treatment so the wordmark reads as a confident,
+ * legible enterprise mark rather than an afterthought in the corner.
+ */
 export function SidebarBrand() {
   return (
-    <div className="flex h-14 items-center px-5 border-b border-border shrink-0">
-      <Logo className="h-6" />
+    <div className="flex h-16 items-center px-5 border-b border-border shrink-0">
+      <Logo className="h-9 w-auto sm:h-10" />
     </div>
   )
 }
