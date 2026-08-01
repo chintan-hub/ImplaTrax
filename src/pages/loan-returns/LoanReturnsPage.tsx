@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Search, Undo2 } from 'lucide-react'
-import { PageHeader } from '@/components/shared/PageHeader'
-import { StickyToolbar } from '@/components/shared/StickyToolbar'
+import { StickyActionHeader } from '@/components/shared/StickyActionHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { StatCard } from '@/components/shared/StatCard'
 import { Input } from '@/components/ui/input'
@@ -51,27 +50,32 @@ export function LoanReturnsPage() {
 
   return (
     <div>
-      <PageHeader title={PAGE_INTROS.loanReturns.title} description={PAGE_INTROS.loanReturns.description} helpTerm="loanReturn" />
-
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-6">
         <StatCard label="Total Return Events" value={String(stats.events)} icon={Undo2} helpTerm="loanReturn" />
         <StatCard label="Units Returned" value={String(stats.returned)} icon={PackageCheck} tone="success" />
         <StatCard label="Units Lost" value={String(stats.lost)} icon={AlertTriangle} tone="danger" />
       </div>
 
-      <StickyToolbar>
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search product, loan #, lab..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </div>
-        <Select value={labFilter} onValueChange={setLabFilter}>
-          <SelectTrigger className="w-full sm:w-52"><SelectValue placeholder="Lab" /></SelectTrigger>
-          <SelectContent className="max-h-72">
-            <SelectItem value="all">All labs</SelectItem>
-            {labs.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </StickyToolbar>
+      <StickyActionHeader
+        title={PAGE_INTROS.loanReturns.title}
+        description={PAGE_INTROS.loanReturns.description}
+        helpTerm="loanReturn"
+        toolbar={
+          <>
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="Search product, loan #, lab..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+            <Select value={labFilter} onValueChange={setLabFilter}>
+              <SelectTrigger className="w-full sm:w-52"><SelectValue placeholder="Lab" /></SelectTrigger>
+              <SelectContent className="max-h-72">
+                <SelectItem value="all">All labs</SelectItem>
+                {labs.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </>
+        }
+      />
 
       {filtered.length === 0 ? (
         <EmptyState icon={Search} title={EMPTY_STATES.loanReturns.title} description={EMPTY_STATES.loanReturns.description} />

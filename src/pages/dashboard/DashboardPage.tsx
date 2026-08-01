@@ -13,7 +13,7 @@ import {
   Legend,
 } from 'recharts'
 import { DollarSign, AlertTriangle, HandCoins, ClipboardList, FolderKanban, TrendingUp } from 'lucide-react'
-import { PageHeader } from '@/components/shared/PageHeader'
+import { StickyActionHeader } from '@/components/shared/StickyActionHeader'
 import { StatCard } from '@/components/shared/StatCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
@@ -79,8 +79,8 @@ export function DashboardPage() {
 
   return (
     <div>
-      <PageHeader title={PAGE_INTROS.dashboard.title} description={PAGE_INTROS.dashboard.description} />
-      <p className="-mt-4 mb-6 text-xs font-medium uppercase tracking-wide text-primary-700 dark:text-primary-300">
+      <StickyActionHeader title={PAGE_INTROS.dashboard.title} description={PAGE_INTROS.dashboard.description} />
+      <p className="-mt-3 mb-6 text-xs font-medium uppercase tracking-wide text-primary-700 dark:text-primary-300">
         {BRAND.tagline}
       </p>
 

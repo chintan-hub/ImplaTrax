@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Star, Clock, Download } from 'lucide-react'
-import { PageHeader } from '@/components/shared/PageHeader'
-import { StickyToolbar } from '@/components/shared/StickyToolbar'
+import { StickyActionHeader } from '@/components/shared/StickyActionHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -47,7 +46,7 @@ export function LabsPage() {
 
   return (
     <div>
-      <PageHeader
+      <StickyActionHeader
         title={PAGE_INTROS.labs.title}
         helpTerm="lab"
         description={`${PAGE_INTROS.labs.description} ${labs.length} partner labs.`}
@@ -61,14 +60,13 @@ export function LabsPage() {
             </Button>
           </>
         }
+        toolbar={
+          <div className="relative max-w-sm flex-1">
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input placeholder="Search labs..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+        }
       />
-
-      <StickyToolbar>
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search labs..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </div>
-      </StickyToolbar>
 
       {filtered.length === 0 ? (
         <EmptyState

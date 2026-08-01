@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 import { Plus, Link2, Users as UsersIcon, Building2 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
@@ -17,6 +17,8 @@ import { AccessDenied } from '@/features/auth/AccessDenied'
 import { AddMemberDialog } from '@/features/auth/components/AddMemberDialog'
 import { ACCOUNT_ROLES, WORKSPACE_MANAGER_ROLES, type AccountRole } from '@/features/auth/accountTypes'
 import { ROLE_LABEL, ROLE_BADGE_VARIANT } from '@/features/auth/roles'
+import { useDirtyState } from '@/hooks/useDirtyState'
+import { useRegisterSettingsSaveAction } from '../SettingsHeaderActionContext'
 
 export function WorkspaceTab() {
   const {
@@ -37,18 +39,15 @@ export function WorkspaceTab() {
   const [addOpen, setAddOpen] = useState(false)
   const [workspaceName, setWorkspaceName] = useState(currentWorkspace?.name ?? '')
   const [savingName, setSavingName] = useState(false)
-  const isNameDirty = workspaceName.trim() !== (currentWorkspace?.name ?? '')
+  const canManage = Boolean(currentMember && WORKSPACE_MANAGER_ROLES.includes(currentMember.role))
+  const nameDirty = useDirtyState(currentWorkspace?.name ?? '', workspaceName.trim())
+  const isNameDirty = canManage && nameDirty
   const [removeTarget, setRemoveTarget] = useState<string | null>(null)
   const [newWorkspaceOpen, setNewWorkspaceOpen] = useState(false)
   const [newWorkspaceName, setNewWorkspaceName] = useState('')
   const [creatingWorkspace, setCreatingWorkspace] = useState(false)
 
-  const canManage = Boolean(currentMember && WORKSPACE_MANAGER_ROLES.includes(currentMember.role))
-
-  if (!currentMember || !currentWorkspace) return null
-  if (!canManage) return <AccessDenied message="Only workspace Owners, Super Admins, and Admins can manage team members and workspace settings." />
-
-  const handleSaveName = async () => {
+  const handleSaveName = useCallback(async () => {
     if (!workspaceName.trim()) {
       toast.error('Workspace name is required.')
       return
@@ -58,7 +57,12 @@ export function WorkspaceTab() {
     renameWorkspace(workspaceName)
     toast.success('Workspace renamed')
     setSavingName(false)
-  }
+  }, [workspaceName, renameWorkspace])
+
+  useRegisterSettingsSaveAction({ isDirty: isNameDirty, saving: savingName, onSave: handleSaveName })
+
+  if (!currentMember || !currentWorkspace) return null
+  if (!canManage) return <AccessDenied message="Only workspace Owners, Super Admins, and Admins can manage team members and workspace settings." />
 
   const handleAction = (result: { ok: boolean; error?: string }, successMessage: string) => {
     if (result.ok) toast.success(successMessage)
@@ -92,15 +96,9 @@ export function WorkspaceTab() {
           </CardTitle>
           <CardDescription>Shown throughout ImplaTrax and in exported documents</CardDescription>
         </CardHeader>
-        <CardContent className="flex max-w-md flex-wrap items-end gap-2">
-          <div className="flex-1 space-y-1.5">
-            <Label htmlFor="workspace-name">Name</Label>
-            <Input id="workspace-name" value={workspaceName} onChange={(e) => setWorkspaceName(e.target.value)} />
-          </div>
-          <Button onClick={handleSaveName} loading={savingName} disabled={!isNameDirty}>
-            Save
-          </Button>
-          {isNameDirty && !savingName && <p className="w-full text-xs text-muted-foreground">Unsaved changes</p>}
+        <CardContent className="max-w-md space-y-1.5">
+          <Label htmlFor="workspace-name">Name</Label>
+          <Input id="workspace-name" value={workspaceName} onChange={(e) => setWorkspaceName(e.target.value)} />
         </CardContent>
       </Card>
 

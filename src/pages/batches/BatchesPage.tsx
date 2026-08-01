@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { Search, Boxes, PackageCheck, AlertTriangle, ArrowDownToLine, ArrowUpFromLine, HandCoins, Undo2, XCircle, Stethoscope } from 'lucide-react'
-import { PageHeader } from '@/components/shared/PageHeader'
-import { StickyToolbar } from '@/components/shared/StickyToolbar'
+import { StickyActionHeader } from '@/components/shared/StickyActionHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { StatCard } from '@/components/shared/StatCard'
 import { Input } from '@/components/ui/input'
@@ -119,7 +118,36 @@ export function BatchesPage() {
 
   return (
     <div>
-      <PageHeader title={PAGE_INTROS.batches.title} description={PAGE_INTROS.batches.description} helpTerm="batchLot" />
+      {batchTrackedProducts.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-6">
+          <StatCard label="Lots Tracked" value={String(stats.totalLots)} icon={Boxes} helpTerm="batchLot" />
+          <StatCard label="Units Currently On Hand" value={String(stats.onHand)} icon={PackageCheck} tone="success" helpTerm="remainingQuantity" />
+          <StatCard label="Expiring Within 90 Days" value={String(stats.expiringSoon)} icon={AlertTriangle} tone={stats.expiringSoon > 0 ? 'warning' : 'default'} />
+        </div>
+      )}
+
+      <StickyActionHeader
+        title={PAGE_INTROS.batches.title}
+        description={PAGE_INTROS.batches.description}
+        helpTerm="batchLot"
+        toolbar={
+          batchTrackedProducts.length > 0 ? (
+            <>
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input placeholder="Search product or lot number..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
+              </div>
+              <Select value={productFilter} onValueChange={setProductFilter}>
+                <SelectTrigger className="w-full sm:w-56"><SelectValue placeholder="Product" /></SelectTrigger>
+                <SelectContent className="max-h-72">
+                  <SelectItem value="all">All batch-tracked products</SelectItem>
+                  {batchTrackedProducts.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </>
+          ) : undefined
+        }
+      />
 
       {batchTrackedProducts.length === 0 ? (
         <EmptyState
@@ -129,29 +157,9 @@ export function BatchesPage() {
         />
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-6">
-            <StatCard label="Lots Tracked" value={String(stats.totalLots)} icon={Boxes} helpTerm="batchLot" />
-            <StatCard label="Units Currently On Hand" value={String(stats.onHand)} icon={PackageCheck} tone="success" helpTerm="remainingQuantity" />
-            <StatCard label="Expiring Within 90 Days" value={String(stats.expiringSoon)} icon={AlertTriangle} tone={stats.expiringSoon > 0 ? 'warning' : 'default'} />
-          </div>
-
           <p className="mb-4 text-sm text-muted-foreground">
             Each row below is one delivery of a component, identified by its lot number. Click a row to see its full journey — where it came from, everywhere it went, and how much is left. Only components with batch/lot tracking turned on appear here.
           </p>
-
-          <StickyToolbar>
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="Search product or lot number..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
-            </div>
-            <Select value={productFilter} onValueChange={setProductFilter}>
-              <SelectTrigger className="w-full sm:w-56"><SelectValue placeholder="Product" /></SelectTrigger>
-              <SelectContent className="max-h-72">
-                <SelectItem value="all">All batch-tracked products</SelectItem>
-                {batchTrackedProducts.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </StickyToolbar>
 
           {filtered.length === 0 ? (
             <EmptyState icon={Search} title={EMPTY_STATES.batches.title} description={EMPTY_STATES.batches.description} />

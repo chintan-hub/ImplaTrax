@@ -3,7 +3,7 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { PageHeader } from '@/components/shared/PageHeader'
+import { StickyActionHeader } from '@/components/shared/StickyActionHeader'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -143,7 +143,7 @@ export function ReportsPage() {
 
   return (
     <div>
-      <PageHeader title={PAGE_INTROS.reports.title} description={PAGE_INTROS.reports.description} />
+      <StickyActionHeader title={PAGE_INTROS.reports.title} description={PAGE_INTROS.reports.description} />
 
       <Tabs defaultValue="inventory">
         <TabsList className="h-auto flex-wrap justify-start">

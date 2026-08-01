@@ -1,8 +1,7 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 import { Sun, Moon, Laptop } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -10,25 +9,29 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { TermHint } from '@/components/ui/help-tooltip'
 import { useData } from '@/store/DataContext'
 import { useTheme } from '@/components/theme/ThemeProvider'
+import { useDirtyState } from '@/hooks/useDirtyState'
 import { cn, simulateLatency } from '@/lib/utils'
 import { MICROCOPY } from '@/content/helpText'
+import { useRegisterSettingsSaveAction } from '../SettingsHeaderActionContext'
 
 export function ClinicTab() {
   const { clinicSettings, updateClinicSettings } = useData()
   const { theme, setTheme } = useTheme()
   const [form, setForm] = useState(clinicSettings)
   const [saving, setSaving] = useState(false)
-  const isDirty = JSON.stringify(form) !== JSON.stringify(clinicSettings)
+  const isDirty = useDirtyState(clinicSettings, form)
 
   const set = <K extends keyof typeof form>(k: K) => (v: typeof form[K]) => setForm((prev) => ({ ...prev, [k]: v }))
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     setSaving(true)
     await simulateLatency()
     updateClinicSettings(form)
     toast.success('Clinic settings saved', { description: 'Your changes are now in effect.' })
     setSaving(false)
-  }
+  }, [form, updateClinicSettings])
+
+  useRegisterSettingsSaveAction({ isDirty, saving, onSave: handleSave })
 
   return (
     <div className="space-y-6">
@@ -160,10 +163,6 @@ export function ClinicTab() {
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-end gap-3">
-        {isDirty && !saving && <p className="text-xs text-muted-foreground">Unsaved changes</p>}
-        <Button onClick={handleSave} loading={saving} disabled={!isDirty}>Save Changes</Button>
-      </div>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Plus, ShieldCheck, Download } from 'lucide-react'
-import { PageHeader } from '@/components/shared/PageHeader'
+import { StickyActionHeader } from '@/components/shared/StickyActionHeader'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -53,7 +53,7 @@ export function UsersPage() {
 
   return (
     <div>
-      <PageHeader
+      <StickyActionHeader
         title={PAGE_INTROS.users.title}
         description={`${PAGE_INTROS.users.description} ${users.length} team members with access.`}
         actions={
