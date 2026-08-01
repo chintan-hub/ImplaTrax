@@ -22,7 +22,7 @@ export function buildSaleSummaryText(
 
   return [
     `Sale ${sale.saleNumber}`,
-    `Patient: ${patient ? patientFullName(patient) : 'Direct sale (no patient)'}`,
+    `Patient: ${patient ? patientFullName(patient) : 'Unknown patient'}`,
     caseRecord ? `Case: ${caseRecord.caseId}` : undefined,
     `Date: ${formatDate(sale.createdAt)}`,
     '',
@@ -76,7 +76,7 @@ export function buildSaleDocumentData(
 
   return {
     saleNumber: sale.saleNumber,
-    patientName: patient ? patientFullName(patient) : 'Direct sale (no patient)',
+    patientName: patient ? patientFullName(patient) : 'Unknown patient',
     caseId: caseRecord?.caseId,
     soldByName,
     createdAt: formatDate(sale.createdAt),

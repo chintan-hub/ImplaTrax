@@ -185,10 +185,14 @@ export interface Database {
       >
       sales: Table<
         {
-          id: string; workspace_id: string; sale_number: string; patient_id: string | null; case_id: string | null
+          // patient_id is mandatory, not optional — a Sale represents
+          // permanent placement of a component into a patient and can never
+          // exist without one (see the not-null constraint + comment on
+          // this column in migration 0008).
+          id: string; workspace_id: string; sale_number: string; patient_id: string; case_id: string | null
           total: number; sold_by: string | null; created_at: string
         },
-        'id' | 'patient_id' | 'case_id' | 'total' | 'sold_by' | 'created_at'
+        'id' | 'case_id' | 'total' | 'sold_by' | 'created_at'
       >
       sale_lines: Table<
         { id: string; workspace_id: string; sale_id: string; product_id: string; quantity: number; unit_price: number; batch_lot: string | null },
@@ -243,7 +247,7 @@ export interface Database {
       }
       receive_purchase_order: { Args: { p_po_id: string; p_lines?: Json | null }; Returns: void }
       create_sale: {
-        Args: { p_workspace_id: string; p_sale_number: string; p_lines: Json; p_patient_id?: string | null; p_case_id?: string | null }
+        Args: { p_workspace_id: string; p_sale_number: string; p_lines: Json; p_patient_id: string; p_case_id?: string | null }
         Returns: string
       }
       add_implant_to_case: {

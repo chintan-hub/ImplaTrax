@@ -195,7 +195,7 @@ interface DataContextValue {
   createLoan: (labId: string, lines: { productId: string; quantityLoaned: number; batchLot?: string }[], dueDate?: string, notes?: string) => Loan
   returnLoanLines: (loanId: string, returns: { lineId: string; quantityReturned: number; quantityLost: number; lostReason?: string }[]) => void
 
-  createSale: (lines: SaleLine[], patientId?: string, caseId?: string) => Sale
+  createSale: (lines: SaleLine[], patientId: string, caseId?: string) => Sale
   voidSale: (saleId: string, reason: string) => void
 
   addPatient: (input: Omit<Patient, 'id' | 'patientCode' | 'createdAt'>) => Patient
@@ -592,6 +592,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [loans, products, applyQtyDelta, addMovement, loanEvent])
 
   const createSale = useCallback<DataContextValue['createSale']>((lines, patientId, caseId) => {
+    // A Sale represents permanent placement of a component into a patient —
+    // it can never exist without one. Enforced here, not just in the
+    // calling UI, per this file's own convention (see BusinessRuleError's
+    // doc comment above).
+    if (!patientId || !patientId.trim()) throw new BusinessRuleError('A patient is required to record a sale.')
     if (lines.length === 0) throw new BusinessRuleError('A sale must include at least one product line.')
     assertStockAvailable(products, lines.map((l) => ({ productId: l.productId, quantity: l.quantity })))
     const id = nextInternalId('sal')

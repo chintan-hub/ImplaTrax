@@ -1,5 +1,6 @@
 import type { Sale, SaleLine } from '@/types'
 import { cases } from './cases'
+import { patients } from './patients'
 import { products, productById } from './products'
 import { users } from './users'
 import { ri, pick, iso, daysAgo, pad } from './rng'
@@ -19,7 +20,7 @@ export const sales: Sale[] = Array.from({ length: 30 }).map((_, i) => {
 
   let lines: SaleLine[] = []
   let caseId: string | undefined
-  let patientId: string | undefined
+  let patientId: string
 
   if (attachToCase) {
     const c = pick(casesWithImplants)
@@ -35,6 +36,9 @@ export const sales: Sale[] = Array.from({ length: 30 }).map((_, i) => {
       }
     })
   } else {
+    // Not linked to a case, but still always linked to a patient — a sale
+    // can never exist without one (PROJECT.md's core business invariant).
+    patientId = pick(patients).id
     const lineCount = ri(1, 3)
     const chosen = Array.from({ length: lineCount }).map(() => pick(products))
     lines = chosen.map((p) => ({

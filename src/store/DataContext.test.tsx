@@ -238,11 +238,12 @@ describe('createSale', () => {
   it('computes the total from line items, decreases stock, and records a sale movement', () => {
     const { result } = setup()
     const product = result.current.products.find((p) => p.quantityOnHand >= 2)!
+    const patient = result.current.patients[0]
     const before = product.quantityOnHand
 
     let sale: ReturnType<typeof result.current.createSale>
     act(() => {
-      sale = result.current.createSale([{ productId: product.id, quantity: 2, unitPrice: 150 }])
+      sale = result.current.createSale([{ productId: product.id, quantity: 2, unitPrice: 150 }], patient.id)
     })
 
     expect(sale!.total).toBe(300)
@@ -260,14 +261,15 @@ describe('createSale', () => {
     const { result } = setup()
     const product = result.current.products.find((p) => p.quantityOnHand >= 1)!
     const existingCase = result.current.cases[0]
+    const patient = result.current.patients[0]
 
     act(() => {
-      result.current.createSale([{ productId: product.id, quantity: 1, unitPrice: 100 }], undefined, existingCase.id)
+      result.current.createSale([{ productId: product.id, quantity: 1, unitPrice: 100 }], existingCase.patientId, existingCase.id)
     })
     expect(result.current.movements[0].reason).toBe('Used in patient case')
 
     act(() => {
-      result.current.createSale([{ productId: product.id, quantity: 1, unitPrice: 100 }])
+      result.current.createSale([{ productId: product.id, quantity: 1, unitPrice: 100 }], patient.id)
     })
     expect(result.current.movements[0].reason).toBe('Direct sale')
   })
@@ -276,13 +278,14 @@ describe('createSale', () => {
     const { result } = setup()
     const batchTracked = result.current.products.find((p) => p.batchTracked && p.quantityOnHand >= 1)!
     const untracked = result.current.products.find((p) => !p.batchTracked && p.quantityOnHand >= 1)!
+    const patient = result.current.patients[0]
 
     let sale: ReturnType<typeof result.current.createSale>
     act(() => {
       sale = result.current.createSale([
         { productId: batchTracked.id, quantity: 1, unitPrice: 100, batchLot: 'LOT-77321' },
         { productId: untracked.id, quantity: 1, unitPrice: 50 },
-      ])
+      ], patient.id)
     })
 
     expect(sale!.lines[0].batchLot).toBe('LOT-77321')
@@ -376,9 +379,22 @@ describe('business-rule validation (M4)', () => {
 
   it('createSale rejects an empty line list', () => {
     const { result } = setup()
+    const patient = result.current.patients[0]
     const before = result.current.sales.length
-    expect(() => result.current.createSale([])).toThrow(/at least one product line/i)
+    expect(() => result.current.createSale([], patient.id)).toThrow(/at least one product line/i)
     expect(result.current.sales.length).toBe(before)
+  })
+
+  it('createSale rejects a missing or empty patientId — a sale can never exist without a patient', () => {
+    const { result } = setup()
+    const product = result.current.products.find((p) => p.quantityOnHand >= 1)!
+    const before = result.current.sales.length
+
+    expect(() => result.current.createSale([{ productId: product.id, quantity: 1, unitPrice: 100 }], '')).toThrow(/patient is required/i)
+    expect(() => result.current.createSale([{ productId: product.id, quantity: 1, unitPrice: 100 }], '   ')).toThrow(/patient is required/i)
+
+    expect(result.current.sales.length).toBe(before)
+    expect(result.current.products.find((p) => p.id === product.id)!.quantityOnHand).toBe(product.quantityOnHand)
   })
 })
 
@@ -391,11 +407,12 @@ describe('Stock-availability enforcement (P1-B)', () => {
   it('createSale rejects a single line that requests more than quantityOnHand, and stock is unchanged', () => {
     const { result } = setup()
     const product = result.current.products.find((p) => p.quantityOnHand > 0)!
+    const patient = result.current.patients[0]
     const before = product.quantityOnHand
     const beforeSaleCount = result.current.sales.length
     const beforeMovementCount = result.current.movements.length
 
-    expect(() => result.current.createSale([{ productId: product.id, quantity: before + 1, unitPrice: 100 }])).toThrow(/not enough stock/i)
+    expect(() => result.current.createSale([{ productId: product.id, quantity: before + 1, unitPrice: 100 }], patient.id)).toThrow(/not enough stock/i)
 
     expect(result.current.products.find((p) => p.id === product.id)!.quantityOnHand).toBe(before)
     expect(result.current.sales.length).toBe(beforeSaleCount)
@@ -405,6 +422,7 @@ describe('Stock-availability enforcement (P1-B)', () => {
   it('createSale rejects when the SAME product appears on multiple lines and their combined quantity exceeds stock', () => {
     const { result } = setup()
     const product = result.current.products.find((p) => p.quantityOnHand >= 4)!
+    const patient = result.current.patients[0]
     const before = product.quantityOnHand
     const half = Math.ceil(before / 2)
 
@@ -413,7 +431,7 @@ describe('Stock-availability enforcement (P1-B)', () => {
       result.current.createSale([
         { productId: product.id, quantity: half, unitPrice: 100 },
         { productId: product.id, quantity: before - half + 1, unitPrice: 100 },
-      ]),
+      ], patient.id),
     ).toThrow(/not enough stock/i)
 
     expect(result.current.products.find((p) => p.id === product.id)!.quantityOnHand).toBe(before)
@@ -422,10 +440,11 @@ describe('Stock-availability enforcement (P1-B)', () => {
   it('createSale allows selling exactly the full quantityOnHand', () => {
     const { result } = setup()
     const product = result.current.products.find((p) => p.quantityOnHand > 0)!
+    const patient = result.current.patients[0]
     const before = product.quantityOnHand
 
     act(() => {
-      result.current.createSale([{ productId: product.id, quantity: before, unitPrice: 100 }])
+      result.current.createSale([{ productId: product.id, quantity: before, unitPrice: 100 }], patient.id)
     })
 
     expect(result.current.products.find((p) => p.id === product.id)!.quantityOnHand).toBe(0)
@@ -922,10 +941,11 @@ describe('Batch/Lot receiving & traceability (P1-E)', () => {
   it('createSale threads batchLot into the sale movement, not just the stored Sale line', () => {
     const { result } = setup()
     const product = result.current.products.find((p) => p.batchTracked && p.quantityOnHand >= 1)!
+    const patient = result.current.patients[0]
 
     let sale: ReturnType<typeof result.current.createSale>
     act(() => {
-      sale = result.current.createSale([{ productId: product.id, quantity: 1, unitPrice: 100, batchLot: 'LOT-SOLD' }])
+      sale = result.current.createSale([{ productId: product.id, quantity: 1, unitPrice: 100, batchLot: 'LOT-SOLD' }], patient.id)
     })
 
     const movement = result.current.movements.find((m) => m.type === 'sale' && m.reference === sale!.saleNumber)!
@@ -1073,10 +1093,11 @@ describe('Movement quantityBefore/quantityAfter and structured linkage (P1-N)', 
   it('createSale with no caseId leaves doctor and caseId undefined', () => {
     const { result } = setup()
     const product = result.current.products.find((p) => p.quantityOnHand >= 1)!
+    const patient = result.current.patients[0]
 
     let sale: ReturnType<typeof result.current.createSale>
     act(() => {
-      sale = result.current.createSale([{ productId: product.id, quantity: 1, unitPrice: 100 }])
+      sale = result.current.createSale([{ productId: product.id, quantity: 1, unitPrice: 100 }], patient.id)
     })
 
     const movement = result.current.movements.find((m) => m.type === 'sale' && m.reference === sale!.saleNumber)!

@@ -310,12 +310,19 @@ $$;
 -- each line, writes the movements, and computes sales.total.
 -- p_lines: jsonb array of {"product_id": uuid, "quantity": int,
 -- "unit_price": numeric, "batch_lot": text|null}.
+--
+-- p_patient_id is mandatory, not optional — a Sale represents permanent
+-- placement of a component into a patient and can never exist without one
+-- (core business invariant; the sales.patient_id not-null constraint in
+-- migration 0008 is the last line of defense, this is the first). Checked
+-- before anything else runs, so a rejected call never touches stock or
+-- inventory_movements.
 -- ----------------------------------------------------------------------------
 create or replace function create_sale(
   p_workspace_id uuid,
   p_sale_number text,
   p_lines jsonb,
-  p_patient_id uuid default null,
+  p_patient_id uuid,
   p_case_id uuid default null
 )
 returns uuid
@@ -336,6 +343,9 @@ declare
 begin
   if p_workspace_id not in (select auth_workspace_ids()) then
     raise exception 'Not a member of this workspace';
+  end if;
+  if p_patient_id is null then
+    raise exception 'A patient is required to record a sale';
   end if;
 
   select id into v_member_id from workspace_members
@@ -432,6 +442,14 @@ begin
   end if;
   if v_workspace_id not in (select auth_workspace_ids()) then
     raise exception 'Not a member of this workspace';
+  end if;
+  -- cases.patient_id is itself not-null (migration 0006), so this can never
+  -- actually fire — kept as an explicit guard anyway, matching create_sale's
+  -- check, so the invariant is visibly enforced at every path that can
+  -- insert a sale/movement, not just implied by a foreign schema's
+  -- constraint.
+  if v_patient_id is null then
+    raise exception 'A patient is required to record a sale';
   end if;
 
   select id, name into v_member_id, v_member_name from workspace_members

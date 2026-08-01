@@ -126,7 +126,7 @@ export function SaleDetailPage() {
             {sale.voidedAt && <Badge variant="secondary">Voided</Badge>}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {patient ? patientFullName(patient) : 'Direct sale'} · {formatDateTime(sale.createdAt)}
+            {patient ? patientFullName(patient) : 'Unknown patient'} · {formatDateTime(sale.createdAt)}
           </p>
         </div>
         <div>
@@ -192,7 +192,7 @@ export function SaleDetailPage() {
                   <Link to={`/patients/${patient.id}`} className="font-medium text-primary hover:underline">
                     {patientFullName(patient)}
                   </Link>
-                ) : <p className="font-medium text-muted-foreground">Direct sale (no patient)</p>}
+                ) : <p className="font-medium text-muted-foreground">Unknown patient</p>}
               </div>
               <div>
                 <p className="text-muted-foreground">Case</p>
