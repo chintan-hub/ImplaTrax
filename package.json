@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "screenshots:manual": "node scripts/capture-manual-screenshots.mjs"
+    "screenshots:manual": "node scripts/capture-manual-screenshots.mjs",
+    "docs:generate": "node scripts/generate-user-guide-pdf.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
