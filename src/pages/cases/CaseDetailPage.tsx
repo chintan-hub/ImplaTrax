@@ -42,6 +42,11 @@ function AddImplantDialog({ caseId, open, onOpenChange }: { caseId: string; open
 
   const product = products.find((p) => p.id === productId)
   const stockIssue = product && quantity > product.quantityOnHand ? { available: product.quantityOnHand, requested: quantity } : null
+  // Mirrors POReceiveDialog's missingLot gate and SaleFormDialog's matching
+  // fix — when Batch/Lot Tracking is on and this product opts into it, the
+  // field below isn't optional; leaving it blank must block placement.
+  const needsBatchLot = Boolean(clinicSettings.batchLotTrackingEnabled && product?.batchTracked)
+  const missingBatchLot = needsBatchLot && !batchLot.trim()
 
   const reset = () => {
     setProductId(products[0]?.id ?? '')
@@ -59,6 +64,10 @@ function AddImplantDialog({ caseId, open, onOpenChange }: { caseId: string; open
       toast.error('Not enough stock to place this implant.')
       return
     }
+    if (missingBatchLot) {
+      toast.error('Enter a batch/lot number for this implant.')
+      return
+    }
     setSubmitting(true)
     await simulateLatency()
     try {
@@ -66,7 +75,7 @@ function AddImplantDialog({ caseId, open, onOpenChange }: { caseId: string; open
         productId,
         tooth: tooth.trim(),
         quantity,
-        batchLot: clinicSettings.batchLotTrackingEnabled && product?.batchTracked && batchLot.trim() ? batchLot.trim() : undefined,
+        batchLot: needsBatchLot && batchLot.trim() ? batchLot.trim() : undefined,
       }
       addImplantToCase(caseId, usage)
       toast.success('Implant added to case')
@@ -107,10 +116,11 @@ function AddImplantDialog({ caseId, open, onOpenChange }: { caseId: string; open
             <Label htmlFor="implant-qty">Quantity</Label>
             <Input id="implant-qty" type="number" min={1} value={quantity} onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))} />
           </div>
-          {clinicSettings.batchLotTrackingEnabled && product?.batchTracked && (
+          {needsBatchLot && (
             <div className="col-span-1 space-y-1.5 sm:col-span-2">
-              <Label htmlFor="implant-lot">Batch / Lot number</Label>
+              <Label htmlFor="implant-lot">Batch / Lot number (required)</Label>
               <Input id="implant-lot" placeholder="e.g. LOT-12345" value={batchLot} onChange={(e) => setBatchLot(e.target.value)} />
+              {missingBatchLot && <p className="text-xs text-danger-600">A batch/lot number is required for this implant.</p>}
             </div>
           )}
           {stockIssue && (
@@ -119,7 +129,7 @@ function AddImplantDialog({ caseId, open, onOpenChange }: { caseId: string; open
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
-          <Button onClick={handleSubmit} loading={submitting} disabled={!!stockIssue}>Add Implant</Button>
+          <Button onClick={handleSubmit} loading={submitting} disabled={!!stockIssue || missingBatchLot}>Add Implant</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

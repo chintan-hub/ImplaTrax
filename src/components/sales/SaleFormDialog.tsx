@@ -49,6 +49,17 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   }
   const hasStockIssue = lines.some((l) => stockIssue(l.productId) !== null)
 
+  // Mirrors POReceiveDialog's missingLot gate: whenever Batch/Lot Tracking
+  // is on AND the line's product opts into it, the field this form already
+  // shows is not just a suggestion — leaving it blank must block the sale,
+  // the same as it already does at receiving (PROJECT.md's "ON ... enforce
+  // lot behavior" rule, previously only enforced at PO receipt, not here).
+  const needsBatchLot = (productId: string) => {
+    const product = products.find((p) => p.id === productId)
+    return Boolean(clinicSettings.batchLotTrackingEnabled && product?.batchTracked)
+  }
+  const missingBatchLot = lines.some((l) => needsBatchLot(l.productId) && !l.batchLot?.trim())
+
   const addLine = () => {
     const p = products[0]
     setLines((prev) => [...prev, { productId: p.id, quantity: 1, unitPrice: p.unitPrice }])
@@ -90,6 +101,10 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     }
     if (hasStockIssue) {
       toast.error('One or more lines exceed available stock.')
+      return
+    }
+    if (missingBatchLot) {
+      toast.error('Enter a batch/lot number for every tracked line.')
       return
     }
     setSubmitting(true)
@@ -178,13 +193,18 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                     </div>
                   </div>
                   {clinicSettings.batchLotTrackingEnabled && product?.batchTracked && (
-                    <Input
-                      className="mt-2"
-                      placeholder="Batch / Lot number (e.g. LOT-12345)"
-                      aria-label="Batch / Lot number"
-                      value={line.batchLot ?? ''}
-                      onChange={(e) => updateLine(i, { batchLot: e.target.value || undefined })}
-                    />
+                    <>
+                      <Input
+                        className="mt-2"
+                        placeholder="Batch / Lot number (required)"
+                        aria-label="Batch / Lot number"
+                        value={line.batchLot ?? ''}
+                        onChange={(e) => updateLine(i, { batchLot: e.target.value || undefined })}
+                      />
+                      {!line.batchLot?.trim() && (
+                        <p className="mt-1 text-xs text-danger-600">A batch/lot number is required for this line.</p>
+                      )}
+                    </>
                   )}
                   {issue && (
                     <p className="mt-1.5 text-xs text-danger-600">Only {issue.available} in stock — {issue.requested} requested.</p>
@@ -208,7 +228,7 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
-          <Button onClick={handleSubmit} loading={submitting} disabled={hasStockIssue}>Record Sale</Button>
+          <Button onClick={handleSubmit} loading={submitting} disabled={hasStockIssue || missingBatchLot}>Record Sale</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
