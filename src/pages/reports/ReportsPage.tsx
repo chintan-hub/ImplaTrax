@@ -314,7 +314,7 @@ export function ReportsPage() {
               />
             </CardHeader>
             <CardContent>
-              <div className="max-h-[500px] overflow-y-auto rounded-lg border border-border">
+              <div className="rounded-lg border border-border">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -436,7 +436,7 @@ export function ReportsPage() {
                 />
               </CardHeader>
               <CardContent>
-                <div className="max-h-[500px] overflow-y-auto rounded-lg border border-border">
+                <div className="rounded-lg border border-border">
                   <Table>
                     <TableHeader>
                       <TableRow>

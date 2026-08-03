@@ -242,7 +242,7 @@ export function ProductsPage() {
           ))}
         </div>
       ) : (
-        <div className="rounded-xl border border-border bg-card overflow-x-auto">
+        <div className="rounded-xl border border-border bg-card">
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((hg) => (
