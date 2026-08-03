@@ -31,7 +31,7 @@ export function ChapterPage({ chapterNumber, chapterTitle, children }: ChapterPa
       {children}
 
       <View fixed style={styles.runningFooter}>
-        <Text style={styles.footerLeft}>ImplaTrax Professional SaaS User Guide — Version 1.0</Text>
+        <Text style={styles.footerLeft}>ImplaTrax Professional SaaS User Manual — Version 1.0</Text>
         <Text style={styles.footerRight} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
       </View>
     </Page>

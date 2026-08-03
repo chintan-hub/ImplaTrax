@@ -27,7 +27,7 @@ export function ManualPage() {
     <div>
       <StickyActionHeader
         title="User Manual"
-        description="The complete, authoritative ImplaTrax user guide — every module, workflow, and business rule."
+        description="The complete, authoritative ImplaTrax User Manual — every module, workflow, and business rule."
         actions={<ManualDownloadButton />}
       />
 

@@ -94,7 +94,7 @@ async function main() {
   }
 
   const downloadPromise = page.waitForEvent('download', { timeout: 60000 })
-  await page.getByRole('button', { name: /Download User Guide/i }).first().click()
+  await page.getByRole('button', { name: /Download User Manual/i }).first().click()
   console.log('clicked download, waiting for render...')
   const download = await downloadPromise
   await download.saveAs(OUT_PATH)

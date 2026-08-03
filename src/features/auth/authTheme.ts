@@ -126,19 +126,22 @@ export const AUTH_INPUT_CLASS =
   'dark:bg-black/25 dark:hover:border-primary/50'
 
 /**
- * Shared shell for the content (non-showcase) side of the split layout,
- * used identically by LoginScreen and OnboardingFlow. Spacing is
- * deliberately tight at the base (sub-640px phone) breakpoint — enough
- * that the PIN keypad and the first onboarding field land above the fold
- * without scrolling — and restores the original, more generous rhythm at
- * `sm:` and up where there's headroom to spare. The bottom padding adds
- * the device's safe-area inset on top of the base value so content never
- * sits under a home-indicator/gesture-bar cutout.
+ * Shared shell for the content (non-showcase) side of the split layout.
+ * The outer page itself never scrolls (`h-screen overflow-hidden` on the
+ * flow's root) — this pane owns `overflow-y-auto` instead, so on a
+ * genuinely short viewport only this pane's contents scroll, and the PIN
+ * keypad/CTA never get pushed off-screen entirely. Spacing is deliberately
+ * tight at the base (sub-640px phone) breakpoint — enough that the PIN
+ * keypad and the first onboarding field land above the fold without
+ * scrolling — and restores the original, more generous rhythm at `sm:` and
+ * up where there's headroom to spare. The bottom padding adds the device's
+ * safe-area inset on top of the base value so content never sits under a
+ * home-indicator/gesture-bar cutout.
  */
 export const AUTH_CONTENT_WRAPPER_CLASS =
-  'relative flex w-full flex-1 flex-col items-center gap-4 px-5 pt-2 sm:gap-11 sm:px-6 sm:pt-12 md:w-[68%] md:justify-center lg:w-[60%] ' +
+  'relative flex h-full w-full flex-1 flex-col items-center gap-4 overflow-y-auto px-5 pt-2 sm:gap-11 sm:px-6 sm:pt-12 md:w-[68%] md:justify-center lg:w-[60%] ' +
   'pb-[max(0.625rem,env(safe-area-inset-bottom))] sm:pb-12'
 
-/** Mobile-only-shrunk showcase panel sizing — full sizing restored from `sm:` up (see AUTH_SHOWCASE_BG_CLASS usage). */
+/** Mobile-only-shrunk showcase panel sizing — full sizing restored from `sm:` up (see AUTH_SHOWCASE_BG_CLASS usage). No longer `sticky`: the page itself doesn't scroll, so a plain `h-full` keeps it filling its side of the fixed-height shell. */
 export const AUTH_SHOWCASE_PANEL_CLASS =
-  'flex h-[5vh] w-full items-center justify-center sm:h-[30vh] md:sticky md:top-0 md:h-dvh md:w-[32%] lg:w-[40%]'
+  'flex h-[5vh] w-full shrink-0 items-center justify-center sm:h-[30vh] md:h-full md:w-[32%] lg:w-[40%]'

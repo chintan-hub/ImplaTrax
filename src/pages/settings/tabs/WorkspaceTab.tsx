@@ -124,6 +124,15 @@ export function WorkspaceTab() {
   const [wipeConfirmText, setWipeConfirmText] = useState('')
   const [wiping, setWiping] = useState(false)
 
+  // Demo Workspace is only meant as an unauthenticated, throwaway preview.
+  // Once this account also has a real workspace, drop it from the list (and
+  // with it, the only way to switch back to it) rather than leaving it
+  // sitting alongside real business workspaces indefinitely. There's no
+  // schema flag for "is demo" — the name is set once, verbatim, only by
+  // startDemoWorkspace(), so it's a reliable signal here.
+  const realWorkspaces = workspaces.filter((w) => w.name !== 'Demo Workspace')
+  const visibleWorkspaces = realWorkspaces.length > 0 ? realWorkspaces : workspaces
+
   const handleSaveName = useCallback(async () => {
     if (!workspaceName.trim()) {
       toast.error('Workspace name is required.')
@@ -309,7 +318,7 @@ export function WorkspaceTab() {
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            {workspaces.map((w) => (
+            {visibleWorkspaces.map((w) => (
               <div key={w.id} className="flex items-center justify-between rounded-lg border border-border p-3">
                 <div>
                   <div className="flex items-center gap-1.5 text-sm font-medium">

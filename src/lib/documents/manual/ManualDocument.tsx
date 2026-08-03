@@ -47,7 +47,7 @@ function generatedOnLabel(): string {
  */
 export function ManualDocument() {
   return (
-    <Document title="ImplaTrax Professional SaaS User Guide" author="ImplaTrax" subject="ImplaTrax User Manual" creator="ImplaTrax">
+    <Document title="ImplaTrax Professional SaaS User Manual" author="ImplaTrax" subject="ImplaTrax User Manual" creator="ImplaTrax">
       <CoverPage generatedOn={generatedOnLabel()} />
       <TableOfContents entries={TOC_ENTRIES} />
       <Chapter01Welcome />
