@@ -11,8 +11,8 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
-import { formatDate, initials, simulateLatency } from '@/lib/utils'
-import { useAuth } from '@/features/auth/AuthContext'
+import { formatDate, initials } from '@/lib/utils'
+import { useAuth, type ActionResult } from '@/features/auth/AuthContext'
 import { useData } from '@/store/DataContext'
 import { AccessDenied } from '@/features/auth/AccessDenied'
 import { AddMemberDialog } from '@/features/auth/components/AddMemberDialog'
@@ -126,8 +126,7 @@ export function WorkspaceTab() {
       return
     }
     setSavingName(true)
-    await simulateLatency()
-    renameWorkspace(workspaceName)
+    await renameWorkspace(workspaceName)
     toast.success('Workspace renamed')
     setSavingName(false)
   }, [workspaceName, renameWorkspace])
@@ -137,7 +136,8 @@ export function WorkspaceTab() {
   if (!currentMember || !currentWorkspace) return null
   if (!canManage) return <AccessDenied message="Only workspace Owners, Super Admins, and Admins can manage team members and workspace settings." />
 
-  const handleAction = (result: { ok: boolean; error?: string }, successMessage: string) => {
+  const handleAction = async (resultOrPromise: ActionResult | Promise<ActionResult>, successMessage: string) => {
+    const result = await resultOrPromise
     if (result.ok) toast.success(successMessage)
     else toast.error('Action failed', { description: result.error })
   }
@@ -148,8 +148,7 @@ export function WorkspaceTab() {
       return
     }
     setCreatingWorkspace(true)
-    await simulateLatency()
-    const result = createWorkspace(newWorkspaceName)
+    const result = await createWorkspace(newWorkspaceName)
     setCreatingWorkspace(false)
     if (!result.ok) {
       toast.error('Could not create workspace', { description: result.error })

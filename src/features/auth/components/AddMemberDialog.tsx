@@ -9,20 +9,18 @@ import { useAuth } from '../AuthContext'
 import { ACCOUNT_ROLES, type AccountRole } from '../accountTypes'
 import { ROLE_LABEL } from '../roles'
 
-/** Adds a team member directly on this device — the honest local alternative to a cross-device "invite by link," which this build doesn't fake (see the disabled Invite card in WorkspaceTab). The admin sets the new member's starting PIN themselves; they can change it once signed in. */
+/** Invites a team member by email — they get their own Supabase Auth account and set their own password and device PIN on first sign-in, rather than an admin issuing one on their behalf (that model only made sense when every member's data lived in this one browser). */
 export function AddMemberDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const { addMember } = useAuth()
   const [name, setName] = useState('')
   const [contact, setContact] = useState('')
   const [role, setRole] = useState<AccountRole>('staff')
-  const [pin, setPin] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   const reset = () => {
     setName('')
     setContact('')
     setRole('staff')
-    setPin('')
   }
 
   const handleSubmit = async () => {
@@ -30,18 +28,18 @@ export function AddMemberDialog({ open, onOpenChange }: { open: boolean; onOpenC
       toast.error('Name is required.')
       return
     }
-    if (!/^\d{4}$/.test(pin)) {
-      toast.error('Starting PIN must be exactly 4 digits.')
+    if (!contact.trim()) {
+      toast.error('Email is required to invite a team member.')
       return
     }
     setSubmitting(true)
-    const result = await addMember({ name, contact, role, pin })
+    const result = await addMember({ name, contact, role })
     setSubmitting(false)
     if (!result.ok) {
-      toast.error('Could not add team member', { description: result.error })
+      toast.error('Could not invite team member', { description: result.error })
       return
     }
-    toast.success(`${name} added`, { description: `They can sign in with the PIN you set, as ${ROLE_LABEL[role]}.` })
+    toast.success(`Invitation sent to ${contact}`, { description: `They'll join as ${ROLE_LABEL[role]} once they accept.` })
     reset()
     onOpenChange(false)
   }
@@ -56,8 +54,8 @@ export function AddMemberDialog({ open, onOpenChange }: { open: boolean; onOpenC
     >
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Add Team Member</DialogTitle>
-          <DialogDescription>Added directly to this workspace on this device, with the role and starting PIN you set below.</DialogDescription>
+          <DialogTitle>Invite Team Member</DialogTitle>
+          <DialogDescription>Sends an invitation to join this workspace with the role you set below.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-1.5">
@@ -65,8 +63,8 @@ export function AddMemberDialog({ open, onOpenChange }: { open: boolean; onOpenC
             <Input id="member-name" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="member-contact">Mobile or email (optional)</Label>
-            <Input id="member-contact" value={contact} onChange={(e) => setContact(e.target.value)} />
+            <Label htmlFor="member-contact">Email</Label>
+            <Input id="member-contact" type="email" value={contact} onChange={(e) => setContact(e.target.value)} />
           </div>
           <div className="space-y-1.5">
             <Label>Role</Label>
@@ -83,26 +81,13 @@ export function AddMemberDialog({ open, onOpenChange }: { open: boolean; onOpenC
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="member-pin">Starting PIN (4 digits)</Label>
-            <Input
-              id="member-pin"
-              type="password"
-              inputMode="numeric"
-              autoComplete="off"
-              maxLength={4}
-              value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-            />
-            <p className="text-xs text-muted-foreground">Share this PIN with them directly — they can change it from Settings once signed in.</p>
-          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button onClick={handleSubmit} loading={submitting}>
-            Add Member
+            Send Invitation
           </Button>
         </DialogFooter>
       </DialogContent>

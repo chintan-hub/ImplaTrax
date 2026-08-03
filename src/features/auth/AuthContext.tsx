@@ -1,10 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import type { Session } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase/client'
+import { accountRoleToDb, accountRoleFromDb } from '@/lib/supabase/mappers'
 import { hashPin, generateSalt } from './crypto'
 import { isPlatformAuthenticatorAvailable, registerPasskey, verifyPasskey } from './webauthn'
-import { loadAccountSnapshot, saveAccountSnapshot, clearAccountSnapshot, randomId } from './authPersistence'
-import { WORKSPACE_MANAGER_ROLES } from './accountTypes'
+import { getDeviceId, getDevicePin, setDevicePin, getLastWorkspaceId, setLastWorkspaceId, clearDeviceStore } from './devicePairing'
+import { WORKSPACE_MANAGER_ROLES, DEFAULT_SECURITY_PREFS } from './accountTypes'
 import { setCurrentActor } from '@/store/currentActor'
-import type { AccountRole, AccountSnapshot, AuditAction, AuditEntry, MemberRecord, WorkspaceRecord } from './accountTypes'
+import type { AccountRole, AuditEntry, SecurityPrefs } from './accountTypes'
 
 export type AuthStatus = 'onboarding' | 'locked' | 'unlocked'
 
@@ -12,13 +15,12 @@ export interface OnboardingInput {
   workspaceName: string
   name: string
   contact: string
-  /** Account-level credential (prep for Supabase auth / cross-device login) — optional only so older test fixtures without one still compile; the onboarding UI always supplies it. */
   password?: string
   pin: string
   enableBiometrics: boolean
 }
 
-export type LogInResult = { ok: true; needsNewPin: boolean } | { ok: false; error: string }
+export type LogInResult = { ok: true; needsNewPin: boolean } | { ok: false; error: string } | { ok: 'pending-confirmation' }
 
 export interface AuthIdentity {
   name: string
@@ -27,25 +29,40 @@ export interface AuthIdentity {
 
 export type ActionResult = { ok: true; id?: string } | { ok: false; error: string }
 
+export interface MemberRecord {
+  id: string
+  name: string
+  contact: string
+  role: AccountRole
+  status: 'active' | 'disabled' | 'invited'
+  createdAt: string
+  lastLoginAt: string | null
+  lastActiveAt: string | null
+}
+
+export interface WorkspaceRecord {
+  id: string
+  name: string
+  createdAt: string
+}
+
 interface AuthContextValue {
   status: AuthStatus
   identity: AuthIdentity | null
   currentMember: MemberRecord | null
   currentWorkspace: WorkspaceRecord | null
-  /** All members (active + disabled) of the current workspace — for the Team settings table. */
   workspaceMembers: MemberRecord[]
-  /** Active members only — used to decide whether the lock screen needs a "which of you is this" picker. */
   activeWorkspaceMembers: MemberRecord[]
   workspaces: WorkspaceRecord[]
   auditLog: AuditEntry[]
-  security: import('./accountTypes').SecurityPrefs
+  security: SecurityPrefs
   deviceId: string
   hasBiometrics: boolean
   platformAuthAvailable: boolean
-  /** True once an admin has reset this member's PIN — the lock screen must show a Set-New-PIN step instead of a PIN pad. */
   mustChangePin: boolean
   failedPinAttempts: number
   lockedUntil: string | null
+  loading: boolean
 
   completeOnboarding: (input: OnboardingInput) => Promise<{ workspaceName: string; name: string; contact: string }>
   logInWithPassword: (email: string, password: string) => Promise<LogInResult>
@@ -54,60 +71,77 @@ interface AuthContextValue {
   completeForcedPinChange: (newPin: string) => Promise<void>
   unlock: () => void
   lock: () => void
-  logout: () => void
-  resetDevice: () => void
+  logout: () => Promise<void>
+  resetDevice: () => Promise<void>
 
   changePin: (oldPin: string, newPin: string) => Promise<boolean>
   enableBiometrics: () => Promise<boolean>
   disableBiometrics: () => void
-  updateProfile: (name: string, contact: string) => void
-  setAutoLockMinutes: (minutes: number) => void
-  setSessionTimeoutMinutes: (minutes: number) => void
-  setDesktopNotifications: (enabled: boolean) => void
+  updateProfile: (name: string, contact: string) => Promise<void>
+  setAutoLockMinutes: (minutes: number) => Promise<void>
+  setSessionTimeoutMinutes: (minutes: number) => Promise<void>
+  setDesktopNotifications: (enabled: boolean) => Promise<void>
 
-  switchUser: (memberId: string) => void
-  addMember: (input: { name: string; contact: string; role: AccountRole; pin: string }) => Promise<ActionResult>
-  disableMember: (id: string) => ActionResult
-  reactivateMember: (id: string) => ActionResult
-  changeMemberRole: (id: string, role: AccountRole) => ActionResult
-  removeMember: (id: string) => ActionResult
+  addMember: (input: { name: string; contact: string; role: AccountRole }) => Promise<ActionResult>
+  disableMember: (id: string) => Promise<ActionResult>
+  reactivateMember: (id: string) => Promise<ActionResult>
+  changeMemberRole: (id: string, role: AccountRole) => Promise<ActionResult>
+  removeMember: (id: string) => Promise<ActionResult>
   resetMemberPin: (id: string) => ActionResult
 
-  createWorkspace: (name: string) => ActionResult
-  switchWorkspace: (id: string) => void
-  renameWorkspace: (name: string) => void
+  createWorkspace: (name: string) => Promise<ActionResult>
+  switchWorkspace: (id: string) => Promise<void>
+  renameWorkspace: (name: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-/** Pure — appends one capped, newest-first audit entry to a snapshot. Not a hook, so it's freely reusable inside any updater. */
-function withAudit(snap: AccountSnapshot, action: AuditAction, detail?: string, actorOverride?: MemberRecord | null): AccountSnapshot {
-  const actor = actorOverride !== undefined ? actorOverride : (snap.members.find((m) => m.id === snap.currentMemberId) ?? null)
-  const entry: AuditEntry = {
-    id: randomId(),
-    at: new Date().toISOString(),
-    workspaceId: snap.currentWorkspaceId ?? '',
-    actorMemberId: actor?.id ?? null,
-    actorName: actor?.name ?? 'System',
-    action,
-    detail,
+function memberFromRow(row: {
+  id: string
+  name: string
+  contact_email: string | null
+  account_role: string
+  status: string
+  created_at: string
+  last_login_at: string | null
+  last_active_at: string | null
+}): MemberRecord {
+  return {
+    id: row.id,
+    name: row.name,
+    contact: row.contact_email ?? '',
+    role: accountRoleFromDb(row.account_role) as AccountRole,
+    status: row.status as MemberRecord['status'],
+    createdAt: row.created_at,
+    lastLoginAt: row.last_login_at,
+    lastActiveAt: row.last_active_at,
   }
-  return { ...snap, auditLog: [entry, ...snap.auditLog].slice(0, 300) }
 }
 
-function isLastActiveOwner(snap: AccountSnapshot, memberId: string): boolean {
-  const workspace = snap.workspaces.find((w) => w.id === snap.currentWorkspaceId)
-  if (!workspace) return false
-  const owners = workspace.memberIds
-    .map((id) => snap.members.find((m) => m.id === id))
-    .filter((m): m is MemberRecord => Boolean(m) && m!.role === 'owner' && m!.status === 'active')
+function client() {
+  if (!supabase) throw new Error('Supabase is not configured — set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY')
+  return supabase
+}
+
+function isLastActiveOwner(members: MemberRecord[], memberId: string): boolean {
+  const owners = members.filter((m) => m.role === 'owner' && m.status === 'active')
   return owners.length <= 1 && owners[0]?.id === memberId
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [snapshot, setSnapshotState] = useState<AccountSnapshot>(() => loadAccountSnapshot())
-  const [status, setStatus] = useState<AuthStatus>(() => (loadAccountSnapshot().hasOnboarded ? 'locked' : 'onboarding'))
+  const [loading, setLoading] = useState(true)
+  const [session, setSession] = useState<Session | null>(null)
+  const [status, setStatus] = useState<AuthStatus>('onboarding')
+  const [workspaces, setWorkspaces] = useState<WorkspaceRecord[]>([])
+  const [currentWorkspace, setCurrentWorkspaceState] = useState<WorkspaceRecord | null>(null)
+  const [workspaceMembers, setWorkspaceMembers] = useState<MemberRecord[]>([])
+  const [currentMember, setCurrentMember] = useState<MemberRecord | null>(null)
+  const [security, setSecurity] = useState<SecurityPrefs>(DEFAULT_SECURITY_PREFS)
+  const [auditLog, setAuditLog] = useState<AuditEntry[]>([])
   const [platformAuthAvailable, setPlatformAuthAvailable] = useState(false)
+  const [mustChangePin, setMustChangePin] = useState(false)
+  const [failedPinAttempts, setFailedPinAttempts] = useState(0)
+  const [lockedUntil, setLockedUntil] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -119,433 +153,428 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const updateSnapshot = useCallback((updater: (prev: AccountSnapshot) => AccountSnapshot) => {
-    setSnapshotState((prev) => {
-      const next = updater(prev)
-      saveAccountSnapshot(next)
-      return next
-    })
-  }, [])
-
-  const currentMember = useMemo(() => snapshot.members.find((m) => m.id === snapshot.currentMemberId) ?? null, [snapshot.members, snapshot.currentMemberId])
-  const currentWorkspace = useMemo(() => snapshot.workspaces.find((w) => w.id === snapshot.currentWorkspaceId) ?? null, [snapshot.workspaces, snapshot.currentWorkspaceId])
-  const workspaceMembers = useMemo(
-    () => (currentWorkspace ? currentWorkspace.memberIds.map((id) => snapshot.members.find((m) => m.id === id)).filter((m): m is MemberRecord => Boolean(m)) : []),
-    [currentWorkspace, snapshot.members],
-  )
   const activeWorkspaceMembers = useMemo(() => workspaceMembers.filter((m) => m.status === 'active'), [workspaceMembers])
-  const auditLog = useMemo(() => snapshot.auditLog.filter((e) => e.workspaceId === snapshot.currentWorkspaceId), [snapshot.auditLog, snapshot.currentWorkspaceId])
 
-  // Keep DataContext's action-attribution bridge in sync — see
-  // src/store/currentActor.ts for why this isn't done via context.
   useEffect(() => {
     setCurrentActor(currentMember ? { id: currentMember.id, name: currentMember.name } : null)
   }, [currentMember])
 
+  /** Loads every workspace this authenticated user belongs to, picks the current one (last-used hint, else the first), and hydrates members/settings/audit for it. Also decides 'locked' vs 'unlocked' from this device's own PIN pairing for that member. */
+  const hydrateFromSession = useCallback(async (activeSession: Session) => {
+    const memberships = await client()
+      .from('workspace_members')
+      .select('id, workspace_id, name, contact_email, account_role, status, created_at, last_login_at, last_active_at, workspaces(id, name, created_at)')
+      .eq('auth_user_id', activeSession.user.id)
+      .eq('status', 'active')
+
+    if (memberships.error || !memberships.data || memberships.data.length === 0) {
+      setStatus('onboarding')
+      return
+    }
+
+    const allWorkspaces: WorkspaceRecord[] = memberships.data
+      .map((m) => m.workspaces as unknown as { id: string; name: string; created_at: string } | null)
+      .filter((w): w is { id: string; name: string; created_at: string } => Boolean(w))
+      .map((w) => ({ id: w.id, name: w.name, createdAt: w.created_at }))
+    setWorkspaces(allWorkspaces)
+
+    const lastId = getLastWorkspaceId()
+    const chosen = allWorkspaces.find((w) => w.id === lastId) ?? allWorkspaces[0]
+    if (!chosen) {
+      setStatus('onboarding')
+      return
+    }
+    setCurrentWorkspaceState(chosen)
+    setLastWorkspaceId(chosen.id)
+
+    const myMembership = memberships.data.find((m) => m.workspace_id === chosen.id)
+    const me = myMembership ? memberFromRow(myMembership) : null
+    setCurrentMember(me)
+
+    const [membersRes, settingsRes, securityRes] = await Promise.all([
+      client().from('workspace_members').select('id, name, contact_email, account_role, status, created_at, last_login_at, last_active_at').eq('workspace_id', chosen.id),
+      client().from('clinic_settings').select('*').eq('workspace_id', chosen.id).single(),
+      client().from('security_prefs').select('*').eq('workspace_id', chosen.id).single(),
+    ])
+    if (membersRes.data) setWorkspaceMembers(membersRes.data.map(memberFromRow))
+    if (securityRes.data) {
+      setSecurity({
+        autoLockMinutes: securityRes.data.auto_lock_minutes,
+        sessionTimeoutMinutes: securityRes.data.session_timeout_minutes,
+        maxPinAttempts: securityRes.data.max_pin_attempts,
+        lockoutMinutes: securityRes.data.lockout_minutes,
+        desktopNotifications: securityRes.data.desktop_notifications,
+      })
+    }
+    void settingsRes
+
+    const auditRes = await client().from('audit_log').select('*').eq('workspace_id', chosen.id).order('created_at', { ascending: false }).limit(300)
+    if (auditRes.data) {
+      setAuditLog(
+        auditRes.data.map((e) => ({
+          id: e.id,
+          at: e.created_at,
+          workspaceId: e.workspace_id,
+          actorMemberId: e.actor_member_id,
+          actorName: e.actor_name,
+          action: e.action,
+          detail: e.detail ?? undefined,
+        })),
+      )
+    }
+
+    if (!me) {
+      setStatus('onboarding')
+      return
+    }
+    const pairing = getDevicePin(me.id)
+    if (!pairing || !pairing.pinHash) {
+      setMustChangePin(true)
+      setStatus('locked')
+    } else {
+      setMustChangePin(pairing.mustChangePin)
+      setStatus('locked')
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    if (!supabase) {
+      setLoading(false)
+      setStatus('onboarding')
+      return
+    }
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (cancelled) return
+      setSession(data.session)
+      if (data.session) {
+        await hydrateFromSession(data.session)
+      } else {
+        setStatus('onboarding')
+      }
+      setLoading(false)
+    })
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession)
+    })
+    return () => {
+      cancelled = true
+      sub.subscription.unsubscribe()
+    }
+    // hydrateFromSession is stable across renders (useCallback, no changing deps) — including it would just re-run this identical setup on every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const completeOnboarding = useCallback(
     async (input: OnboardingInput) => {
+      const { data: signUpData, error: signUpError } = await client().auth.signUp({ email: input.contact.trim(), password: input.password ?? '' })
+      if (signUpError) throw new Error(signUpError.message)
+      if (!signUpData.session) {
+        throw new Error('Check your email to confirm your account, then log in. (Supabase project has email confirmation enabled — disable it under Authentication settings for instant onboarding.)')
+      }
+      setSession(signUpData.session)
+
+      const workspaceId = unwrapRpc<string>(await client().rpc('create_workspace', { p_workspace_name: input.workspaceName.trim(), p_member_name: input.name.trim(), p_contact_email: input.contact.trim() }))
+      unwrapRpc(await client().rpc('complete_onboarding', { p_workspace_id: workspaceId, p_clinic_name: input.workspaceName.trim(), p_country: '', p_currency: 'USD' }))
+
+      const memberRow = unwrapRpc<{
+        id: string; name: string; contact_email: string | null; account_role: string; status: string
+        created_at: string; last_login_at: string | null; last_active_at: string | null
+      }>(
+        await client().from('workspace_members').select('id, name, contact_email, account_role, status, created_at, last_login_at, last_active_at').eq('workspace_id', workspaceId).eq('auth_user_id', signUpData.session.user.id).single(),
+      )
+      const me = memberFromRow(memberRow)
+
       const salt = generateSalt()
       const pinHash = await hashPin(input.pin, salt)
-      let passwordHash: string | null = null
-      let passwordSalt: string | null = null
-      if (input.password) {
-        passwordSalt = generateSalt()
-        passwordHash = await hashPin(input.password, passwordSalt)
-      }
       const webauthnCredentialId = input.enableBiometrics ? await registerPasskey(input.name, input.contact) : null
-      const now = new Date().toISOString()
-      const workspaceId = randomId()
-      const memberId = randomId()
-      const owner: MemberRecord = {
-        id: memberId,
-        name: input.name,
-        contact: input.contact,
-        role: 'owner',
-        status: 'active',
-        pinHash,
-        pinSalt: salt,
-        passwordHash,
-        passwordSalt,
-        pinDeviceId: null, // set to this device's id inside the updater below, from the live snapshot rather than a possibly-stale closure
-        webauthnCredentialId,
-        mustChangePin: false,
-        createdAt: now,
-        lastLoginAt: now,
-        lastActiveAt: now,
-      }
-      const workspace: WorkspaceRecord = { id: workspaceId, name: input.workspaceName, createdAt: now, memberIds: [memberId] }
+      setDevicePin(me.id, { pinHash, pinSalt: salt, mustChangePin: false, webauthnCredentialId })
+      setLastWorkspaceId(workspaceId)
 
-      updateSnapshot((prev) => {
-        const ownerForThisDevice = { ...owner, pinDeviceId: prev.deviceId }
-        return withAudit(
-          { ...prev, hasOnboarded: true, workspaces: [...prev.workspaces, workspace], members: [...prev.members, ownerForThisDevice], currentWorkspaceId: workspaceId, currentMemberId: memberId, unlockedAt: now },
-          'onboarding_completed',
-          undefined,
-          ownerForThisDevice,
-        )
-      })
+      setCurrentWorkspaceState({ id: workspaceId, name: input.workspaceName.trim(), createdAt: new Date().toISOString() })
+      setWorkspaces((prev) => [...prev, { id: workspaceId, name: input.workspaceName.trim(), createdAt: new Date().toISOString() }])
+      setCurrentMember(me)
+      setWorkspaceMembers([me])
+      setMustChangePin(false)
       setStatus('unlocked')
       return { workspaceName: input.workspaceName, name: input.name, contact: input.contact }
     },
-    [updateSnapshot],
+    [],
   )
 
   const verifyPin = useCallback(
     async (pin: string) => {
-      if (snapshot.lockedUntil && new Date(snapshot.lockedUntil).getTime() > Date.now()) return false
+      if (lockedUntil && new Date(lockedUntil).getTime() > Date.now()) return false
       const member = currentMember
-      if (!member || !member.pinHash || !member.pinSalt) return false
-      const candidate = await hashPin(pin, member.pinSalt)
-      const ok = candidate === member.pinHash
-      const now = new Date().toISOString()
-      updateSnapshot((prev) => {
-        if (ok) {
-          const members = prev.members.map((m) => (m.id === member.id ? { ...m, lastLoginAt: now, lastActiveAt: now } : m))
-          return withAudit({ ...prev, members, failedPinAttempts: 0, lockedUntil: null }, 'login')
+      if (!member) return false
+      const pairing = getDevicePin(member.id)
+      if (!pairing?.pinHash || !pairing.pinSalt) return false
+      const candidate = await hashPin(pin, pairing.pinSalt)
+      const ok = candidate === pairing.pinHash
+      if (ok) {
+        setFailedPinAttempts(0)
+        setLockedUntil(null)
+        void client().from('workspace_members').update({ last_login_at: new Date().toISOString(), last_active_at: new Date().toISOString() }).eq('id', member.id)
+      } else {
+        const attempts = failedPinAttempts + 1
+        if (attempts >= security.maxPinAttempts) {
+          setLockedUntil(new Date(Date.now() + security.lockoutMinutes * 60_000).toISOString())
+          setFailedPinAttempts(0)
+        } else {
+          setFailedPinAttempts(attempts)
         }
-        const attempts = prev.failedPinAttempts + 1
-        if (attempts >= prev.security.maxPinAttempts) {
-          const until = new Date(Date.now() + prev.security.lockoutMinutes * 60_000).toISOString()
-          return withAudit({ ...prev, failedPinAttempts: 0, lockedUntil: until }, 'account_locked_out')
-        }
-        return withAudit({ ...prev, failedPinAttempts: attempts }, 'login_failed')
-      })
+      }
       return ok
     },
-    [snapshot.lockedUntil, currentMember, updateSnapshot],
+    [lockedUntil, currentMember, failedPinAttempts, security],
   )
 
   const verifyBiometrics = useCallback(async () => {
-    if (!currentMember?.webauthnCredentialId) return false
-    const ok = await verifyPasskey(currentMember.webauthnCredentialId)
-    if (ok) {
-      const now = new Date().toISOString()
-      updateSnapshot((prev) => withAudit({ ...prev, members: prev.members.map((m) => (m.id === currentMember.id ? { ...m, lastLoginAt: now, lastActiveAt: now } : m)) }, 'login', 'via biometrics'))
-    }
+    if (!currentMember) return false
+    const pairing = getDevicePin(currentMember.id)
+    if (!pairing?.webauthnCredentialId) return false
+    const ok = await verifyPasskey(pairing.webauthnCredentialId)
+    if (ok) void client().from('workspace_members').update({ last_login_at: new Date().toISOString(), last_active_at: new Date().toISOString() }).eq('id', currentMember.id)
     return ok
-  }, [currentMember, updateSnapshot])
+  }, [currentMember])
 
   const completeForcedPinChange = useCallback(
     async (newPin: string) => {
       if (!currentMember) return
       const salt = generateSalt()
       const pinHash = await hashPin(newPin, salt)
-      const now = new Date().toISOString()
-      updateSnapshot((prev) =>
-        withAudit(
-          {
-            ...prev,
-            members: prev.members.map((m) =>
-              m.id === currentMember.id ? { ...m, pinHash, pinSalt: salt, pinDeviceId: prev.deviceId, mustChangePin: false, lastLoginAt: now, lastActiveAt: now } : m,
-            ),
-            unlockedAt: now,
-          },
-          'pin_changed',
-          'via forced reset',
-        ),
-      )
+      setDevicePin(currentMember.id, { pinHash, pinSalt: salt, mustChangePin: false, webauthnCredentialId: getDevicePin(currentMember.id)?.webauthnCredentialId ?? null })
+      setMustChangePin(false)
       setStatus('unlocked')
     },
-    [currentMember, updateSnapshot],
+    [currentMember],
   )
 
-  const unlock = useCallback(() => {
-    updateSnapshot((prev) => ({ ...prev, unlockedAt: new Date().toISOString() }))
-    setStatus('unlocked')
-  }, [updateSnapshot])
+  const unlock = useCallback(() => setStatus('unlocked'), [])
+  const lock = useCallback(() => setStatus('locked'), [])
 
-  const lock = useCallback(() => {
-    updateSnapshot((prev) => withAudit(prev, 'lock'))
-    setStatus('locked')
-  }, [updateSnapshot])
-
-  const logout = useCallback(() => {
-    updateSnapshot((prev) => {
-      const workspace = prev.workspaces.find((w) => w.id === prev.currentWorkspaceId)
-      const activeCount = workspace ? workspace.memberIds.filter((id) => prev.members.find((m) => m.id === id)?.status === 'active').length : 0
-      const next = withAudit(prev, 'logout')
-      return activeCount > 1 ? { ...next, currentMemberId: null } : next
-    })
-    setStatus('locked')
-  }, [updateSnapshot])
-
-  const resetDevice = useCallback(() => {
-    clearAccountSnapshot()
-    setSnapshotState(loadAccountSnapshot())
+  const logout = useCallback(async () => {
+    await client().auth.signOut()
+    setSession(null)
     setStatus('onboarding')
+    setCurrentMember(null)
+    setWorkspaceMembers([])
+    setCurrentWorkspaceState(null)
+  }, [])
+
+  const resetDevice = useCallback(async () => {
+    clearDeviceStore()
+    await client().auth.signOut()
+    setSession(null)
+    setStatus('onboarding')
+    setCurrentMember(null)
+    setWorkspaceMembers([])
+    setCurrentWorkspaceState(null)
   }, [])
 
   const changePin = useCallback(
     async (oldPin: string, newPin: string) => {
-      if (!currentMember?.pinHash || !currentMember.pinSalt) return false
-      const candidate = await hashPin(oldPin, currentMember.pinSalt)
-      if (candidate !== currentMember.pinHash) return false
+      if (!currentMember) return false
+      const pairing = getDevicePin(currentMember.id)
+      if (!pairing?.pinHash || !pairing.pinSalt) return false
+      const candidate = await hashPin(oldPin, pairing.pinSalt)
+      if (candidate !== pairing.pinHash) return false
       const salt = generateSalt()
       const pinHash = await hashPin(newPin, salt)
-      updateSnapshot((prev) => withAudit({ ...prev, members: prev.members.map((m) => (m.id === currentMember.id ? { ...m, pinHash, pinSalt: salt, pinDeviceId: prev.deviceId } : m)) }, 'pin_changed'))
+      setDevicePin(currentMember.id, { ...pairing, pinHash, pinSalt: salt })
       return true
     },
-    [currentMember, updateSnapshot],
+    [currentMember],
   )
 
   const enableBiometrics = useCallback(async () => {
     if (!currentMember) return false
     const credId = await registerPasskey(currentMember.name, currentMember.contact)
     if (!credId) return false
-    updateSnapshot((prev) => withAudit({ ...prev, members: prev.members.map((m) => (m.id === currentMember.id ? { ...m, webauthnCredentialId: credId } : m)) }, 'biometrics_enabled'))
+    const pairing = getDevicePin(currentMember.id)
+    setDevicePin(currentMember.id, { pinHash: pairing?.pinHash ?? null, pinSalt: pairing?.pinSalt ?? null, mustChangePin: pairing?.mustChangePin ?? false, webauthnCredentialId: credId })
     return true
-  }, [currentMember, updateSnapshot])
+  }, [currentMember])
 
   const disableBiometrics = useCallback(() => {
-    updateSnapshot((prev) => withAudit({ ...prev, members: prev.members.map((m) => (m.id === prev.currentMemberId ? { ...m, webauthnCredentialId: null } : m)) }, 'biometrics_disabled'))
-  }, [updateSnapshot])
+    if (!currentMember) return
+    const pairing = getDevicePin(currentMember.id)
+    if (pairing) setDevicePin(currentMember.id, { ...pairing, webauthnCredentialId: null })
+  }, [currentMember])
 
   const updateProfile = useCallback(
-    (name: string, contact: string) => {
-      updateSnapshot((prev) => withAudit({ ...prev, members: prev.members.map((m) => (m.id === prev.currentMemberId ? { ...m, name, contact } : m)) }, 'profile_updated'))
+    async (name: string, contact: string) => {
+      if (!currentMember) return
+      unwrapRpc(await client().from('workspace_members').update({ name, contact_email: contact }).eq('id', currentMember.id))
+      setCurrentMember({ ...currentMember, name, contact })
+      setWorkspaceMembers((prev) => prev.map((m) => (m.id === currentMember.id ? { ...m, name, contact } : m)))
     },
-    [updateSnapshot],
+    [currentMember],
   )
 
-  const setAutoLockMinutes = useCallback((minutes: number) => updateSnapshot((prev) => ({ ...prev, security: { ...prev.security, autoLockMinutes: minutes } })), [updateSnapshot])
-  const setSessionTimeoutMinutes = useCallback((minutes: number) => updateSnapshot((prev) => ({ ...prev, security: { ...prev.security, sessionTimeoutMinutes: minutes } })), [updateSnapshot])
-  const setDesktopNotifications = useCallback((enabled: boolean) => updateSnapshot((prev) => ({ ...prev, security: { ...prev.security, desktopNotifications: enabled } })), [updateSnapshot])
-
-  const switchUser = useCallback(
-    (memberId: string) => {
-      updateSnapshot((prev) => ({ ...prev, currentMemberId: memberId, failedPinAttempts: 0, lockedUntil: null }))
-      setStatus('locked')
+  const setAutoLockMinutes = useCallback(
+    async (minutes: number) => {
+      if (!currentWorkspace) return
+      unwrapRpc(await client().from('security_prefs').update({ auto_lock_minutes: minutes }).eq('workspace_id', currentWorkspace.id))
+      setSecurity((prev) => ({ ...prev, autoLockMinutes: minutes }))
     },
-    [updateSnapshot],
+    [currentWorkspace],
   )
+  const setSessionTimeoutMinutes = useCallback(
+    async (minutes: number) => {
+      if (!currentWorkspace) return
+      unwrapRpc(await client().from('security_prefs').update({ session_timeout_minutes: minutes }).eq('workspace_id', currentWorkspace.id))
+      setSecurity((prev) => ({ ...prev, sessionTimeoutMinutes: minutes }))
+    },
+    [currentWorkspace],
+  )
+  const setDesktopNotifications = useCallback(
+    async (enabled: boolean) => {
+      if (!currentWorkspace) return
+      unwrapRpc(await client().from('security_prefs').update({ desktop_notifications: enabled }).eq('workspace_id', currentWorkspace.id))
+      setSecurity((prev) => ({ ...prev, desktopNotifications: enabled }))
+    },
+    [currentWorkspace],
+  )
+
+  const logInWithPassword = useCallback(async (email: string, password: string): Promise<LogInResult> => {
+    const trimmed = email.trim().toLowerCase()
+    if (!trimmed || !password) return { ok: false, error: 'Enter your email and password.' }
+    const { data, error } = await client().auth.signInWithPassword({ email: trimmed, password })
+    if (error) return { ok: false, error: error.message === 'Invalid login credentials' ? 'Incorrect email or password.' : error.message }
+    if (!data.session) return { ok: 'pending-confirmation' }
+    setSession(data.session)
+    await hydrateFromSession(data.session)
+    const member = getDevicePin
+    void member
+    // hydrateFromSession already set currentMember/status; report whether this device needs a fresh PIN.
+    const me = await client().from('workspace_members').select('id').eq('auth_user_id', data.session.user.id).eq('status', 'active').limit(1).maybeSingle()
+    const needsNewPin = me.data ? !getDevicePin(me.data.id)?.pinHash : true
+    return { ok: true, needsNewPin }
+  }, [hydrateFromSession])
 
   const addMember = useCallback(
-    async (input: { name: string; contact: string; role: AccountRole; pin: string }): Promise<ActionResult> => {
+    async (input: { name: string; contact: string; role: AccountRole }): Promise<ActionResult> => {
       if (!currentMember || !WORKSPACE_MANAGER_ROLES.includes(currentMember.role)) return { ok: false, error: 'You do not have permission to add team members.' }
       if (!currentWorkspace) return { ok: false, error: 'No active workspace.' }
       const trimmedName = input.name.trim()
       if (!trimmedName) return { ok: false, error: 'Name is required.' }
-      if (workspaceMembers.some((m) => m.name.trim().toLowerCase() === trimmedName.toLowerCase())) {
-        return { ok: false, error: 'A member with this name already exists in this workspace.' }
-      }
-      if (!/^\d{4}$/.test(input.pin)) return { ok: false, error: 'PIN must be 4 digits.' }
-
-      const salt = generateSalt()
-      const pinHash = await hashPin(input.pin, salt)
-      const now = new Date().toISOString()
-      const id = randomId()
-      const member: MemberRecord = {
-        id,
-        name: trimmedName,
-        contact: input.contact.trim(),
-        role: input.role,
-        status: 'active',
-        pinHash,
-        pinSalt: salt,
-        // No account-level password for invited members — an admin issues their
-        // PIN directly (here, in person/on this device), so there's nothing to
-        // verify a password against; "Log In" via email+password only applies
-        // to members who set one themselves (currently: the workspace owner).
-        passwordHash: null,
-        passwordSalt: null,
-        pinDeviceId: snapshot.deviceId,
-        webauthnCredentialId: null,
-        mustChangePin: false,
-        createdAt: now,
-        lastLoginAt: null,
-        lastActiveAt: null,
-      }
-      updateSnapshot((prev) =>
-        withAudit(
-          { ...prev, members: [...prev.members, member], workspaces: prev.workspaces.map((w) => (w.id === prev.currentWorkspaceId ? { ...w, memberIds: [...w.memberIds, id] } : w)) },
-          'member_added',
-          trimmedName,
-        ),
-      )
-      return { ok: true, id }
+      const trimmedEmail = input.contact.trim().toLowerCase()
+      if (!trimmedEmail) return { ok: false, error: 'Email is required to invite a team member.' }
+      const { data, error } = await client()
+        .from('workspace_invitations')
+        .insert({ workspace_id: currentWorkspace.id, email: trimmedEmail, account_role: accountRoleToDb(input.role), business_role: 'front_desk', invited_by: currentMember.id })
+        .select('id')
+        .single()
+      if (error) return { ok: false, error: error.message }
+      return { ok: true, id: data.id }
     },
-    [currentMember, currentWorkspace, workspaceMembers, snapshot.deviceId, updateSnapshot],
-  )
-
-  const logInWithPassword = useCallback(
-    async (email: string, password: string): Promise<LogInResult> => {
-      const trimmed = email.trim().toLowerCase()
-      if (!trimmed || !password) return { ok: false, error: 'Enter your email and password.' }
-      const member = snapshot.members.find((m) => m.contact.trim().toLowerCase() === trimmed && m.passwordHash && m.passwordSalt)
-      if (!member) {
-        return { ok: false, error: "We couldn't find an account with that email on this device." }
-      }
-      const candidate = await hashPin(password, member.passwordSalt!)
-      if (candidate !== member.passwordHash) return { ok: false, error: 'Incorrect password.' }
-
-      const workspace = snapshot.workspaces.find((w) => w.memberIds.includes(member.id))
-      const needsNewPin = !member.pinHash || member.pinDeviceId !== snapshot.deviceId
-
-      updateSnapshot((prev) =>
-        withAudit(
-          {
-            ...prev,
-            currentWorkspaceId: workspace?.id ?? prev.currentWorkspaceId,
-            currentMemberId: member.id,
-            failedPinAttempts: 0,
-            lockedUntil: null,
-            members: needsNewPin ? prev.members.map((m) => (m.id === member.id ? { ...m, mustChangePin: true } : m)) : prev.members,
-          },
-          'login',
-          'via password',
-          member,
-        ),
-      )
-      setStatus('locked')
-      return { ok: true, needsNewPin }
-    },
-    [snapshot, updateSnapshot],
+    [currentMember, currentWorkspace],
   )
 
   const disableMember = useCallback(
-    (id: string): ActionResult => {
+    async (id: string): Promise<ActionResult> => {
       if (!currentMember || !WORKSPACE_MANAGER_ROLES.includes(currentMember.role)) return { ok: false, error: 'You do not have permission to manage team members.' }
       if (id === currentMember.id) return { ok: false, error: 'You cannot disable your own account.' }
-      if (isLastActiveOwner(snapshot, id)) return { ok: false, error: 'This is the only owner — disable another owner first, or transfer ownership.' }
-      const target = snapshot.members.find((m) => m.id === id)
-      updateSnapshot((prev) => withAudit({ ...prev, members: prev.members.map((m) => (m.id === id ? { ...m, status: 'disabled' } : m)) }, 'member_disabled', target?.name))
+      if (isLastActiveOwner(workspaceMembers, id)) return { ok: false, error: 'This is the only owner — disable another owner first, or transfer ownership.' }
+      const { error } = await client().from('workspace_members').update({ status: 'disabled' }).eq('id', id)
+      if (error) return { ok: false, error: error.message }
+      setWorkspaceMembers((prev) => prev.map((m) => (m.id === id ? { ...m, status: 'disabled' } : m)))
       return { ok: true }
     },
-    [currentMember, snapshot, updateSnapshot],
+    [currentMember, workspaceMembers],
   )
 
   const reactivateMember = useCallback(
-    (id: string): ActionResult => {
+    async (id: string): Promise<ActionResult> => {
       if (!currentMember || !WORKSPACE_MANAGER_ROLES.includes(currentMember.role)) return { ok: false, error: 'You do not have permission to manage team members.' }
-      const target = snapshot.members.find((m) => m.id === id)
-      updateSnapshot((prev) => withAudit({ ...prev, members: prev.members.map((m) => (m.id === id ? { ...m, status: 'active' } : m)) }, 'member_reactivated', target?.name))
+      const { error } = await client().from('workspace_members').update({ status: 'active' }).eq('id', id)
+      if (error) return { ok: false, error: error.message }
+      setWorkspaceMembers((prev) => prev.map((m) => (m.id === id ? { ...m, status: 'active' } : m)))
       return { ok: true }
     },
-    [currentMember, snapshot.members, updateSnapshot],
+    [currentMember],
   )
 
   const changeMemberRole = useCallback(
-    (id: string, role: AccountRole): ActionResult => {
+    async (id: string, role: AccountRole): Promise<ActionResult> => {
       if (!currentMember || !WORKSPACE_MANAGER_ROLES.includes(currentMember.role)) return { ok: false, error: 'You do not have permission to change roles.' }
-      if (role !== 'owner' && isLastActiveOwner(snapshot, id)) return { ok: false, error: 'This is the only owner — promote another owner first.' }
-      const target = snapshot.members.find((m) => m.id === id)
-      updateSnapshot((prev) => withAudit({ ...prev, members: prev.members.map((m) => (m.id === id ? { ...m, role } : m)) }, 'member_role_changed', `${target?.name} → ${role}`))
+      if (role !== 'owner' && isLastActiveOwner(workspaceMembers, id)) return { ok: false, error: 'This is the only owner — promote another owner first.' }
+      const { error } = await client().from('workspace_members').update({ account_role: accountRoleToDb(role) }).eq('id', id)
+      if (error) return { ok: false, error: error.message }
+      setWorkspaceMembers((prev) => prev.map((m) => (m.id === id ? { ...m, role } : m)))
       return { ok: true }
     },
-    [currentMember, snapshot, updateSnapshot],
+    [currentMember, workspaceMembers],
   )
 
   const removeMember = useCallback(
-    (id: string): ActionResult => {
+    async (id: string): Promise<ActionResult> => {
       if (!currentMember || !WORKSPACE_MANAGER_ROLES.includes(currentMember.role)) return { ok: false, error: 'You do not have permission to remove team members.' }
       if (id === currentMember.id) return { ok: false, error: 'You cannot remove your own account.' }
-      if (isLastActiveOwner(snapshot, id)) return { ok: false, error: 'This is the only owner and cannot be removed.' }
-      const target = snapshot.members.find((m) => m.id === id)
-      updateSnapshot((prev) =>
-        withAudit(
-          {
-            ...prev,
-            members: prev.members.filter((m) => m.id !== id),
-            workspaces: prev.workspaces.map((w) => (w.id === prev.currentWorkspaceId ? { ...w, memberIds: w.memberIds.filter((mid) => mid !== id) } : w)),
-          },
-          'member_removed',
-          target?.name,
-        ),
-      )
+      if (isLastActiveOwner(workspaceMembers, id)) return { ok: false, error: 'This is the only owner and cannot be removed.' }
+      const { error } = await client().from('workspace_members').delete().eq('id', id)
+      if (error) return { ok: false, error: error.message }
+      setWorkspaceMembers((prev) => prev.filter((m) => m.id !== id))
       return { ok: true }
     },
-    [currentMember, snapshot, updateSnapshot],
+    [currentMember, workspaceMembers],
   )
 
-  const resetMemberPin = useCallback(
-    (id: string): ActionResult => {
-      if (!currentMember || !WORKSPACE_MANAGER_ROLES.includes(currentMember.role)) return { ok: false, error: 'You do not have permission to reset PINs.' }
-      if (id === currentMember.id) return { ok: false, error: 'Use "Change PIN" in Security settings for your own PIN.' }
-      const target = snapshot.members.find((m) => m.id === id)
-      updateSnapshot((prev) =>
-        withAudit({ ...prev, members: prev.members.map((m) => (m.id === id ? { ...m, pinHash: null, pinSalt: null, mustChangePin: true } : m)) }, 'pin_reset_by_admin', target?.name),
-      )
-      return { ok: true }
-    },
-    [currentMember, snapshot.members, updateSnapshot],
-  )
+  /**
+   * PINs are now device-local secrets (devicePairing.ts) — an admin on
+   * workspace A's dashboard has no way to reach into a teammate's browser's
+   * localStorage the way the original single-device build could reset an
+   * in-memory record directly. There is no remote equivalent yet; surfacing
+   * this clearly beats silently no-op-ing.
+   */
+  const resetMemberPin = useCallback((_id: string): ActionResult => {
+    return { ok: false, error: 'PINs are set per-device now — ask them to use "Forgot PIN" on their own device instead.' }
+  }, [])
 
   const createWorkspace = useCallback(
-    (name: string): ActionResult => {
+    async (name: string): Promise<ActionResult> => {
       const trimmed = name.trim()
       if (!trimmed) return { ok: false, error: 'Workspace name is required.' }
-      if (snapshot.workspaces.some((w) => w.name.trim().toLowerCase() === trimmed.toLowerCase())) {
-        return { ok: false, error: 'A workspace with this name already exists on this device.' }
+      if (!session) return { ok: false, error: 'Not signed in.' }
+      try {
+        const workspaceId = unwrapRpc<string>(await client().rpc('create_workspace', { p_workspace_name: trimmed, p_member_name: currentMember?.name ?? 'Owner', p_contact_email: session.user.email ?? null }))
+        setWorkspaces((prev) => [...prev, { id: workspaceId, name: trimmed, createdAt: new Date().toISOString() }])
+        return { ok: true, id: workspaceId }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : 'Could not create workspace.' }
       }
-      const now = new Date().toISOString()
-      const workspaceId = randomId()
-      const memberId = randomId()
-      const owner: MemberRecord = {
-        id: memberId,
-        name: currentMember?.name ?? 'Owner',
-        contact: currentMember?.contact ?? '',
-        role: 'owner',
-        status: 'active',
-        pinHash: null,
-        pinSalt: null,
-        // Same person, same login — carry their existing password credential
-        // over to the new workspace's owner record rather than leaving it
-        // unset (which would make "Log In" unable to find this workspace).
-        passwordHash: currentMember?.passwordHash ?? null,
-        passwordSalt: currentMember?.passwordSalt ?? null,
-        pinDeviceId: null,
-        webauthnCredentialId: null,
-        mustChangePin: true,
-        createdAt: now,
-        lastLoginAt: null,
-        lastActiveAt: null,
-      }
-      const workspace: WorkspaceRecord = { id: workspaceId, name: trimmed, createdAt: now, memberIds: [memberId] }
-      updateSnapshot((prev) =>
-        withAudit(
-          { ...prev, workspaces: [...prev.workspaces, workspace], members: [...prev.members, owner], currentWorkspaceId: workspaceId, currentMemberId: memberId, failedPinAttempts: 0, lockedUntil: null },
-          'workspace_created',
-          trimmed,
-        ),
-      )
-      setStatus('locked')
-      return { ok: true, id: workspaceId }
     },
-    [snapshot.workspaces, currentMember, updateSnapshot],
+    [session, currentMember],
   )
 
   const switchWorkspace = useCallback(
-    (id: string) => {
-      const workspace = snapshot.workspaces.find((w) => w.id === id)
-      if (!workspace) return
-      const active = workspace.memberIds.map((mid) => snapshot.members.find((m) => m.id === mid)).filter((m): m is MemberRecord => Boolean(m) && m!.status === 'active')
-      updateSnapshot((prev) =>
-        withAudit({ ...prev, currentWorkspaceId: id, currentMemberId: active.length === 1 ? active[0]!.id : null, failedPinAttempts: 0, lockedUntil: null }, 'workspace_switched', workspace.name),
-      )
-      setStatus('locked')
+    async (id: string) => {
+      if (!session) return
+      setLastWorkspaceId(id)
+      await hydrateFromSession(session)
     },
-    [snapshot.workspaces, snapshot.members, updateSnapshot],
+    [session, hydrateFromSession],
   )
 
   const renameWorkspace = useCallback(
-    (name: string) => {
+    async (name: string) => {
       const trimmed = name.trim()
-      if (!trimmed) return
-      updateSnapshot((prev) => withAudit({ ...prev, workspaces: prev.workspaces.map((w) => (w.id === prev.currentWorkspaceId ? { ...w, name: trimmed } : w)) }, 'workspace_renamed', trimmed))
+      if (!trimmed || !currentWorkspace) return
+      unwrapRpc(await client().from('workspaces').update({ name: trimmed }).eq('id', currentWorkspace.id))
+      setCurrentWorkspaceState({ ...currentWorkspace, name: trimmed })
+      setWorkspaces((prev) => prev.map((w) => (w.id === currentWorkspace.id ? { ...w, name: trimmed } : w)))
     },
-    [updateSnapshot],
+    [currentWorkspace],
   )
 
   // Auto-lock on inactivity — only while genuinely unlocked, and only if enabled (0 = never).
   useEffect(() => {
-    if (status !== 'unlocked' || snapshot.security.autoLockMinutes <= 0) return
+    if (status !== 'unlocked' || security.autoLockMinutes <= 0) return
     let timer: ReturnType<typeof setTimeout>
     const reset = () => {
       clearTimeout(timer)
-      timer = setTimeout(() => {
-        updateSnapshot((prev) => withAudit(prev, 'auto_locked'))
-        setStatus('locked')
-      }, snapshot.security.autoLockMinutes * 60_000)
+      timer = setTimeout(() => setStatus('locked'), security.autoLockMinutes * 60_000)
     }
     const events: (keyof WindowEventMap)[] = ['pointerdown', 'keydown', 'wheel', 'touchstart']
     events.forEach((e) => window.addEventListener(e, reset))
@@ -554,24 +583,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearTimeout(timer)
       events.forEach((e) => window.removeEventListener(e, reset))
     }
-  }, [status, snapshot.security.autoLockMinutes, updateSnapshot])
-
-  // Absolute session cap since last unlock, independent of activity.
-  useEffect(() => {
-    if (status !== 'unlocked' || !snapshot.unlockedAt || snapshot.security.sessionTimeoutMinutes <= 0) return
-    const deadline = new Date(snapshot.unlockedAt).getTime() + snapshot.security.sessionTimeoutMinutes * 60_000
-    const remaining = deadline - Date.now()
-    const expire = () => {
-      updateSnapshot((prev) => withAudit(prev, 'session_timeout'))
-      setStatus('locked')
-    }
-    if (remaining <= 0) {
-      expire()
-      return
-    }
-    const timer = setTimeout(expire, remaining)
-    return () => clearTimeout(timer)
-  }, [status, snapshot.unlockedAt, snapshot.security.sessionTimeoutMinutes, updateSnapshot])
+  }, [status, security.autoLockMinutes])
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -581,15 +593,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       currentWorkspace,
       workspaceMembers,
       activeWorkspaceMembers,
-      workspaces: snapshot.workspaces,
+      workspaces,
       auditLog,
-      security: snapshot.security,
-      deviceId: snapshot.deviceId,
-      hasBiometrics: currentMember?.webauthnCredentialId != null,
+      security,
+      deviceId: getDeviceId(),
+      hasBiometrics: currentMember ? Boolean(getDevicePin(currentMember.id)?.webauthnCredentialId) : false,
       platformAuthAvailable,
-      mustChangePin: currentMember?.mustChangePin ?? false,
-      failedPinAttempts: snapshot.failedPinAttempts,
-      lockedUntil: snapshot.lockedUntil,
+      mustChangePin,
+      failedPinAttempts,
+      lockedUntil,
+      loading,
       completeOnboarding,
       logInWithPassword,
       verifyPin,
@@ -606,7 +619,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAutoLockMinutes,
       setSessionTimeoutMinutes,
       setDesktopNotifications,
-      switchUser,
       addMember,
       disableMember,
       reactivateMember,
@@ -618,48 +630,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       renameWorkspace,
     }),
     [
-      status,
-      currentMember,
-      currentWorkspace,
-      workspaceMembers,
-      activeWorkspaceMembers,
-      snapshot.workspaces,
-      auditLog,
-      snapshot.security,
-      snapshot.deviceId,
-      platformAuthAvailable,
-      snapshot.failedPinAttempts,
-      snapshot.lockedUntil,
-      completeOnboarding,
-      logInWithPassword,
-      verifyPin,
-      verifyBiometrics,
-      completeForcedPinChange,
-      unlock,
-      lock,
-      logout,
-      resetDevice,
-      changePin,
-      enableBiometrics,
-      disableBiometrics,
-      updateProfile,
-      setAutoLockMinutes,
-      setSessionTimeoutMinutes,
-      setDesktopNotifications,
-      switchUser,
-      addMember,
-      disableMember,
-      reactivateMember,
-      changeMemberRole,
-      removeMember,
-      resetMemberPin,
-      createWorkspace,
-      switchWorkspace,
-      renameWorkspace,
+      status, currentMember, currentWorkspace, workspaceMembers, activeWorkspaceMembers, workspaces, auditLog, security,
+      platformAuthAvailable, mustChangePin, failedPinAttempts, lockedUntil, loading, completeOnboarding, logInWithPassword,
+      verifyPin, verifyBiometrics, completeForcedPinChange, unlock, lock, logout, resetDevice, changePin, enableBiometrics,
+      disableBiometrics, updateProfile, setAutoLockMinutes, setSessionTimeoutMinutes, setDesktopNotifications, addMember,
+      disableMember, reactivateMember, changeMemberRole, removeMember, resetMemberPin, createWorkspace, switchWorkspace, renameWorkspace,
     ],
   )
 
+  if (loading) return null
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+}
+
+function unwrapRpc<T = void>({ data, error }: { data: T | null; error: { message: string } | null }): T {
+  if (error) throw new Error(error.message)
+  return data as T
 }
 
 export function useAuth() {

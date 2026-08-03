@@ -3,16 +3,13 @@ import { motion } from 'framer-motion'
 import { Fingerprint, ArrowLeftRight, KeyRound } from 'lucide-react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
 import { Logo } from '@/components/brand/Logo'
-import { initials, cn } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import { useAuth } from './AuthContext'
 import { AuthShowcasePanel } from './AuthShowcasePanel'
 import { PinPad } from './PinPad'
 import { AuthScreenHeader } from './AuthScreenHeader'
 import { LogInWithEmailForm } from './LogInWithEmailForm'
-import { ROLE_LABEL } from './roles'
 import { PREMIUM_EASE } from './authTheme'
 
 const PIN_LENGTH = 4
@@ -51,7 +48,6 @@ export function LoginScreen() {
     unlock,
     resetDevice,
     logout,
-    switchUser,
     completeForcedPinChange,
     hasBiometrics,
     platformAuthAvailable,
@@ -76,17 +72,16 @@ export function LoginScreen() {
   const canUseBiometrics = hasBiometrics && platformAuthAvailable
   const lockoutSecondsLeft = useLockoutCountdown(lockedUntil)
   const isLockedOut = lockoutSecondsLeft > 0
-  const showPicker = !currentMember && activeWorkspaceMembers.length > 0 && !showEmailLogin
   const showSetNewPin = Boolean(currentMember) && mustChangePin
   const paneRef = useRef<HTMLDivElement>(null)
 
-  // The picker / set-new-PIN / enter-PIN / email-login states can differ in
-  // height — keep whichever one is showing anchored to the top of its pane
-  // instead of leaving scroll wherever a previous state left it (the page
-  // itself never scrolls now, but the pane can on very short viewports).
+  // The set-new-PIN / enter-PIN / email-login states can differ in height —
+  // keep whichever one is showing anchored to the top of its pane instead of
+  // leaving scroll wherever a previous state left it (the page itself never
+  // scrolls now, but the pane can on very short viewports).
   useEffect(() => {
     paneRef.current?.scrollTo(0, 0)
-  }, [showPicker, showSetNewPin, showEmailLogin])
+  }, [showSetNewPin, showEmailLogin])
 
   const handleEmailLoginSuccess = (needsNewPin: boolean) => {
     setShowEmailLogin(false)
@@ -180,29 +175,7 @@ export function LoginScreen() {
           animate={unlocking ? { opacity: 0, y: 0, scale: 0.98 } : { opacity: 1, y: 0, scale: 1 }}
           transition={unlocking ? { duration: 0.35, ease: PREMIUM_EASE } : { duration: 0.5, ease: PREMIUM_EASE }}
         >
-          {showPicker ? (
-            <div className="flex flex-col items-center gap-5 sm:gap-7">
-              <AuthScreenHeader title="Who's Signing In?" subtitle="Choose your account to continue." />
-              <div className="flex w-full flex-col gap-2">
-                {activeWorkspaceMembers.map((member) => (
-                  <button
-                    key={member.id}
-                    type="button"
-                    onClick={() => switchUser(member.id)}
-                    className="flex items-center gap-3 rounded-xl border border-slate-200/80 bg-slate-50/60 px-4 py-3 text-left transition-colors hover:border-teal-400/50 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 dark:border-white/10 dark:bg-white/[0.03] dark:hover:bg-teal-400/[0.08]"
-                  >
-                    <Avatar className="h-9 w-9">
-                      <AvatarFallback className="text-xs">{initials(member.name)}</AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">{member.name}</p>
-                    </div>
-                    <Badge variant="secondary">{ROLE_LABEL[member.role]}</Badge>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : showSetNewPin ? (
+          {showSetNewPin ? (
             <div className="flex flex-col items-center gap-5 sm:gap-7">
               <AuthScreenHeader
                 title={newPinPhase === 'create' ? 'Set a New PIN' : 'Confirm Your New PIN'}

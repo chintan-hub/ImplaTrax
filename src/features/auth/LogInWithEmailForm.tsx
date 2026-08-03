@@ -10,11 +10,7 @@ import { AUTH_INPUT_CLASS, CTA_BUTTON_CLASS } from './authTheme'
 /**
  * The "existing user" half of the entry screen — shared between the
  * onboarding welcome step and LoginScreen's "Log in with email instead"
- * fallback, so the two never drift out of sync. There is no backend yet:
- * `logInWithPassword` can only match an account that was created on THIS
- * device (see AuthContext.tsx), so a fresh browser will always come back
- * "not found" here — that's expected until Supabase sync lands, and the
- * error message says so honestly rather than pretending otherwise.
+ * fallback, so the two never drift out of sync.
  */
 export function LogInWithEmailForm({ onSuccess }: { onSuccess: (needsNewPin: boolean) => void }) {
   const { logInWithPassword } = useAuth()
@@ -31,8 +27,12 @@ export function LogInWithEmailForm({ onSuccess }: { onSuccess: (needsNewPin: boo
     setBusy(true)
     const result = await logInWithPassword(email, password)
     setBusy(false)
-    if (!result.ok) {
+    if (result.ok === false) {
       setError(result.error)
+      return
+    }
+    if (result.ok === 'pending-confirmation') {
+      setError('Check your email to confirm your account, then log in.')
       return
     }
     setRememberedEmail(remember ? email.trim() : null)
