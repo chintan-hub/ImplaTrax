@@ -26,14 +26,15 @@ import { LoanReturnsPage } from '@/pages/loan-returns/LoanReturnsPage'
 import { BatchesPage } from '@/pages/batches/BatchesPage'
 import { ReportsPage } from '@/pages/reports/ReportsPage'
 import { SettingsPage } from '@/pages/settings/SettingsPage'
+import { ManualPage } from '@/pages/manual/ManualPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 
 function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <DataProvider>
-          <AuthProvider>
+        <AuthProvider>
+          <DataProvider>
             <AuthGate>
               <Routes>
                 <Route element={<AppLayout />}>
@@ -58,12 +59,13 @@ function App() {
                   <Route path="/batches" element={<BatchesPage />} />
                   <Route path="/reports" element={<ReportsPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/manual" element={<ManualPage />} />
                   <Route path="*" element={<NotFoundPage />} />
                 </Route>
               </Routes>
             </AuthGate>
-          </AuthProvider>
-        </DataProvider>
+          </DataProvider>
+        </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>
   )

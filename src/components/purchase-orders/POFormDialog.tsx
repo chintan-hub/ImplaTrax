@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label'
 import { Combobox } from '@/components/ui/combobox'
 import { useData } from '@/store/DataContext'
 import { MICROCOPY } from '@/content/helpText'
-import { simulateLatency } from '@/lib/utils'
 import { productComboboxOptions } from '@/lib/productOptions'
 
 interface Line {
@@ -58,9 +57,8 @@ export function POFormDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       return
     }
     setSubmitting(true)
-    await simulateLatency()
     try {
-      const po = createPurchaseOrder(vendorId, lines, new Date(eta).toISOString())
+      const po = await createPurchaseOrder(vendorId, lines, new Date(eta).toISOString())
       toast.success(`Purchase order ${po.poNumber} created`, { description: 'Saved as draft.' })
       reset()
       onOpenChange(false)

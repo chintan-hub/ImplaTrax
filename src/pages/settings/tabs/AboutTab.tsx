@@ -1,13 +1,17 @@
-import { Info, Languages, Database } from 'lucide-react'
+import { useState } from 'react'
+import { Info, Languages, Database, BookOpen } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Logo } from '@/components/brand/Logo'
+import { ManualDownloadButton } from '@/components/manual/ManualDownloadButton'
+import { UserGuideModal } from '@/components/manual/UserGuideModal'
 import { BRAND } from '@/content/helpText'
 
 const APP_VERSION = '2.0.0'
 
 export function AboutTab() {
+  const [guideOpen, setGuideOpen] = useState(false)
   return (
     <div className="space-y-6">
       <Card>
@@ -22,6 +26,23 @@ export function AboutTab() {
           <p className="text-sm text-muted-foreground">Version {APP_VERSION} · Runs entirely on this device</p>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-1.5">
+            <BookOpen className="h-4 w-4" /> User Manual
+          </CardTitle>
+          <CardDescription>The complete, searchable ImplaTrax user guide — every module, workflow, and business rule, in one PDF</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => setGuideOpen(true)}>
+            View User Manual
+          </Button>
+          <ManualDownloadButton variant="outline" />
+        </CardContent>
+      </Card>
+
+      <UserGuideModal open={guideOpen} onOpenChange={setGuideOpen} />
 
       <Card>
         <CardHeader>

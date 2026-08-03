@@ -74,8 +74,9 @@ function clearDraft() {
 }
 
 export function OnboardingFlow() {
-  const { completeOnboarding } = useAuth()
+  const { completeOnboarding, startDemoWorkspace } = useAuth()
   const { updateClinicSettings } = useData()
+  const [startingDemo, setStartingDemo] = useState(false)
   const initialDraft = useRef(loadDraft()).current
   // A draft with any data means the wizard was interrupted mid-way — land
   // straight back on the account step, already filled in, instead of
@@ -163,12 +164,26 @@ export function OnboardingFlow() {
     setFinishing(true)
     try {
       await completeOnboarding({ workspaceName: workspaceName.trim(), name: name.trim(), contact: email.trim(), password, pin: createdPin, enableBiometrics })
-      updateClinicSettings({ clinicName: companyName.trim() || workspaceName.trim(), country, currency, logoDataUrl })
+      await updateClinicSettings({ clinicName: companyName.trim() || workspaceName.trim(), country, currency, logoDataUrl })
       clearDraft()
     } catch {
       toast.error('Something went wrong finishing setup', { description: 'Please try again.' })
       setFinishing(false)
     }
+  }
+
+  const handleTryDemo = async () => {
+    setStartingDemo(true)
+    const result = await startDemoWorkspace()
+    if (!result.ok) {
+      toast.error('Could not start the demo', { description: result.error })
+      setStartingDemo(false)
+      return
+    }
+    toast.success('Demo workspace ready', {
+      description: `Pre-loaded with sample products, patients, and cases to explore. Your device PIN is ${result.pin} if you need to unlock again.`,
+      duration: 15000,
+    })
   }
 
   return (
@@ -184,12 +199,17 @@ export function OnboardingFlow() {
               <motion.div key="welcome" {...STEP_TRANSITION} className="flex flex-col items-center gap-6 sm:gap-11">
                 <AuthScreenHeader title="Welcome to ImplaTrax" subtitle="Let's get your workspace set up." />
                 <div className="flex w-full flex-col gap-3">
-                  <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} onClick={() => setStep('account')}>
+                  <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} onClick={() => setStep('account')} disabled={startingDemo}>
                     Create Workspace
                   </Button>
+                  <Button size="lg" variant="outline" className="w-full" onClick={handleTryDemo} loading={startingDemo}>
+                    Try Demo Instead
+                  </Button>
+                  <p className="text-center text-xs text-muted-foreground">Instantly explore a workspace pre-loaded with sample data — nothing here affects a real account.</p>
                   <button
                     type="button"
                     onClick={() => setShowLogIn(true)}
+                    disabled={startingDemo}
                     className="rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   >
                     Already have a workspace? Log in

@@ -34,6 +34,7 @@ export type AuditAction =
   | 'purchase_order_created' | 'purchase_order_submitted' | 'purchase_order_confirmed'
   | 'purchase_order_received' | 'purchase_order_cancelled'
   | 'case_created' | 'case_status_changed' | 'sale_created' | 'loan_created' | 'loan_returned'
+  | 'workspace_data_wiped'
 export type NotificationType = 'low_stock' | 'po_status' | 'loan_status' | 'sale_created' | 'case_status' | 'system'
 
 /** Row has every column; Insert makes has-a-default/nullable columns optional; Update makes everything optional. */
@@ -191,8 +192,9 @@ export interface Database {
           // this column in migration 0008).
           id: string; workspace_id: string; sale_number: string; patient_id: string; case_id: string | null
           total: number; sold_by: string | null; photo_urls: string[]; created_at: string
+          voided_at: string | null; void_reason: string | null
         },
-        'id' | 'case_id' | 'total' | 'sold_by' | 'photo_urls' | 'created_at'
+        'id' | 'case_id' | 'total' | 'sold_by' | 'photo_urls' | 'created_at' | 'voided_at' | 'void_reason'
       >
       sale_lines: Table<
         { id: string; workspace_id: string; sale_id: string; product_id: string; quantity: number; unit_price: number; batch_lot: string | null },
@@ -245,7 +247,7 @@ export interface Database {
         }
         Returns: string
       }
-      receive_purchase_order: { Args: { p_po_id: string; p_lines?: Json | null }; Returns: void }
+      receive_purchase_order: { Args: { p_po_id: string; p_lines?: Json | null; p_photo_urls?: string[] | null }; Returns: void }
       create_sale: {
         Args: { p_workspace_id: string; p_sale_number: string; p_lines: Json; p_patient_id: string; p_case_id?: string | null }
         Returns: string
@@ -262,6 +264,15 @@ export interface Database {
         Returns: string
       }
       return_loan_lines: { Args: { p_loan_id: string; p_returns: Json }; Returns: void }
+      void_sale: { Args: { p_sale_id: string; p_reason: string }; Returns: void }
+      create_purchase_order: {
+        Args: { p_workspace_id: string; p_po_number: string; p_vendor_id: string; p_eta: string; p_lines: Json; p_notes?: string | null }
+        Returns: string
+      }
+      submit_purchase_order: { Args: { p_po_id: string }; Returns: void }
+      cancel_purchase_order: { Args: { p_po_id: string }; Returns: void }
+      attach_po_photo: { Args: { p_po_id: string; p_photo_url: string | null }; Returns: void }
+      wipe_workspace_data: { Args: { p_workspace_id: string }; Returns: void }
     }
     Enums: {
       account_role: AccountRole

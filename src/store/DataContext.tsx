@@ -4,84 +4,53 @@ import type {
   ProductBatch,
   InventoryMovement,
   PurchaseOrder,
-  PurchaseOrderEvent,
   Vendor,
   Doctor,
   Patient,
   Case,
   CaseStatus,
   CaseImplantUsage,
-  CaseTimelineEvent,
   Lab,
   Sale,
   SaleLine,
   Loan,
-  LoanEvent,
   ClinicSettings,
-  MovementType,
-  POStatus,
 } from '@/types'
 import * as mock from '@/mocks'
-import { getCurrentActor } from './currentActor'
-import { nextInternalId, createSequence, createTimestampIdGenerator, getInternalIdCounter, restoreInternalIdCounter } from '@/lib/idGenerator'
+import { useAuth } from '@/features/auth/AuthContext'
 import { canSubmitPO, canReceivePO, canCancelPO } from '@/lib/poWorkflow'
 import { canAdvanceCaseStatus } from '@/lib/caseWorkflow'
 import { canReturnLoan } from '@/lib/loanWorkflow'
-import { loadPersistedSnapshot, savePersistedSnapshot } from './persistence'
-
-// Loaded once at module scope — the same evaluation-order guarantee the
-// sequence generators below already relied on for mock data. Restoring the
-// ID counter here, before any nextInternalId() call in this session, is what
-// keeps freshly-generated IDs from colliding with previously-persisted ones.
-const persisted = loadPersistedSnapshot()
-if (persisted) restoreInternalIdCounter(persisted.internalIdCounter)
-
-/**
- * Demo/seed data (everything under src/mocks/) exists purely so local
- * development, tests, and design review are never staring at an empty app —
- * it must never reach a real customer. A production build (`vite build`,
- * what actually gets deployed) always starts from a genuinely empty
- * workspace; the dev server and Vitest (both `import.meta.env.PROD ===
- * false`) keep the rich seed data, so this file's own test suite and local
- * `npm run dev` are completely unaffected by this gate.
- */
-const SEED = import.meta.env.PROD
-  ? {
-      products: [] as Product[],
-      inventoryMovements: [] as InventoryMovement[],
-      purchaseOrders: [] as PurchaseOrder[],
-      vendors: [] as Vendor[],
-      patients: [] as Patient[],
-      cases: [] as Case[],
-      labs: [] as Lab[],
-      sales: [] as Sale[],
-      loans: [] as Loan[],
-      batches: [] as ProductBatch[],
-      doctors: [] as Doctor[],
-      defaultClinicSettings: mock.emptyClinicSettings,
-    }
-  : mock
+import {
+  fetchProducts, insertProduct, bulkInsertProducts, updateProductRow, fetchProductBatches,
+  fetchMovements, adjustStockRpc,
+  fetchVendors, insertVendor, updateVendorRow,
+  fetchPurchaseOrders, createPurchaseOrderRpc, submitPurchaseOrderRpc, cancelPurchaseOrderRpc, attachPoPhotoRpc, receivePurchaseOrderRpc,
+  fetchDoctors, insertDoctor, updateDoctorActive,
+  fetchPatients, insertPatient, updatePatientRow,
+  fetchCases, insertCase, advanceCaseStatusRow, addImplantToCaseRpc,
+  fetchLabs, insertLab, updateLabRow,
+  fetchSales, createSaleRpc, voidSaleRpc,
+  fetchLoans, createLoanRpc, returnLoanLinesRpc,
+  fetchClinicSettings, updateClinicSettingsRow,
+  nextSaleNumber, nextLoanNumber, nextCaseNumber, nextPoNumber,
+  wipeWorkspaceDataRpc,
+} from '@/lib/supabase/queries'
 
 /**
  * Business-rule validation lives here, in the action functions, not just in
- * the calling UI dialogs — this is the integration seam a future backend
- * will replace (see ARCHITECTURE.md §6.2/§8.2). Convention: a violated rule
- * throws a plain Error with a user-facing message. Every current UI caller
- * already prevents these inputs from reaching this layer, so this is a
- * backstop, not a new user-facing validation path.
+ * the calling UI dialogs — every RPC these actions call re-validates the
+ * same rules server-side (the actual source of truth now), so these checks
+ * are a fast first line of defense against an obviously-invalid submission,
+ * not the last one. Convention: a violated rule throws a plain Error with a
+ * user-facing message.
  */
 class BusinessRuleError extends Error {}
-
-function pad(n: number, width: number) {
-  return String(n).padStart(width, '0')
-}
 
 /**
  * Rejects a Sale/Loan submission that would take any product below zero on
  * hand — quantities are summed per product across every line first, since a
- * single submission can list the same product on more than one line
- * (AUDIT.md Executive Summary #2: applyQtyDelta silently floors at zero
- * instead of the transaction being rejected).
+ * single submission can list the same product on more than one line.
  */
 function assertStockAvailable(products: Product[], requests: { productId: string; quantity: number }[]) {
   const requestedByProduct = new Map<string, number>()
@@ -93,53 +62,6 @@ function assertStockAvailable(products: Product[], requests: { productId: string
       throw new BusinessRuleError(`Not enough stock for ${product?.name ?? 'this product'} — only ${available} available, ${requested} requested.`)
     }
   }
-}
-
-/**
- * Tracks quantityOnHand per product across a single multi-line transaction
- * (PO receipt, sale, loan issue/return) so quantityBefore/quantityAfter on
- * each InventoryMovement stay correct even if the same product appears on
- * more than one line in that transaction — reading live `products` state
- * directly for every line would give every line after the first a stale,
- * pre-transaction "before" value (P1-N, locked 2026-07-29).
- */
-function makeQtyTracker(products: Product[]) {
-  const running = new Map<string, number>(products.map((p) => [p.id, p.quantityOnHand]))
-  return (productId: string, delta: number) => {
-    const before = running.get(productId) ?? 0
-    const after = Math.max(0, before + delta)
-    running.set(productId, after)
-    return { before, after }
-  }
-}
-
-// Human-readable sequence numbers (PO/loan/sale numbers, patient codes, Case
-// IDs) — independent of live array length, seeded once from whichever data
-// this session actually starts from: a persisted snapshot's array lengths if
-// one exists, otherwise the mock seed counts (see src/lib/idGenerator.ts and
-// ARCHITECTURE.md §6.3). Using the persisted length is safe because nothing
-// in this app deletes records — array length and highest-assigned sequence
-// number always match.
-const nextProductSeq = createSequence((persisted?.products.length ?? SEED.products.length) + 1)
-const nextLoanSeq = createSequence((persisted?.loans.length ?? SEED.loans.length) + 1)
-const nextSaleSeq = createSequence((persisted?.sales.length ?? SEED.sales.length) + 1)
-const nextPatientSeq = createSequence((persisted?.patients.length ?? SEED.patients.length) + 1)
-
-// Purchase Order IDs are timestamp-based (YYYYMMDDHHmm), a business rule
-// specific to this entity — see src/lib/idGenerator.ts.
-const nextPoNumber = createTimestampIdGenerator()
-
-// Case IDs reset per calendar year (IDC-YYYY-00001), so each year gets its
-// own counter, lazily created and seeded from how many seeded cases already
-// exist for that year.
-const caseSeqByYear = new Map<number, () => number>()
-function nextCaseSeq(year: number): number {
-  if (!caseSeqByYear.has(year)) {
-    const sourceCases = persisted?.cases ?? SEED.cases
-    const existing = sourceCases.filter((c) => c.caseId.includes(`-${year}-`)).length
-    caseSeqByYear.set(year, createSequence(existing + 1))
-  }
-  return caseSeqByYear.get(year)!()
 }
 
 const CASE_STATUS_EVENT_LABEL: Record<CaseStatus, string> = {
@@ -164,534 +86,381 @@ interface DataContextValue {
   clinicSettings: ClinicSettings
   batches: ProductBatch[]
   doctors: Doctor[]
+  /** True while the initial per-workspace fetch is in flight — every list above is empty until this settles. */
+  loading: boolean
 
-  addMovement: (input: {
-    productId: string
-    type: MovementType
-    quantity: number
-    quantityBefore: number
-    quantityAfter: number
-    reason: string
-    reference?: string
-    note?: string
-    batchLot?: string
-    vendorId?: string
-    labId?: string
-    patientId?: string
-    doctor?: string
-    caseId?: string
-    photoUrls?: string[]
-  }) => void
-  adjustStock: (productId: string, delta: number, reason: string, note?: string) => void
-  addProduct: (input: Omit<Product, 'id' | 'sku' | 'barcode' | 'qrPayload' | 'createdAt' | 'updatedAt'>) => Product
-  updateProduct: (id: string, patch: Partial<Product>) => void
-  importProducts: (inputs: Omit<Product, 'id' | 'sku' | 'barcode' | 'qrPayload' | 'createdAt' | 'updatedAt'>[]) => Product[]
+  adjustStock: (productId: string, delta: number, reason: string, note?: string) => Promise<void>
+  addProduct: (input: Omit<Product, 'id' | 'sku' | 'barcode' | 'qrPayload' | 'createdAt' | 'updatedAt'>) => Promise<Product>
+  updateProduct: (id: string, patch: Partial<Product>) => Promise<void>
+  importProducts: (inputs: Omit<Product, 'id' | 'sku' | 'barcode' | 'qrPayload' | 'createdAt' | 'updatedAt'>[]) => Promise<Product[]>
 
-  createPurchaseOrder: (vendorId: string, lines: { productId: string; quantityOrdered: number; unitCost: number }[], eta: string, notes?: string) => PurchaseOrder
-  submitPurchaseOrder: (poId: string) => void
+  createPurchaseOrder: (vendorId: string, lines: { productId: string; quantityOrdered: number; unitCost: number }[], eta: string, notes?: string) => Promise<PurchaseOrder>
+  submitPurchaseOrder: (poId: string) => Promise<void>
   /**
    * `photoUrls` is mandatory whenever this receipt is partial — i.e. any
    * line's receipt quantity comes in short of what's currently outstanding
-   * for it, whether under-received or skipped entirely. Enforced here (not
-   * just in POReceiveDialog) so the rule holds for every caller, present
-   * and future.
+   * for it, whether under-received or skipped entirely. The receive_purchase_order
+   * RPC (migration 0013) enforces this server-side; the same check here just
+   * gives instant feedback before the round trip.
    */
-  receivePurchaseOrder: (poId: string, receipts: { lineId: string; quantityReceived: number; lotNumber?: string; expiryDate?: string }[], photoUrls?: string[]) => void
-  cancelPurchaseOrder: (poId: string) => void
-  attachPhotoToOrder: (poId: string, photoDataUrl: string | undefined) => void
+  receivePurchaseOrder: (poId: string, receipts: { lineId: string; quantityReceived: number; lotNumber?: string; expiryDate?: string }[], photoUrls?: string[]) => Promise<void>
+  cancelPurchaseOrder: (poId: string) => Promise<void>
+  attachPhotoToOrder: (poId: string, photoDataUrl: string | undefined) => Promise<void>
 
-  createLoan: (labId: string, lines: { productId: string; quantityLoaned: number; batchLot?: string }[], dueDate?: string, notes?: string, photoUrls?: string[]) => Loan
-  returnLoanLines: (loanId: string, returns: { lineId: string; quantityReturned: number; quantityLost: number; lostReason?: string }[], photoUrls?: string[]) => void
+  createLoan: (labId: string, lines: { productId: string; quantityLoaned: number; batchLot?: string }[], dueDate?: string, notes?: string, photoUrls?: string[]) => Promise<Loan>
+  returnLoanLines: (loanId: string, returns: { lineId: string; quantityReturned: number; quantityLost: number; lostReason?: string }[], photoUrls?: string[]) => Promise<void>
 
-  createSale: (lines: SaleLine[], patientId: string, caseId?: string, photoUrls?: string[]) => Sale
-  voidSale: (saleId: string, reason: string) => void
+  createSale: (lines: SaleLine[], patientId: string, caseId?: string, photoUrls?: string[]) => Promise<Sale>
+  voidSale: (saleId: string, reason: string) => Promise<void>
 
-  addPatient: (input: Omit<Patient, 'id' | 'patientCode' | 'createdAt'>) => Patient
-  updatePatient: (id: string, patch: Partial<Patient>) => void
-  addCase: (input: Omit<Case, 'id' | 'caseId' | 'createdAt' | 'implants' | 'history'> & { implants?: Case['implants'] }) => Case
-  advanceCaseStatus: (caseId: string, status: CaseStatus) => void
-  addImplantToCase: (caseId: string, usage: CaseImplantUsage) => void
-  addLab: (input: Omit<Lab, 'id' | 'createdAt'>) => Lab
-  updateLab: (id: string, patch: Partial<Lab>) => void
-  addVendor: (input: Omit<Vendor, 'id' | 'createdAt' | 'totalOrders' | 'onTimeRate'>) => Vendor
-  updateVendor: (id: string, patch: Partial<Vendor>) => void
-  updateClinicSettings: (patch: Partial<ClinicSettings>) => void
-  addDoctor: (input: { name: string; active?: boolean }) => Doctor
-  setDoctorActive: (id: string, active: boolean) => void
+  addPatient: (input: Omit<Patient, 'id' | 'patientCode' | 'createdAt'>) => Promise<Patient>
+  updatePatient: (id: string, patch: Partial<Patient>) => Promise<void>
+  addCase: (input: Omit<Case, 'id' | 'caseId' | 'createdAt' | 'implants' | 'history'> & { implants?: Case['implants'] }) => Promise<Case>
+  advanceCaseStatus: (caseId: string, status: CaseStatus) => Promise<void>
+  addImplantToCase: (caseId: string, usage: CaseImplantUsage) => Promise<void>
+  addLab: (input: Omit<Lab, 'id' | 'createdAt'>) => Promise<Lab>
+  updateLab: (id: string, patch: Partial<Lab>) => Promise<void>
+  addVendor: (input: Omit<Vendor, 'id' | 'createdAt' | 'totalOrders' | 'onTimeRate'>) => Promise<Vendor>
+  updateVendor: (id: string, patch: Partial<Vendor>) => Promise<void>
+  updateClinicSettings: (patch: Partial<ClinicSettings>) => Promise<void>
+  addDoctor: (input: { name: string; active?: boolean }) => Promise<Doctor>
+  setDoctorActive: (id: string, active: boolean) => Promise<void>
+
+  /** Settings > Danger Zone — permanently deletes every sale/patient/case/PO/loan/product/vendor/lab/doctor row for the active workspace (server-enforced to workspace managers only). The workspace itself, its members, and its settings are untouched. */
+  wipeWorkspaceData: () => Promise<void>
 }
 
 const DataContext = createContext<DataContextValue | null>(null)
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const [products, setProducts] = useState<Product[]>(persisted?.products ?? SEED.products)
-  const [movements, setMovements] = useState<InventoryMovement[]>(persisted?.movements ?? SEED.inventoryMovements)
-  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(persisted?.purchaseOrders ?? SEED.purchaseOrders)
-  const [vendors, setVendors] = useState<Vendor[]>(persisted?.vendors ?? SEED.vendors)
-  const [patients, setPatients] = useState<Patient[]>(persisted?.patients ?? SEED.patients)
-  const [cases, setCases] = useState<Case[]>(persisted?.cases ?? SEED.cases)
-  const [labs, setLabs] = useState<Lab[]>(persisted?.labs ?? SEED.labs)
-  const [sales, setSales] = useState<Sale[]>(persisted?.sales ?? SEED.sales)
-  const [loans, setLoans] = useState<Loan[]>(persisted?.loans ?? SEED.loans)
-  // Spread over the default rather than using a persisted snapshot as-is —
-  // older snapshots predate fields like country/logoDataUrl, and without
-  // this merge those would come back `undefined` and turn their form
-  // controls uncontrolled.
-  const [clinicSettings, setClinicSettings] = useState<ClinicSettings>({ ...SEED.defaultClinicSettings, ...persisted?.clinicSettings })
-  const [batches, setBatches] = useState<ProductBatch[]>(persisted?.batches ?? SEED.batches)
-  const [doctors, setDoctors] = useState<Doctor[]>(persisted?.doctors ?? SEED.doctors)
+  const { currentWorkspace, currentMember } = useAuth()
+  const workspaceId = currentWorkspace?.id ?? null
+  const actorName = currentMember?.name ?? 'System'
 
-  const addMovement = useCallback<DataContextValue['addMovement']>((input) => {
-    const movement: InventoryMovement = {
-      id: nextInternalId('mv'),
-      performedBy: getCurrentActor().id,
-      createdAt: new Date().toISOString(),
-      ...input,
+  const [products, setProducts] = useState<Product[]>([])
+  const [movements, setMovements] = useState<InventoryMovement[]>([])
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([])
+  const [vendors, setVendors] = useState<Vendor[]>([])
+  const [patients, setPatients] = useState<Patient[]>([])
+  const [cases, setCases] = useState<Case[]>([])
+  const [labs, setLabs] = useState<Lab[]>([])
+  const [sales, setSales] = useState<Sale[]>([])
+  const [loans, setLoans] = useState<Loan[]>([])
+  const [clinicSettings, setClinicSettings] = useState<ClinicSettings>(mock.emptyClinicSettings)
+  const [batches, setBatches] = useState<ProductBatch[]>([])
+  const [doctors, setDoctors] = useState<Doctor[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const refetchProducts = useCallback(async () => {
+    if (!workspaceId) return [] as Product[]
+    const rows = await fetchProducts(workspaceId)
+    setProducts(rows)
+    return rows
+  }, [workspaceId])
+  const refetchMovements = useCallback(async () => {
+    if (!workspaceId) return [] as InventoryMovement[]
+    const rows = await fetchMovements(workspaceId)
+    setMovements(rows)
+    return rows
+  }, [workspaceId])
+  const refetchPurchaseOrders = useCallback(async () => {
+    if (!workspaceId) return [] as PurchaseOrder[]
+    const rows = await fetchPurchaseOrders(workspaceId)
+    setPurchaseOrders(rows)
+    return rows
+  }, [workspaceId])
+  const refetchVendors = useCallback(async () => {
+    if (!workspaceId) return [] as Vendor[]
+    const rows = await fetchVendors(workspaceId)
+    setVendors(rows)
+    return rows
+  }, [workspaceId])
+  const refetchPatients = useCallback(async () => {
+    if (!workspaceId) return [] as Patient[]
+    const rows = await fetchPatients(workspaceId)
+    setPatients(rows)
+    return rows
+  }, [workspaceId])
+  const refetchCases = useCallback(async () => {
+    if (!workspaceId) return [] as Case[]
+    const rows = await fetchCases(workspaceId)
+    setCases(rows)
+    return rows
+  }, [workspaceId])
+  const refetchLabs = useCallback(async () => {
+    if (!workspaceId) return [] as Lab[]
+    const rows = await fetchLabs(workspaceId)
+    setLabs(rows)
+    return rows
+  }, [workspaceId])
+  const refetchSales = useCallback(async () => {
+    if (!workspaceId) return [] as Sale[]
+    const rows = await fetchSales(workspaceId)
+    setSales(rows)
+    return rows
+  }, [workspaceId])
+  const refetchLoans = useCallback(async () => {
+    if (!workspaceId) return [] as Loan[]
+    const rows = await fetchLoans(workspaceId)
+    setLoans(rows)
+    return rows
+  }, [workspaceId])
+  const refetchClinicSettings = useCallback(async () => {
+    if (!workspaceId) return mock.emptyClinicSettings
+    const row = await fetchClinicSettings(workspaceId)
+    setClinicSettings(row)
+    return row
+  }, [workspaceId])
+  const refetchBatches = useCallback(async () => {
+    if (!workspaceId) return [] as ProductBatch[]
+    const rows = await fetchProductBatches(workspaceId)
+    setBatches(rows)
+    return rows
+  }, [workspaceId])
+  const refetchDoctors = useCallback(async () => {
+    if (!workspaceId) return [] as Doctor[]
+    const rows = await fetchDoctors(workspaceId)
+    setDoctors(rows)
+    return rows
+  }, [workspaceId])
+
+  // Loads every workspace-scoped table once per active workspace — there is
+  // no backend push/subscription yet, so every mutating action below
+  // refetches whichever slices it touched instead of relying on this effect
+  // to notice a change.
+  useEffect(() => {
+    let cancelled = false
+    if (!workspaceId) {
+      setProducts([])
+      setMovements([])
+      setPurchaseOrders([])
+      setVendors([])
+      setPatients([])
+      setCases([])
+      setLabs([])
+      setSales([])
+      setLoans([])
+      setClinicSettings(mock.emptyClinicSettings)
+      setBatches([])
+      setDoctors([])
+      setLoading(false)
+      return
     }
-    setMovements((prev) => [movement, ...prev])
-  }, [])
+    setLoading(true)
+    Promise.all([
+      refetchProducts(), refetchMovements(), refetchPurchaseOrders(), refetchVendors(),
+      refetchPatients(), refetchCases(), refetchLabs(), refetchSales(), refetchLoans(),
+      refetchClinicSettings(), refetchBatches(), refetchDoctors(),
+    ]).finally(() => {
+      if (!cancelled) setLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
+    // Every refetch* callback already depends on workspaceId — including
+    // them here would just re-run this identical fetch-all on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId])
 
-  const applyQtyDelta = useCallback((productId: string, delta: number) => {
-    setProducts((prev) => prev.map((p) => (p.id === productId ? { ...p, quantityOnHand: Math.max(0, p.quantityOnHand + delta), updatedAt: new Date().toISOString() } : p)))
-  }, [])
+  const requireWorkspace = useCallback(() => {
+    if (!workspaceId) throw new BusinessRuleError('No active workspace.')
+    return workspaceId
+  }, [workspaceId])
 
   const adjustStock = useCallback(
-    (productId: string, delta: number, reason: string, note?: string) => {
+    async (productId: string, delta: number, reason: string, note?: string) => {
       if (!reason.trim()) throw new BusinessRuleError('A reason is required for manual stock adjustments.')
-      const before = products.find((p) => p.id === productId)?.quantityOnHand ?? 0
-      const after = Math.max(0, before + delta)
-      applyQtyDelta(productId, delta)
-      addMovement({ productId, type: 'adjustment', quantity: delta, quantityBefore: before, quantityAfter: after, reason, note })
+      await adjustStockRpc(productId, delta, reason, note)
+      await Promise.all([refetchProducts(), refetchMovements()])
     },
-    [addMovement, applyQtyDelta, products],
+    [refetchProducts, refetchMovements],
   )
 
-  const addProduct = useCallback<DataContextValue['addProduct']>((input) => {
-    const id = nextInternalId('prd')
-    const now = new Date().toISOString()
-    const seq = nextProductSeq()
-    const product: Product = {
-      ...input,
-      id,
-      sku: `${input.manufacturer.slice(0, 3).toUpperCase()}-${input.system.slice(0, 4).toUpperCase()}-${pad(seq, 3)}`,
-      barcode: `890${pad(2000000 + seq, 9)}`,
-      qrPayload: `IMPD:PRD:${id}`,
-      createdAt: now,
-      updatedAt: now,
-    }
-    setProducts((prev) => [product, ...prev])
-    if (product.quantityOnHand > 0) {
-      addMovement({ productId: id, type: 'inbound', quantity: product.quantityOnHand, quantityBefore: 0, quantityAfter: product.quantityOnHand, reason: 'Initial stock on product creation' })
-    }
-    return product
-  }, [addMovement])
+  const addProduct = useCallback(
+    async (input: Omit<Product, 'id' | 'sku' | 'barcode' | 'qrPayload' | 'createdAt' | 'updatedAt'>) => {
+      const wsId = requireWorkspace()
+      const product = await insertProduct(wsId, input)
+      if (input.quantityOnHand > 0) {
+        await adjustStockRpc(product.id, input.quantityOnHand, 'Initial stock on product creation')
+      }
+      const [rows] = await Promise.all([refetchProducts(), refetchMovements()])
+      return rows.find((p) => p.id === product.id) ?? product
+    },
+    [requireWorkspace, refetchProducts, refetchMovements],
+  )
 
-  const updateProduct = useCallback((id: string, patch: Partial<Product>) => {
-    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch, updatedAt: new Date().toISOString() } : p)))
-  }, [])
+  const updateProduct = useCallback(
+    async (id: string, patch: Partial<Product>) => {
+      await updateProductRow(id, patch)
+      await refetchProducts()
+    },
+    [refetchProducts],
+  )
 
   /**
    * Bulk-import counterpart to addProduct — same SKU/barcode/vendor-match
-   * formula, applied to every row in a single setState call so the whole
-   * batch commits atomically (no product from this import can land while
-   * another silently fails). The caller (ProductImportDialog) has already
-   * validated every row and only ever passes the ones with zero errors —
-   * this function does not re-validate, matching how every other DataContext
-   * action trusts its caller to have applied UI-level validation first.
+   * formula (see queries.ts's buildProductRow), applied to every row in a
+   * single insert so the whole batch commits atomically. The caller
+   * (ProductImportDialog) has already validated every row and only ever
+   * passes the ones with zero errors — this function does not re-validate.
    */
-  const importProducts = useCallback<DataContextValue['importProducts']>((inputs) => {
-    const now = new Date().toISOString()
-    const created: Product[] = inputs.map((input) => {
-      const id = nextInternalId('prd')
-      const seq = nextProductSeq()
-      const vendor = vendors.find((v) => v.manufacturers.includes(input.manufacturer)) ?? vendors[0]
-      return {
-        ...input,
-        id,
-        vendorId: vendor?.id ?? input.vendorId,
-        sku: `${input.manufacturer.slice(0, 3).toUpperCase()}-${input.system.slice(0, 4).toUpperCase()}-${pad(seq, 3)}`,
-        barcode: `890${pad(2000000 + seq, 9)}`,
-        qrPayload: `IMPD:PRD:${id}`,
-        createdAt: now,
-        updatedAt: now,
+  const importProducts = useCallback(
+    async (inputs: Omit<Product, 'id' | 'sku' | 'barcode' | 'qrPayload' | 'createdAt' | 'updatedAt'>[]) => {
+      const wsId = requireWorkspace()
+      const resolved = inputs.map((input) => {
+        const vendor = vendors.find((v) => v.manufacturers.includes(input.manufacturer)) ?? vendors[0]
+        return { ...input, vendorId: vendor?.id ?? input.vendorId }
+      })
+      const created = await bulkInsertProducts(wsId, resolved)
+      await Promise.all(
+        created.map((product, i) => (resolved[i].quantityOnHand > 0 ? adjustStockRpc(product.id, resolved[i].quantityOnHand, 'Initial stock on bulk import') : Promise.resolve())),
+      )
+      const [rows] = await Promise.all([refetchProducts(), refetchMovements()])
+      const createdIds = new Set(created.map((p) => p.id))
+      return rows.filter((p) => createdIds.has(p.id))
+    },
+    [vendors, requireWorkspace, refetchProducts, refetchMovements],
+  )
+
+  const createPurchaseOrder = useCallback(
+    async (vendorId: string, lines: { productId: string; quantityOrdered: number; unitCost: number }[], eta: string, notes?: string) => {
+      const wsId = requireWorkspace()
+      const poNumber = await nextPoNumber(wsId)
+      const poId = await createPurchaseOrderRpc(wsId, poNumber, vendorId, lines, eta, notes)
+      const rows = await refetchPurchaseOrders()
+      const po = rows.find((p) => p.id === poId)
+      if (!po) throw new Error('Purchase order created but could not be reloaded.')
+      return po
+    },
+    [requireWorkspace, refetchPurchaseOrders],
+  )
+
+  const submitPurchaseOrder = useCallback(
+    async (poId: string) => {
+      const po = purchaseOrders.find((p) => p.id === poId)
+      if (!po || !canSubmitPO(po)) throw new BusinessRuleError('Only a draft purchase order can be submitted.')
+      await submitPurchaseOrderRpc(poId)
+      await refetchPurchaseOrders()
+    },
+    [purchaseOrders, refetchPurchaseOrders],
+  )
+
+  const receivePurchaseOrder = useCallback(
+    async (poId: string, receipts: { lineId: string; quantityReceived: number; lotNumber?: string; expiryDate?: string }[], photoUrls?: string[]) => {
+      if (!receipts.some((r) => r.quantityReceived > 0)) {
+        throw new BusinessRuleError('Enter a quantity to receive for at least one line.')
       }
-    })
-    setProducts((prev) => [...created, ...prev])
-    created.forEach((product) => {
-      if (product.quantityOnHand > 0) {
-        addMovement({ productId: product.id, type: 'inbound', quantity: product.quantityOnHand, quantityBefore: 0, quantityAfter: product.quantityOnHand, reason: 'Initial stock on bulk import' })
-      }
-    })
-    return created
-  }, [vendors, addMovement])
+      const po = purchaseOrders.find((p) => p.id === poId)
+      if (!po || !canReceivePO(po)) throw new BusinessRuleError('This purchase order cannot be received in its current status.')
 
-  const poEvent = useCallback((poId: string, label: string, description: string, date: string): PurchaseOrderEvent => {
-    return { id: nextInternalId('poevt'), poId, label, description, date, actor: getCurrentActor().name }
-  }, [])
-
-  // A Purchase Order never changes inventory itself — only receivePurchaseOrder
-  // does, via applyQtyDelta below. createPurchaseOrder/submitPurchaseOrder/
-  // cancelPurchaseOrder only ever touch PO status/history.
-  const createPurchaseOrder = useCallback<DataContextValue['createPurchaseOrder']>((vendorId, lines, eta, notes) => {
-    const id = nextInternalId('po')
-    const now = new Date()
-    const nowIso = now.toISOString()
-    const po: PurchaseOrder = {
-      id,
-      poNumber: nextPoNumber(now),
-      vendorId,
-      status: 'draft',
-      eta,
-      createdAt: nowIso,
-      lines: lines.map((l, i) => ({ id: `${id}_line_${i + 1}`, productId: l.productId, quantityOrdered: l.quantityOrdered, quantityReceived: 0, unitCost: l.unitCost })),
-      notes,
-      history: [poEvent(id, 'Purchase Order Created', `Draft created with ${lines.length} line item(s). Inventory is not affected until items are received.`, nowIso)],
-    }
-    setPurchaseOrders((prev) => [po, ...prev])
-    return po
-  }, [poEvent])
-
-  const submitPurchaseOrder = useCallback((poId: string) => {
-    const po = purchaseOrders.find((p) => p.id === poId)
-    if (!po || !canSubmitPO(po)) throw new BusinessRuleError('Only a draft purchase order can be submitted.')
-    const now = new Date().toISOString()
-    setPurchaseOrders((prev) =>
-      prev.map((p) =>
-        p.id === poId
-          ? { ...p, status: 'submitted' as POStatus, submittedAt: now, history: [...p.history, poEvent(poId, 'Submitted to Vendor', 'Purchase order sent to the vendor.', now)] }
-          : p,
-      ),
-    )
-  }, [purchaseOrders, poEvent])
-
-  const receivePurchaseOrder = useCallback<DataContextValue['receivePurchaseOrder']>((poId, receipts, photoUrls) => {
-    if (!receipts.some((r) => r.quantityReceived > 0)) {
-      throw new BusinessRuleError('Enter a quantity to receive for at least one line.')
-    }
-    const po = purchaseOrders.find((p) => p.id === poId)
-    if (!po || !canReceivePO(po)) throw new BusinessRuleError('This purchase order cannot be received in its current status.')
-
-    // Batch/lot traceability begins here: with tracking on, every received
-    // line needs a lot number captured the moment it enters the business —
-    // this is not gated by Product.batchTracked (PROJECT.md §3 point 5).
-    if (clinicSettings.batchLotTrackingEnabled) {
-      for (const r of receipts) {
-        if (r.quantityReceived <= 0) continue
-        if (!r.lotNumber?.trim()) {
-          const line = po.lines.find((l) => l.id === r.lineId)
-          const product = line ? products.find((p) => p.id === line.productId) : undefined
-          throw new BusinessRuleError(`A lot/batch number is required to receive ${product?.name ?? 'this line'}.`)
+      if (clinicSettings.batchLotTrackingEnabled) {
+        for (const r of receipts) {
+          if (r.quantityReceived <= 0) continue
+          if (!r.lotNumber?.trim()) {
+            const line = po.lines.find((l) => l.id === r.lineId)
+            const product = line ? products.find((p) => p.id === line.productId) : undefined
+            throw new BusinessRuleError(`A lot/batch number is required to receive ${product?.name ?? 'this line'}.`)
+          }
         }
       }
-    }
 
-    // Mandatory Partial Receipt Photo rule (CRITICAL, PROJECT.md §3): a
-    // receipt is "partial" the moment any line's receipt quantity comes in
-    // short of what's currently outstanding for it — whether under-received
-    // this time or skipped entirely. That leaves the order still open, so a
-    // photo of the delivery slip/package is required as evidence of what
-    // actually arrived. A full receipt (every line fully caught up) never
-    // requires one. Enforced here, not just in POReceiveDialog, so it holds
-    // for every caller.
-    const isPartialReceive = po.lines.some((line) => {
-      const remainingQty = line.quantityOrdered - line.quantityReceived
-      const receivingQty = receipts.find((r) => r.lineId === line.id)?.quantityReceived ?? 0
-      return receivingQty < remainingQty
-    })
-    if (isPartialReceive && (!photoUrls || photoUrls.length === 0)) {
-      throw new BusinessRuleError('Please attach at least one photo of the delivery slip or package to document this partial receipt.')
-    }
-
-    const now = new Date().toISOString()
-    const updatedLines = po.lines.map((line) => {
-      const receipt = receipts.find((r) => r.lineId === line.id)
-      if (!receipt) return line
-      return { ...line, quantityReceived: Math.min(line.quantityOrdered, line.quantityReceived + receipt.quantityReceived) }
-    })
-    const fullyReceived = updatedLines.every((l) => l.quantityReceived >= l.quantityOrdered)
-    const anyReceived = updatedLines.some((l) => l.quantityReceived > 0)
-    const status: POStatus = fullyReceived ? 'received' : anyReceived ? 'partially-received' : po.status
-    const receivedThisTime = receipts.reduce((s, r) => s + Math.max(0, r.quantityReceived), 0)
-    const event = fullyReceived
-      ? poEvent(poId, 'Stock Fully Received', 'All ordered quantities have now been received; inventory updated.', now)
-      : poEvent(poId, 'Stock Partially Received', `${receivedThisTime} unit(s) received in this receipt; inventory updated. Order remains open for the rest.`, now)
-
-    setPurchaseOrders((prev) =>
-      prev.map((p) =>
-        p.id === poId
-          ? {
-              ...p,
-              lines: updatedLines,
-              status,
-              receivedAt: fullyReceived ? now : p.receivedAt,
-              history: [...p.history, event],
-              // Append-only, like batches/history — a PO can accumulate
-              // evidence photos across multiple partial receipts over time.
-              photoUrls: photoUrls && photoUrls.length > 0 ? [...(p.photoUrls ?? []), ...photoUrls] : p.photoUrls,
-            }
-          : p,
-      ),
-    )
-    const newBatches: ProductBatch[] = []
-    const track = makeQtyTracker(products)
-    receipts.forEach((r) => {
-      if (r.quantityReceived <= 0) return
-      const line = po.lines.find((l) => l.id === r.lineId)
-      if (!line) return
-      const lotNumber = r.lotNumber?.trim()
-      const { before, after } = track(line.productId, r.quantityReceived)
-      applyQtyDelta(line.productId, r.quantityReceived)
-      addMovement({
-        productId: line.productId,
-        type: 'inbound',
-        quantity: r.quantityReceived,
-        quantityBefore: before,
-        quantityAfter: after,
-        reason: 'Purchase order received',
-        reference: po.poNumber,
-        batchLot: lotNumber,
-        vendorId: po.vendorId,
-        photoUrls,
+      const isPartialReceive = po.lines.some((line) => {
+        const remainingQty = line.quantityOrdered - line.quantityReceived
+        const receivingQty = receipts.find((r) => r.lineId === line.id)?.quantityReceived ?? 0
+        return receivingQty < remainingQty
       })
-      // Batches are append-only, like every other audit trail in this app —
-      // the same lot number received across multiple receipts becomes
-      // multiple ProductBatch records, aggregated by (productId, lotNumber)
-      // wherever they're displayed, never merged/edited in place here.
-      if (lotNumber) {
-        newBatches.push({
-          id: nextInternalId('batch'),
-          productId: line.productId,
-          lotNumber,
-          expiryDate: r.expiryDate || undefined,
-          quantity: r.quantityReceived,
-          receivedAt: now,
-          reference: po.poNumber,
-        })
+      if (isPartialReceive && (!photoUrls || photoUrls.length === 0)) {
+        throw new BusinessRuleError('Please attach at least one photo of the delivery slip or package to document this partial receipt.')
       }
-    })
-    if (newBatches.length > 0) setBatches((prev) => [...newBatches, ...prev])
-  }, [purchaseOrders, products, poEvent, applyQtyDelta, addMovement, clinicSettings])
 
-  const cancelPurchaseOrder = useCallback((poId: string) => {
-    const po = purchaseOrders.find((p) => p.id === poId)
-    if (!po || !canCancelPO(po)) throw new BusinessRuleError('This purchase order can no longer be cancelled.')
-    const now = new Date().toISOString()
-    setPurchaseOrders((prev) =>
-      prev.map((p) =>
-        p.id === poId
-          ? { ...p, status: 'cancelled' as POStatus, history: [...p.history, poEvent(poId, 'Purchase Order Cancelled', 'This purchase order was cancelled and will not be received.', now)] }
-          : p,
-      ),
-    )
-  }, [purchaseOrders, poEvent])
+      await receivePurchaseOrderRpc(poId, receipts, photoUrls)
+      await Promise.all([refetchPurchaseOrders(), refetchProducts(), refetchMovements(), refetchBatches()])
+    },
+    [purchaseOrders, products, clinicSettings, refetchPurchaseOrders, refetchProducts, refetchMovements, refetchBatches],
+  )
 
-  const attachPhotoToOrder = useCallback((poId: string, photoDataUrl: string | undefined) => {
-    const now = new Date().toISOString()
-    setPurchaseOrders((prev) =>
-      prev.map((p) =>
-        p.id === poId
-          ? {
-              ...p,
-              photoDataUrl,
-              history: [
-                ...p.history,
-                poEvent(poId, photoDataUrl ? 'Photo Attached' : 'Photo Removed', photoDataUrl ? 'A reference photo was attached to this purchase order.' : 'The attached photo was removed.', now),
-              ],
-            }
-          : p,
-      ),
-    )
-  }, [poEvent])
+  const cancelPurchaseOrder = useCallback(
+    async (poId: string) => {
+      const po = purchaseOrders.find((p) => p.id === poId)
+      if (!po || !canCancelPO(po)) throw new BusinessRuleError('This purchase order can no longer be cancelled.')
+      await cancelPurchaseOrderRpc(poId)
+      await refetchPurchaseOrders()
+    },
+    [purchaseOrders, refetchPurchaseOrders],
+  )
 
-  const loanEvent = useCallback((loanId: string, label: string, description: string, date: string): LoanEvent => {
-    return { id: nextInternalId('lnevt'), loanId, label, description, date, actor: getCurrentActor().name }
-  }, [])
+  const attachPhotoToOrder = useCallback(
+    async (poId: string, photoDataUrl: string | undefined) => {
+      await attachPoPhotoRpc(poId, photoDataUrl)
+      await refetchPurchaseOrders()
+    },
+    [refetchPurchaseOrders],
+  )
 
-  const createLoan = useCallback<DataContextValue['createLoan']>((labId, lines, dueDate, notes, photoUrls) => {
-    if (!labs.some((l) => l.id === labId)) throw new BusinessRuleError('Loans can only be issued to a lab.')
-    if (lines.length === 0) throw new BusinessRuleError('A loan must include at least one product line.')
-    assertStockAvailable(products, lines.map((l) => ({ productId: l.productId, quantity: l.quantityLoaned })))
-    const id = nextInternalId('ln')
-    const seq = nextLoanSeq()
-    const year = new Date().getFullYear()
-    const now = new Date().toISOString()
-    const loan: Loan = {
-      id,
-      loanNumber: `LN-${year}-${pad(seq, 5)}`,
-      labId,
-      status: 'open',
-      lines: lines.map((l, i) => ({ id: `${id}_line_${i + 1}`, productId: l.productId, quantityLoaned: l.quantityLoaned, quantityReturned: 0, quantityLost: 0, batchLot: l.batchLot })),
-      issuedBy: getCurrentActor().id,
-      issuedAt: now,
-      dueDate,
-      notes,
-      history: [loanEvent(id, 'Loan Issued', `Loan issued with ${lines.length} product line(s).`, now)],
-      photoUrls,
-    }
-    setLoans((prev) => [loan, ...prev])
-    const track = makeQtyTracker(products)
-    lines.forEach((l) => {
-      const { before, after } = track(l.productId, -l.quantityLoaned)
-      applyQtyDelta(l.productId, -l.quantityLoaned)
-      addMovement({
-        productId: l.productId,
-        type: 'loan-out',
-        quantity: -l.quantityLoaned,
-        quantityBefore: before,
-        quantityAfter: after,
-        reason: 'Loan issued to lab',
-        reference: loan.loanNumber,
-        batchLot: l.batchLot,
-        labId,
-        photoUrls,
-      })
-    })
-    return loan
-  }, [labs, products, applyQtyDelta, addMovement, loanEvent])
+  const createLoan = useCallback(
+    async (labId: string, lines: { productId: string; quantityLoaned: number; batchLot?: string }[], dueDate?: string, notes?: string, photoUrls?: string[]) => {
+      const wsId = requireWorkspace()
+      if (!labs.some((l) => l.id === labId)) throw new BusinessRuleError('Loans can only be issued to a lab.')
+      if (lines.length === 0) throw new BusinessRuleError('A loan must include at least one product line.')
+      assertStockAvailable(products, lines.map((l) => ({ productId: l.productId, quantity: l.quantityLoaned })))
+      const loanNumber = await nextLoanNumber(wsId)
+      const loanId = await createLoanRpc(wsId, loanNumber, labId, lines, dueDate, notes)
+      const [rows] = await Promise.all([refetchLoans(), refetchProducts(), refetchMovements()])
+      const loan = rows.find((l) => l.id === loanId)
+      if (!loan) throw new Error('Loan created but could not be reloaded.')
+      void photoUrls // photo evidence for loan issuance is not yet part of create_loan's RPC surface
+      return loan
+    },
+    [labs, products, requireWorkspace, refetchLoans, refetchProducts, refetchMovements],
+  )
 
-  const returnLoanLines = useCallback<DataContextValue['returnLoanLines']>((loanId, returns, photoUrls) => {
-    if (!returns.some((r) => r.quantityReturned > 0 || r.quantityLost > 0)) {
-      throw new BusinessRuleError('Enter a returned or lost quantity for at least one item.')
-    }
-    if (returns.some((r) => r.quantityLost > 0 && !r.lostReason?.trim())) {
-      throw new BusinessRuleError('A reason is required for any lost components.')
-    }
-    const loan = loans.find((l) => l.id === loanId)
-    if (!loan || !canReturnLoan(loan)) throw new BusinessRuleError('This loan has already been closed and can no longer be returned against.')
-
-    const now = new Date().toISOString()
-    const returnedThisTime = returns.reduce((s, r) => s + Math.max(0, r.quantityReturned), 0)
-    const lostThisTime = returns.reduce((s, r) => s + Math.max(0, r.quantityLost), 0)
-
-    setLoans((prev) =>
-      prev.map((l) => {
-        if (l.id !== loanId) return l
-        const lines = l.lines.map((line) => {
-          const r = returns.find((x) => x.lineId === line.id)
-          if (!r) return line
-          return {
-            ...line,
-            quantityReturned: line.quantityReturned + r.quantityReturned,
-            quantityLost: line.quantityLost + r.quantityLost,
-            lostReason: r.lostReason ?? line.lostReason,
-          }
-        })
-        const fullyClosed = lines.every((ln) => ln.quantityReturned + ln.quantityLost >= ln.quantityLoaned)
-        const anyReturned = lines.some((ln) => ln.quantityReturned + ln.quantityLost > 0)
-        const status: Loan['status'] = fullyClosed ? 'closed' : anyReturned ? 'partially-returned' : l.status
-        const event = fullyClosed
-          ? loanEvent(loanId, 'Loan Closed', `${returnedThisTime} returned, ${lostThisTime} lost in this return; all outstanding items are now accounted for.`, now)
-          : loanEvent(loanId, 'Partial Return Recorded', `${returnedThisTime} returned, ${lostThisTime} lost in this return; some items remain outstanding.`, now)
-        return { ...l, lines, status, closedAt: fullyClosed ? now : l.closedAt, history: [...l.history, event] }
-      }),
-    )
-    const track = makeQtyTracker(products)
-    returns.forEach((r) => {
-      const line = loan.lines.find((l) => l.id === r.lineId)
-      if (!line) return
-      // The lot a line returns to is always the same lot it was issued
-      // against — read off the existing LoanLine rather than asking the
-      // user to re-enter it (nothing about a loan return changes which
-      // physical lot the item belongs to).
-      if (r.quantityReturned > 0) {
-        const { before, after } = track(line.productId, r.quantityReturned)
-        applyQtyDelta(line.productId, r.quantityReturned)
-        addMovement({
-          productId: line.productId,
-          type: 'loan-return',
-          quantity: r.quantityReturned,
-          quantityBefore: before,
-          quantityAfter: after,
-          reason: 'Loan components returned by lab',
-          reference: loan.loanNumber,
-          batchLot: line.batchLot,
-          labId: loan.labId,
-          photoUrls,
-        })
+  const returnLoanLines = useCallback(
+    async (loanId: string, returns: { lineId: string; quantityReturned: number; quantityLost: number; lostReason?: string }[], photoUrls?: string[]) => {
+      if (!returns.some((r) => r.quantityReturned > 0 || r.quantityLost > 0)) {
+        throw new BusinessRuleError('Enter a returned or lost quantity for at least one item.')
       }
-      if (r.quantityLost > 0) {
-        // Lost stock was already decremented when the loan was issued
-        // (loan-out) — this movement only records disposition, so it does
-        // not call applyQtyDelta and before === after (quantityOnHand is
-        // unaffected by this event).
-        const { before, after } = track(line.productId, 0)
-        addMovement({
-          productId: line.productId,
-          type: 'lost',
-          quantity: -r.quantityLost,
-          quantityBefore: before,
-          quantityAfter: after,
-          reason: r.lostReason || 'Component lost while on loan',
-          reference: loan.loanNumber,
-          batchLot: line.batchLot,
-          labId: loan.labId,
-          photoUrls,
-        })
+      if (returns.some((r) => r.quantityLost > 0 && !r.lostReason?.trim())) {
+        throw new BusinessRuleError('A reason is required for any lost components.')
       }
-    })
-  }, [loans, products, applyQtyDelta, addMovement, loanEvent])
+      const loan = loans.find((l) => l.id === loanId)
+      if (!loan || !canReturnLoan(loan)) throw new BusinessRuleError('This loan has already been closed and can no longer be returned against.')
+      await returnLoanLinesRpc(loanId, returns)
+      await Promise.all([refetchLoans(), refetchProducts(), refetchMovements()])
+      void photoUrls // photo evidence for loan returns is not yet part of return_loan_lines's RPC surface
+    },
+    [loans, refetchLoans, refetchProducts, refetchMovements],
+  )
 
-  const createSale = useCallback<DataContextValue['createSale']>((lines, patientId, caseId, photoUrls) => {
-    // A Sale represents permanent placement of a component into a patient —
-    // it can never exist without one. Enforced here, not just in the
-    // calling UI, per this file's own convention (see BusinessRuleError's
-    // doc comment above).
-    if (!patientId || !patientId.trim()) throw new BusinessRuleError('A patient is required to record a sale.')
-    if (lines.length === 0) throw new BusinessRuleError('A sale must include at least one product line.')
-    assertStockAvailable(products, lines.map((l) => ({ productId: l.productId, quantity: l.quantity })))
-    const id = nextInternalId('sal')
-    const seq = nextSaleSeq()
-    const year = new Date().getFullYear()
-    const sale: Sale = {
-      id,
-      saleNumber: `SL-${year}-${pad(seq, 5)}`,
-      patientId,
-      caseId,
-      lines,
-      total: lines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0),
-      soldBy: getCurrentActor().id,
-      createdAt: new Date().toISOString(),
-      photoUrls,
-    }
-    setSales((prev) => [sale, ...prev])
-    // Doctor is only ever knowable via a case link — Sale itself has no
-    // doctor field, matching PROJECT.md §3's Doctor decision (a display
-    // string, not a FK, sourced from wherever a Case already carries it).
-    const doctor = caseId ? cases.find((c) => c.id === caseId)?.doctor : undefined
-    const track = makeQtyTracker(products)
-    lines.forEach((l) => {
-      const { before, after } = track(l.productId, -l.quantity)
-      applyQtyDelta(l.productId, -l.quantity)
-      addMovement({
-        productId: l.productId,
-        type: 'sale',
-        quantity: -l.quantity,
-        quantityBefore: before,
-        quantityAfter: after,
-        reason: caseId ? 'Used in patient case' : 'Direct sale',
-        reference: sale.saleNumber,
-        batchLot: l.batchLot,
-        patientId,
-        caseId,
-        doctor,
-        photoUrls,
-      })
-    })
-    return sale
-  }, [products, cases, applyQtyDelta, addMovement])
+  const createSale = useCallback(
+    async (lines: SaleLine[], patientId: string, caseId?: string, photoUrls?: string[]) => {
+      const wsId = requireWorkspace()
+      if (!patientId || !patientId.trim()) throw new BusinessRuleError('A patient is required to record a sale.')
+      if (lines.length === 0) throw new BusinessRuleError('A sale must include at least one product line.')
+      assertStockAvailable(products, lines.map((l) => ({ productId: l.productId, quantity: l.quantity })))
+      const saleNumber = await nextSaleNumber(wsId)
+      const saleId = await createSaleRpc(wsId, saleNumber, lines, patientId, caseId)
+      const [rows] = await Promise.all([refetchSales(), refetchProducts(), refetchMovements()])
+      const sale = rows.find((s) => s.id === saleId)
+      if (!sale) throw new Error('Sale created but could not be reloaded.')
+      void photoUrls // photo evidence for direct sales is not yet part of create_sale's RPC surface
+      return sale
+    },
+    [products, requireWorkspace, refetchSales, refetchProducts, refetchMovements],
+  )
 
-  const addPatient = useCallback<DataContextValue['addPatient']>((input) => {
-    const id = nextInternalId('pat')
-    const patient: Patient = { ...input, id, patientCode: `PT-${pad(1000 + nextPatientSeq(), 5)}`, createdAt: new Date().toISOString() }
-    setPatients((prev) => [patient, ...prev])
-    return patient
-  }, [])
+  const addPatient = useCallback(
+    async (input: Omit<Patient, 'id' | 'patientCode' | 'createdAt'>) => {
+      const wsId = requireWorkspace()
+      const patient = await insertPatient(wsId, input)
+      setPatients((prev) => [patient, ...prev])
+      return patient
+    },
+    [requireWorkspace],
+  )
 
-  const updatePatient = useCallback<DataContextValue['updatePatient']>((id, patch) => {
+  const updatePatient = useCallback(async (id: string, patch: Partial<Patient>) => {
+    await updatePatientRow(id, patch)
     setPatients((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)))
-  }, [])
-
-  const caseEvent = useCallback((caseId: string, label: string, description: string, date: string): CaseTimelineEvent => {
-    return { id: nextInternalId('cseevt'), caseId, label, description, date, actor: getCurrentActor().name }
   }, [])
 
   // The inverse of createSale: restores every line's quantity to stock and
@@ -699,159 +468,126 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // as everything else here). A sale's `total` is left untouched so its
   // original record stays intact; callers must exclude voided sales from
   // revenue sums themselves (sales.filter(s => !s.voidedAt)).
-  const voidSale = useCallback<DataContextValue['voidSale']>((saleId, reason) => {
-    if (!reason.trim()) throw new BusinessRuleError('A reason is required to void a sale.')
-    const sale = sales.find((s) => s.id === saleId)
-    if (!sale) throw new BusinessRuleError('Sale not found.')
-    if (sale.voidedAt) throw new BusinessRuleError('This sale has already been voided.')
+  const voidSale = useCallback(
+    async (saleId: string, reason: string) => {
+      if (!reason.trim()) throw new BusinessRuleError('A reason is required to void a sale.')
+      const sale = sales.find((s) => s.id === saleId)
+      if (!sale) throw new BusinessRuleError('Sale not found.')
+      if (sale.voidedAt) throw new BusinessRuleError('This sale has already been voided.')
+      await voidSaleRpc(saleId, reason)
+      await Promise.all([refetchSales(), refetchProducts(), refetchMovements(), sale.caseId ? refetchCases() : Promise.resolve()])
+    },
+    [sales, refetchSales, refetchProducts, refetchMovements, refetchCases],
+  )
 
-    const track = makeQtyTracker(products)
-    sale.lines.forEach((l) => {
-      const { before, after } = track(l.productId, l.quantity)
-      applyQtyDelta(l.productId, l.quantity)
-      addMovement({
-        productId: l.productId,
-        type: 'adjustment',
-        quantity: l.quantity,
-        quantityBefore: before,
-        quantityAfter: after,
-        reason: `Sale voided: ${reason.trim()}`,
-        reference: sale.saleNumber,
-        batchLot: l.batchLot,
-        patientId: sale.patientId,
-        caseId: sale.caseId,
-      })
-    })
+  const addCase = useCallback(
+    async (input: Omit<Case, 'id' | 'caseId' | 'createdAt' | 'implants' | 'history'> & { implants?: Case['implants'] }) => {
+      const wsId = requireWorkspace()
+      const caseNumber = await nextCaseNumber(wsId)
+      const caseRecord = await insertCase(wsId, caseNumber, input, actorName)
+      setCases((prev) => [caseRecord, ...prev])
+      return caseRecord
+    },
+    [requireWorkspace, actorName],
+  )
 
-    const now = new Date().toISOString()
-    setSales((prev) => prev.map((s) => (s.id === saleId ? { ...s, voidedAt: now, voidReason: reason.trim() } : s)))
-    if (sale.caseId) {
-      setCases((prev) =>
-        prev.map((c) =>
-          c.id === sale.caseId
-            ? { ...c, history: [...c.history, caseEvent(sale.caseId!, 'Sale Voided', `${sale.saleNumber} was voided: ${reason.trim()}. Stock was restored.`, now)] }
-            : c,
-        ),
-      )
-    }
-  }, [sales, products, applyQtyDelta, addMovement, caseEvent])
-
-  const addCase = useCallback<DataContextValue['addCase']>((input) => {
-    const id = nextInternalId('cse')
-    const year = new Date().getFullYear()
-    const now = new Date().toISOString()
-    const caseRecord: Case = {
-      ...input,
-      id,
-      caseId: `IDC-${year}-${pad(nextCaseSeq(year), 5)}`,
-      createdAt: now,
-      implants: input.implants ?? [],
-      history: [caseEvent(id, 'Case Opened', 'Treatment plan created and case opened for patient.', now)],
-    }
-    setCases((prev) => [caseRecord, ...prev])
-    return caseRecord
-  }, [caseEvent])
-
-  const advanceCaseStatus = useCallback<DataContextValue['advanceCaseStatus']>((caseId, status) => {
-    const caseRecord = cases.find((c) => c.id === caseId)
-    if (!caseRecord || !canAdvanceCaseStatus(caseRecord, status)) {
-      throw new BusinessRuleError('This case cannot move to that status from its current status.')
-    }
-    const now = new Date().toISOString()
-    const label = CASE_STATUS_EVENT_LABEL[status]
-    setCases((prev) =>
-      prev.map((c) =>
-        c.id === caseId
-          ? {
-              ...c,
-              status,
-              completedDate: status === 'completed' ? now : c.completedDate,
-              history: [...c.history, caseEvent(caseId, label, `Case status changed to ${label}.`, now)],
-            }
-          : c,
-      ),
-    )
-  }, [cases, caseEvent])
+  const advanceCaseStatus = useCallback(
+    async (caseId: string, status: CaseStatus) => {
+      const caseRecord = cases.find((c) => c.id === caseId)
+      if (!caseRecord || !canAdvanceCaseStatus(caseRecord, status)) {
+        throw new BusinessRuleError('This case cannot move to that status from its current status.')
+      }
+      await advanceCaseStatusRow(caseId, status, CASE_STATUS_EVENT_LABEL[status], actorName)
+      await refetchCases()
+    },
+    [cases, actorName, refetchCases],
+  )
 
   // Placing an implant is a real stock-affecting event, not just a case
-  // note: it must deduct inventory, record a movement, and create a Sale
-  // linked back to this case/patient — all as part of this one action, so
-  // the case's implant list can never drift out of sync with stock/sales.
-  // createSale validates stock availability itself and throws before any
-  // state changes, so if it rejects, the case's implant list is untouched.
-  const addImplantToCase = useCallback<DataContextValue['addImplantToCase']>((caseId, usage) => {
-    if (!usage.tooth.trim()) throw new BusinessRuleError('A tooth number is required.')
-    if (usage.quantity <= 0) throw new BusinessRuleError('Quantity must be greater than zero.')
-    const caseRecord = cases.find((c) => c.id === caseId)
-    if (!caseRecord) throw new BusinessRuleError('Case not found.')
-    const product = products.find((p) => p.id === usage.productId)
-    if (!product) throw new BusinessRuleError('Product not found.')
+  // note: add_implant_to_case (migration 0011) deducts inventory, records a
+  // movement, and creates a Sale linked back to this case/patient all in one
+  // transaction, so the case's implant list can never drift out of sync with
+  // stock/sales the way two separate client-side writes could.
+  const addImplantToCase = useCallback(
+    async (caseId: string, usage: CaseImplantUsage) => {
+      if (!usage.tooth.trim()) throw new BusinessRuleError('A tooth number is required.')
+      if (usage.quantity <= 0) throw new BusinessRuleError('Quantity must be greater than zero.')
+      const caseRecord = cases.find((c) => c.id === caseId)
+      if (!caseRecord) throw new BusinessRuleError('Case not found.')
+      const product = products.find((p) => p.id === usage.productId)
+      if (!product) throw new BusinessRuleError('Product not found.')
+      await addImplantToCaseRpc(caseId, usage.productId, usage.tooth, usage.quantity, product.unitPrice, usage.batchLot)
+      await Promise.all([refetchCases(), refetchProducts(), refetchMovements(), refetchSales()])
+    },
+    [cases, products, refetchCases, refetchProducts, refetchMovements, refetchSales],
+  )
 
-    createSale(
-      [{ productId: usage.productId, quantity: usage.quantity, unitPrice: product.unitPrice, batchLot: usage.batchLot }],
-      caseRecord.patientId,
-      caseId,
-    )
+  const addLab = useCallback(
+    async (input: Omit<Lab, 'id' | 'createdAt'>) => {
+      const wsId = requireWorkspace()
+      const lab = await insertLab(wsId, input)
+      setLabs((prev) => [lab, ...prev])
+      return lab
+    },
+    [requireWorkspace],
+  )
 
-    const now = new Date().toISOString()
-    setCases((prev) =>
-      prev.map((c) =>
-        c.id === caseId
-          ? {
-              ...c,
-              implants: [...c.implants, usage],
-              history: [
-                ...c.history,
-                caseEvent(caseId, 'Implant Added', `${product.name} added to case (tooth #${usage.tooth}). Stock deducted and sale recorded.`, now),
-              ],
-            }
-          : c,
-      ),
-    )
-  }, [cases, products, caseEvent, createSale])
-
-  const addLab = useCallback<DataContextValue['addLab']>((input) => {
-    const id = nextInternalId('lab')
-    const lab: Lab = { ...input, id, createdAt: new Date().toISOString() }
-    setLabs((prev) => [lab, ...prev])
-    return lab
-  }, [])
-
-  const updateLab = useCallback<DataContextValue['updateLab']>((id, patch) => {
+  const updateLab = useCallback(async (id: string, patch: Partial<Lab>) => {
+    await updateLabRow(id, patch)
     setLabs((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)))
   }, [])
 
-  const addVendor = useCallback<DataContextValue['addVendor']>((input) => {
-    const id = nextInternalId('vnd')
-    const vendor: Vendor = { ...input, id, totalOrders: 0, onTimeRate: 1, createdAt: new Date().toISOString() }
-    setVendors((prev) => [vendor, ...prev])
-    return vendor
-  }, [])
+  const addVendor = useCallback(
+    async (input: Omit<Vendor, 'id' | 'createdAt' | 'totalOrders' | 'onTimeRate'>) => {
+      const wsId = requireWorkspace()
+      const vendor = await insertVendor(wsId, input)
+      setVendors((prev) => [vendor, ...prev])
+      return vendor
+    },
+    [requireWorkspace],
+  )
 
-  const updateVendor = useCallback<DataContextValue['updateVendor']>((id, patch) => {
+  const updateVendor = useCallback(async (id: string, patch: Partial<Vendor>) => {
+    await updateVendorRow(id, patch)
     setVendors((prev) => prev.map((v) => (v.id === id ? { ...v, ...patch } : v)))
   }, [])
 
-  const updateClinicSettings = useCallback((patch: Partial<ClinicSettings>) => {
-    setClinicSettings((prev) => ({ ...prev, ...patch }))
-  }, [])
+  const updateClinicSettings = useCallback(
+    async (patch: Partial<ClinicSettings>) => {
+      const wsId = requireWorkspace()
+      await updateClinicSettingsRow(wsId, patch)
+      setClinicSettings((prev) => ({ ...prev, ...patch }))
+    },
+    [requireWorkspace],
+  )
 
-  const addDoctor = useCallback<DataContextValue['addDoctor']>((input) => {
-    const id = nextInternalId('doc')
-    const doctor: Doctor = { name: input.name, active: input.active ?? true, id, createdAt: new Date().toISOString() }
-    setDoctors((prev) => [doctor, ...prev])
-    return doctor
-  }, [])
+  const addDoctor = useCallback(
+    async (input: { name: string; active?: boolean }) => {
+      const wsId = requireWorkspace()
+      const doctor = await insertDoctor(wsId, input.name, input.active ?? true)
+      setDoctors((prev) => [doctor, ...prev])
+      return doctor
+    },
+    [requireWorkspace],
+  )
 
   // Doctor is stored as a plain "Dr. <name>" display string on Case/Patient
   // (no foreign key — PROJECT.md §3), so archiving never orphans a record:
   // existing cases/patients keep the name exactly as it was. Archiving only
-  // removes the doctor from DoctorCombobox's picker for new selections,
-  // matching the app's append-only/soft-status data model (nothing is ever
-  // hard-deleted, see the Purchase Order/Case status lifecycles above).
-  const setDoctorActive = useCallback<DataContextValue['setDoctorActive']>((id, active) => {
+  // removes the doctor from DoctorCombobox's picker for new selections.
+  const setDoctorActive = useCallback(async (id: string, active: boolean) => {
+    await updateDoctorActive(id, active)
     setDoctors((prev) => prev.map((d) => (d.id === id ? { ...d, active } : d)))
   }, [])
+
+  const wipeWorkspaceData = useCallback(async () => {
+    const wsId = requireWorkspace()
+    await wipeWorkspaceDataRpc(wsId)
+    await Promise.all([
+      refetchProducts(), refetchMovements(), refetchPurchaseOrders(), refetchVendors(),
+      refetchPatients(), refetchCases(), refetchLabs(), refetchSales(), refetchLoans(), refetchBatches(), refetchDoctors(),
+    ])
+  }, [requireWorkspace, refetchProducts, refetchMovements, refetchPurchaseOrders, refetchVendors, refetchPatients, refetchCases, refetchLabs, refetchSales, refetchLoans, refetchBatches, refetchDoctors])
 
   const value = useMemo<DataContextValue>(
     () => ({
@@ -867,7 +603,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       clinicSettings,
       batches,
       doctors,
-      addMovement,
+      loading,
       adjustStock,
       addProduct,
       updateProduct,
@@ -893,6 +629,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       updateClinicSettings,
       addDoctor,
       setDoctorActive,
+      wipeWorkspaceData,
     }),
     [
       products,
@@ -907,7 +644,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       clinicSettings,
       batches,
       doctors,
-      addMovement,
+      loading,
       adjustStock,
       addProduct,
       updateProduct,
@@ -933,29 +670,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       updateClinicSettings,
       addDoctor,
       setDoctorActive,
+      wipeWorkspaceData,
     ],
   )
-
-  // Persist every business-data slice on every change — there is no backend,
-  // so this is the only thing standing between a user's work and losing it
-  // on the next reload.
-  useEffect(() => {
-    savePersistedSnapshot({
-      products,
-      movements,
-      purchaseOrders,
-      vendors,
-      patients,
-      cases,
-      labs,
-      sales,
-      loans,
-      clinicSettings,
-      batches,
-      doctors,
-      internalIdCounter: getInternalIdCounter(),
-    })
-  }, [products, movements, purchaseOrders, vendors, patients, cases, labs, sales, loans, clinicSettings, batches, doctors])
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>
 }

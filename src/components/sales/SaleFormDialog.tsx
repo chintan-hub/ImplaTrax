@@ -11,7 +11,6 @@ import { PatientFormDialog } from '@/components/patients/PatientFormDialog'
 import { PhotoDropzone } from '@/components/shared/PhotoDropzone'
 import { useData } from '@/store/DataContext'
 import { patientFullName } from '@/mocks/patients'
-import { simulateLatency } from '@/lib/utils'
 import { useCurrencyFormat } from '@/hooks/useCurrencyFormat'
 import { productComboboxOptions } from '@/lib/productOptions'
 import type { SaleLine } from '@/types'
@@ -48,6 +47,17 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     return requested > available ? { available, requested } : null
   }
   const hasStockIssue = lines.some((l) => stockIssue(l.productId) !== null)
+
+  // Mirrors POReceiveDialog's missingLot gate: whenever Batch/Lot Tracking
+  // is on AND the line's product opts into it, the field this form already
+  // shows is not just a suggestion — leaving it blank must block the sale,
+  // the same as it already does at receiving (PROJECT.md's "ON ... enforce
+  // lot behavior" rule, previously only enforced at PO receipt, not here).
+  const needsBatchLot = (productId: string) => {
+    const product = products.find((p) => p.id === productId)
+    return Boolean(clinicSettings.batchLotTrackingEnabled && product?.batchTracked)
+  }
+  const missingBatchLot = lines.some((l) => needsBatchLot(l.productId) && !l.batchLot?.trim())
 
   const addLine = () => {
     const p = products[0]
@@ -92,10 +102,13 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
       toast.error('One or more lines exceed available stock.')
       return
     }
+    if (missingBatchLot) {
+      toast.error('Enter a batch/lot number for every tracked line.')
+      return
+    }
     setSubmitting(true)
-    await simulateLatency()
     try {
-      const sale = createSale(lines, patientId, caseId === 'none' ? undefined : caseId, photos.length > 0 ? photos : undefined)
+      const sale = await createSale(lines, patientId, caseId === 'none' ? undefined : caseId, photos.length > 0 ? photos : undefined)
       toast.success(`Sale ${sale.saleNumber} recorded`, { description: `${format(sale.total)} · stock updated` })
       reset()
       onOpenChange(false)
@@ -178,13 +191,18 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                     </div>
                   </div>
                   {clinicSettings.batchLotTrackingEnabled && product?.batchTracked && (
-                    <Input
-                      className="mt-2"
-                      placeholder="Batch / Lot number (e.g. LOT-12345)"
-                      aria-label="Batch / Lot number"
-                      value={line.batchLot ?? ''}
-                      onChange={(e) => updateLine(i, { batchLot: e.target.value || undefined })}
-                    />
+                    <>
+                      <Input
+                        className="mt-2"
+                        placeholder="Batch / Lot number (required)"
+                        aria-label="Batch / Lot number"
+                        value={line.batchLot ?? ''}
+                        onChange={(e) => updateLine(i, { batchLot: e.target.value || undefined })}
+                      />
+                      {!line.batchLot?.trim() && (
+                        <p className="mt-1 text-xs text-danger-600">A batch/lot number is required for this line.</p>
+                      )}
+                    </>
                   )}
                   {issue && (
                     <p className="mt-1.5 text-xs text-danger-600">Only {issue.available} in stock — {issue.requested} requested.</p>
@@ -208,7 +226,7 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
-          <Button onClick={handleSubmit} loading={submitting} disabled={hasStockIssue}>Record Sale</Button>
+          <Button onClick={handleSubmit} loading={submitting} disabled={hasStockIssue || missingBatchLot}>Record Sale</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

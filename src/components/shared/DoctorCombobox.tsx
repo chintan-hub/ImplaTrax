@@ -24,11 +24,11 @@ export function DoctorCombobox({
     .filter((d) => d.active)
     .map((d) => ({ value: `Dr. ${d.name}`, label: `Dr. ${d.name}`, searchValue: d.name }))
 
-  const handleCreate = (typed: string) => {
+  const handleCreate = async (typed: string) => {
     const name = typed.replace(/^Dr\.\s*/i, '').trim()
     if (!name) return
     const existing = doctors.find((d) => d.name.toLowerCase() === name.toLowerCase())
-    const doctor = existing ?? addDoctor({ name })
+    const doctor = existing ?? (await addDoctor({ name }))
     onChange(`Dr. ${doctor.name}`)
   }
 

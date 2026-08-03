@@ -11,7 +11,6 @@ import { Combobox } from '@/components/ui/combobox'
 import { PhotoDropzone } from '@/components/shared/PhotoDropzone'
 import { useData } from '@/store/DataContext'
 import { MICROCOPY } from '@/content/helpText'
-import { simulateLatency } from '@/lib/utils'
 import { productComboboxOptions } from '@/lib/productOptions'
 
 interface Line {
@@ -76,9 +75,8 @@ export function LoanFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
       return
     }
     setSubmitting(true)
-    await simulateLatency()
     try {
-      const loan = createLoan(labId, lines, new Date(dueDate).toISOString(), notes || undefined, photos.length > 0 ? photos : undefined)
+      const loan = await createLoan(labId, lines, new Date(dueDate).toISOString(), notes || undefined, photos.length > 0 ? photos : undefined)
       toast.success(`Loan ${loan.loanNumber} issued`, { description: 'Stock has been deducted for the loaned products.' })
       reset()
       onOpenChange(false)
