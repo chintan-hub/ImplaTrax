@@ -36,7 +36,7 @@ export function AboutTab() {
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setGuideOpen(true)}>
-            Open User Manual
+            View User Manual
           </Button>
           <ManualDownloadButton variant="outline" />
         </CardContent>
