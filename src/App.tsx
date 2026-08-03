@@ -33,8 +33,8 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <DataProvider>
-          <AuthProvider>
+        <AuthProvider>
+          <DataProvider>
             <AuthGate>
               <Routes>
                 <Route element={<AppLayout />}>
@@ -64,8 +64,8 @@ function App() {
                 </Route>
               </Routes>
             </AuthGate>
-          </AuthProvider>
-        </DataProvider>
+          </DataProvider>
+        </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>
   )
