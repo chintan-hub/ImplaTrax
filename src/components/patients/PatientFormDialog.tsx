@@ -9,7 +9,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { DoctorCombobox } from '@/components/shared/DoctorCombobox'
 import { useData } from '@/store/DataContext'
-import { simulateLatency } from '@/lib/utils'
 import type { Patient } from '@/types'
 
 const EMPTY_FORM = { firstName: '', lastName: '', dob: '', phone: '', email: '', notes: '' }
@@ -62,14 +61,13 @@ export function PatientFormDialog({
       return
     }
     setSubmitting(true)
-    await simulateLatency()
     try {
       if (isEdit && patient) {
-        updatePatient(patient.id, { ...form, sex, primaryDoctor: doctor })
+        await updatePatient(patient.id, { ...form, sex, primaryDoctor: doctor })
         toast.success(`${form.firstName} ${form.lastName} updated`)
         onOpenChange(false)
       } else {
-        const created = addPatient({ ...form, sex, primaryDoctor: doctor })
+        const created = await addPatient({ ...form, sex, primaryDoctor: doctor })
         onOpenChange(false)
         if (onCreated) {
           toast.success(`Patient ${form.firstName} ${form.lastName} added`)

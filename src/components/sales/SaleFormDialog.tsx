@@ -11,7 +11,6 @@ import { PatientFormDialog } from '@/components/patients/PatientFormDialog'
 import { PhotoDropzone } from '@/components/shared/PhotoDropzone'
 import { useData } from '@/store/DataContext'
 import { patientFullName } from '@/mocks/patients'
-import { simulateLatency } from '@/lib/utils'
 import { useCurrencyFormat } from '@/hooks/useCurrencyFormat'
 import { productComboboxOptions } from '@/lib/productOptions'
 import type { SaleLine } from '@/types'
@@ -108,9 +107,8 @@ export function SaleFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
       return
     }
     setSubmitting(true)
-    await simulateLatency()
     try {
-      const sale = createSale(lines, patientId, caseId === 'none' ? undefined : caseId, photos.length > 0 ? photos : undefined)
+      const sale = await createSale(lines, patientId, caseId === 'none' ? undefined : caseId, photos.length > 0 ? photos : undefined)
       toast.success(`Sale ${sale.saleNumber} recorded`, { description: `${format(sale.total)} · stock updated` })
       reset()
       onOpenChange(false)

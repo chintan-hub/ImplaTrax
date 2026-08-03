@@ -8,7 +8,6 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { useData } from '@/store/DataContext'
 import { exportToCsv, parseCsv } from '@/lib/documents/csv'
 import { validateImportRows, IMPORT_TEMPLATE_HEADERS, IMPORT_TEMPLATE_EXAMPLE_ROW, type ImportRowResult } from '@/lib/productImport'
-import { simulateLatency } from '@/lib/utils'
 
 export function ProductImportDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const { products, importProducts } = useData()
@@ -59,14 +58,18 @@ export function ProductImportDialog({ open, onOpenChange }: { open: boolean; onO
     const validRows = results.filter((r) => r.errors.length === 0 && r.product)
     if (validRows.length === 0) return
     setImporting(true)
-    await simulateLatency()
-    const created = importProducts(validRows.map((r) => r.product!))
-    toast.success(`${created.length} product${created.length !== 1 ? 's' : ''} imported`, {
-      description: invalidCount > 0 ? `${invalidCount} row${invalidCount !== 1 ? 's' : ''} were skipped due to validation errors.` : undefined,
-    })
-    setImporting(false)
-    reset()
-    onOpenChange(false)
+    try {
+      const created = await importProducts(validRows.map((r) => r.product!))
+      toast.success(`${created.length} product${created.length !== 1 ? 's' : ''} imported`, {
+        description: invalidCount > 0 ? `${invalidCount} row${invalidCount !== 1 ? 's' : ''} were skipped due to validation errors.` : undefined,
+      })
+      reset()
+      onOpenChange(false)
+    } catch (err) {
+      toast.error('Could not import products', { description: err instanceof Error ? err.message : undefined })
+    } finally {
+      setImporting(false)
+    }
   }
 
   return (

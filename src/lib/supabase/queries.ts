@@ -88,6 +88,13 @@ export async function fetchProducts(workspaceId: string): Promise<Product[]> {
  * own id — can be computed in the same insert instead of needing a second
  * update after. sku/barcode are derived from a live per-workspace count,
  * mirroring src/lib/idGenerator.ts's sequence format.
+ *
+ * quantity_on_hand always starts at 0 here, even if the caller supplied a
+ * starting count — DataContext.addProduct follows this insert with
+ * adjustStockRpc() for any nonzero starting quantity, so the stock bump and
+ * its inventory_movements row are written by the same RPC that every other
+ * stock change goes through, instead of this insert silently creating stock
+ * with no movement to account for it.
  */
 async function buildProductRow(workspaceId: string, input: Omit<Product, 'id' | 'sku' | 'barcode' | 'qrPayload' | 'createdAt' | 'updatedAt'>, seq: number) {
   const id = crypto.randomUUID()
@@ -107,7 +114,7 @@ async function buildProductRow(workspaceId: string, input: Omit<Product, 'id' | 
     unit_cost: input.unitCost,
     unit_price: input.unitPrice,
     price_visible: input.priceVisible,
-    quantity_on_hand: input.quantityOnHand,
+    quantity_on_hand: 0,
     quantity_reserved: input.quantityReserved,
     low_stock_threshold: input.lowStockThreshold,
     batch_tracked: input.batchTracked,
@@ -403,6 +410,7 @@ export async function insertCase(
   workspaceId: string,
   caseNumber: string,
   input: { patientId: string; doctor: string; labId?: string; status: Case['status']; procedure: string; scheduledDate?: string; notes?: string },
+  actorName: string,
 ): Promise<Case> {
   const row = unwrap<Row<'cases'>>(
     await client()
@@ -425,12 +433,12 @@ export async function insertCase(
   unwrap(
     await client()
       .from('case_events')
-      .insert({ workspace_id: workspaceId, case_id: row.id, label: 'Case Opened', description: 'Treatment plan created and case opened for patient.', actor: 'System', event_date: now }),
+      .insert({ workspace_id: workspaceId, case_id: row.id, label: 'Case Opened', description: 'Treatment plan created and case opened for patient.', actor: actorName, event_date: now }),
   )
-  return caseFromDb(row, [], [{ id: 'pending', caseId: row.id, label: 'Case Opened', description: 'Treatment plan created and case opened for patient.', date: now, actor: 'System' }])
+  return caseFromDb(row, [], [{ id: 'pending', caseId: row.id, label: 'Case Opened', description: 'Treatment plan created and case opened for patient.', date: now, actor: actorName }])
 }
 
-export async function advanceCaseStatusRow(caseId: string, status: Case['status'], label: string): Promise<void> {
+export async function advanceCaseStatusRow(caseId: string, status: Case['status'], label: string, actorName: string): Promise<void> {
   const workspaceId = unwrap<Pick<Row<'cases'>, 'workspace_id'>>(await client().from('cases').select('workspace_id').eq('id', caseId).single()).workspace_id
   const now = new Date().toISOString()
   unwrap(
@@ -439,7 +447,7 @@ export async function advanceCaseStatusRow(caseId: string, status: Case['status'
       .update({ status: caseStatusToDb(status), completed_date: status === 'completed' ? now : undefined })
       .eq('id', caseId),
   )
-  unwrap(await client().from('case_events').insert({ workspace_id: workspaceId, case_id: caseId, label, description: `Case status changed to ${label}.`, actor: 'System', event_date: now }))
+  unwrap(await client().from('case_events').insert({ workspace_id: workspaceId, case_id: caseId, label, description: `Case status changed to ${label}.`, actor: actorName, event_date: now }))
 }
 
 export async function addImplantToCaseRpc(caseId: string, productId: string, tooth: string, quantity: number, unitPrice?: number, batchLot?: string): Promise<string> {

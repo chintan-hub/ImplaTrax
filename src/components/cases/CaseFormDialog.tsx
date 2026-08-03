@@ -13,7 +13,6 @@ import { Input } from '@/components/ui/input'
 import { useData } from '@/store/DataContext'
 import { patientFullName } from '@/mocks/patients'
 import { MICROCOPY } from '@/content/helpText'
-import { simulateLatency } from '@/lib/utils'
 import type { CaseStatus } from '@/types'
 
 const PROCEDURES = [
@@ -46,19 +45,23 @@ export function CaseFormDialog({ open, onOpenChange }: { open: boolean; onOpenCh
       return
     }
     setSubmitting(true)
-    await simulateLatency()
-    const record = addCase({
-      patientId,
-      doctor,
-      labId: labId === 'none' ? undefined : labId,
-      status,
-      procedure,
-      scheduledDate: scheduledDate ? new Date(scheduledDate).toISOString() : undefined,
-    })
-    toast.success(`Case ${record.caseId} created`, { description: 'Opening the case timeline...' })
-    setSubmitting(false)
-    onOpenChange(false)
-    navigate(`/cases/${record.id}`)
+    try {
+      const record = await addCase({
+        patientId,
+        doctor,
+        labId: labId === 'none' ? undefined : labId,
+        status,
+        procedure,
+        scheduledDate: scheduledDate ? new Date(scheduledDate).toISOString() : undefined,
+      })
+      toast.success(`Case ${record.caseId} created`, { description: 'Opening the case timeline...' })
+      onOpenChange(false)
+      navigate(`/cases/${record.id}`)
+    } catch (err) {
+      toast.error('Could not create case', { description: err instanceof Error ? err.message : undefined })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
