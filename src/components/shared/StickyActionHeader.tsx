@@ -29,6 +29,12 @@ interface StickyActionHeaderProps {
  * than between the header and the toolbar, for the same reason — stats
  * aren't part of the sticky unit, so they scroll away normally instead of
  * fighting the header for the same sticky slot.
+ *
+ * The sticky wrapper carries `group` + `data-scrolled` so content passed
+ * into `toolbar` (e.g. a page's TabsList) can shrink in step with the title
+ * row purely via CSS — see the `group-data-[scrolled=true]:*` variants on
+ * TabsList/TabsTrigger in `components/ui/tabs.tsx` — without this component
+ * needing to know what's inside `toolbar`.
  */
 export function StickyActionHeader({ title, description, actions, helpTerm, toolbar, toolbarClassName }: StickyActionHeaderProps) {
   const { sentinelRef, isScrolled } = useStickyHeader()
@@ -37,8 +43,9 @@ export function StickyActionHeader({ title, description, actions, helpTerm, tool
     <>
       <div ref={sentinelRef} aria-hidden="true" className="h-px" />
       <div
+        data-scrolled={isScrolled}
         className={cn(
-          'sticky top-0 z-20 -mx-4 mb-6 border-b px-4 transition-colors duration-200 ease-out md:-mx-8 md:px-8',
+          'group sticky top-0 z-20 -mx-4 mb-6 border-b px-4 transition-colors duration-200 ease-out md:-mx-8 md:px-8',
           isScrolled ? 'border-border/80 bg-background/85 shadow-sm backdrop-blur-md' : 'border-transparent bg-background/0',
         )}
       >
@@ -81,7 +88,13 @@ export function StickyActionHeader({ title, description, actions, helpTerm, tool
           )}
         </div>
         {toolbar && (
-          <div className={cn('flex flex-col gap-3 border-t border-border/70 pb-3 pt-3 sm:flex-row sm:items-center', toolbarClassName)}>
+          <div
+            className={cn(
+              'flex flex-col gap-3 border-t border-border/70 transition-[padding] duration-300 ease-out sm:flex-row sm:items-center',
+              isScrolled ? 'py-1.5' : 'pb-3 pt-3',
+              toolbarClassName,
+            )}
+          >
             {toolbar}
           </div>
         )}

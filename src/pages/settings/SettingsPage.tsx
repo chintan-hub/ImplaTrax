@@ -31,22 +31,23 @@ export function SettingsPage() {
   return (
     <SettingsHeaderActionProvider>
       <div className="max-w-3xl">
-        <StickyActionHeader
-          title={PAGE_INTROS.settings.title}
-          description={PAGE_INTROS.settings.description}
-          actions={<SettingsSaveAction />}
-        />
-
         <Tabs value={activeTab} onValueChange={handleTabChange}>
-          <TabsList className="mb-2 flex h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
-            <TabsTrigger value="clinic" className="data-[state=active]:bg-muted">Clinic</TabsTrigger>
-            <TabsTrigger value="profile" className="data-[state=active]:bg-muted">Profile</TabsTrigger>
-            <TabsTrigger value="security" className="data-[state=active]:bg-muted">Security</TabsTrigger>
-            <TabsTrigger value="workspace" className="data-[state=active]:bg-muted">Workspace</TabsTrigger>
-            <TabsTrigger value="sessions" className="data-[state=active]:bg-muted">Sessions & Devices</TabsTrigger>
-            <TabsTrigger value="activity" className="data-[state=active]:bg-muted">Activity Log</TabsTrigger>
-            <TabsTrigger value="about" className="data-[state=active]:bg-muted">About</TabsTrigger>
-          </TabsList>
+          <StickyActionHeader
+            title={PAGE_INTROS.settings.title}
+            description={PAGE_INTROS.settings.description}
+            actions={<SettingsSaveAction />}
+            toolbar={
+              <TabsList className="flex h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
+                <TabsTrigger value="clinic" className="data-[state=active]:bg-muted">Clinic</TabsTrigger>
+                <TabsTrigger value="profile" className="data-[state=active]:bg-muted">Profile</TabsTrigger>
+                <TabsTrigger value="security" className="data-[state=active]:bg-muted">Security</TabsTrigger>
+                <TabsTrigger value="workspace" className="data-[state=active]:bg-muted">Workspace</TabsTrigger>
+                <TabsTrigger value="sessions" className="data-[state=active]:bg-muted">Sessions & Devices</TabsTrigger>
+                <TabsTrigger value="activity" className="data-[state=active]:bg-muted">Activity Log</TabsTrigger>
+                <TabsTrigger value="about" className="data-[state=active]:bg-muted">About</TabsTrigger>
+              </TabsList>
+            }
+          />
 
           <TabsContent value="clinic"><ClinicTab /></TabsContent>
           <TabsContent value="profile"><ProfileTab /></TabsContent>

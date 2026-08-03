@@ -11,7 +11,11 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      'inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground',
+      'inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground transition-all duration-300 ease-out',
+      // Only takes effect nested inside StickyActionHeader's toolbar slot — its
+      // sticky wrapper is the nearest `group` with `data-scrolled`, so this is a
+      // no-op everywhere else (dialogs, sheets) TabsList is used.
+      'group-data-[scrolled=true]:h-8 group-data-[scrolled=true]:p-0.5',
       className,
     )}
     {...props}
@@ -26,7 +30,9 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm',
+      'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm',
+      // See TabsList above — only takes effect under StickyActionHeader's toolbar.
+      'group-data-[scrolled=true]:px-2.5 group-data-[scrolled=true]:py-0.5 group-data-[scrolled=true]:text-xs',
       className,
     )}
     {...props}

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { toast } from 'sonner'
-import { Image as ImageIcon, X } from 'lucide-react'
+import { ArrowLeft, Image as ImageIcon, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/ui/password-input'
@@ -246,7 +246,18 @@ export function OnboardingFlow() {
 
             {step === 'account' && (
               <motion.div key="account" {...STEP_TRANSITION} className="flex flex-col items-center gap-6 sm:gap-11">
-                <AuthScreenHeader title="Set Up Your Workspace" subtitle="Tell us a little about your practice." />
+                <div className="flex w-full flex-col gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setStep('welcome')}
+                    className="-ml-2 -mb-1 gap-1.5 self-start text-muted-foreground hover:text-foreground"
+                  >
+                    <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back
+                  </Button>
+                  <AuthScreenHeader title="Set Up Your Workspace" subtitle="Tell us a little about your practice." />
+                </div>
                 <div className="flex w-full flex-col gap-3 sm:gap-4">
                   <div className="flex flex-col gap-1.5 sm:gap-2">
                     <Label htmlFor="workspaceName">Workspace Name</Label>

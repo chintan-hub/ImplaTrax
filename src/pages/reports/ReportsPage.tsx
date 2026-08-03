@@ -143,20 +143,24 @@ export function ReportsPage() {
 
   return (
     <div>
-      <StickyActionHeader title={PAGE_INTROS.reports.title} description={PAGE_INTROS.reports.description} />
-
       <Tabs defaultValue="inventory">
-        <TabsList className="h-auto flex-wrap justify-start">
-          <TabsTrigger value="inventory">Inventory</TabsTrigger>
-          <TabsTrigger value="sales">Sales</TabsTrigger>
-          <TabsTrigger value="loans">Loans</TabsTrigger>
-          <TabsTrigger value="purchases">Purchases</TabsTrigger>
-          <TabsTrigger value="stock-valuation">Stock Valuation</TabsTrigger>
-          <TabsTrigger value="manufacturers">Manufacturer-wise</TabsTrigger>
-          <TabsTrigger value="doctors">Doctor-wise</TabsTrigger>
-          {clinicSettings.batchLotTrackingEnabled && <TabsTrigger value="batch-lot">Batch/Lot</TabsTrigger>}
-          {clinicSettings.batchLotTrackingEnabled && <TabsTrigger value="expiry">Expiry</TabsTrigger>}
-        </TabsList>
+        <StickyActionHeader
+          title={PAGE_INTROS.reports.title}
+          description={PAGE_INTROS.reports.description}
+          toolbar={
+            <TabsList className="h-auto flex-wrap justify-start">
+              <TabsTrigger value="inventory">Inventory</TabsTrigger>
+              <TabsTrigger value="sales">Sales</TabsTrigger>
+              <TabsTrigger value="loans">Loans</TabsTrigger>
+              <TabsTrigger value="purchases">Purchases</TabsTrigger>
+              <TabsTrigger value="stock-valuation">Stock Valuation</TabsTrigger>
+              <TabsTrigger value="manufacturers">Manufacturer-wise</TabsTrigger>
+              <TabsTrigger value="doctors">Doctor-wise</TabsTrigger>
+              {clinicSettings.batchLotTrackingEnabled && <TabsTrigger value="batch-lot">Batch/Lot</TabsTrigger>}
+              {clinicSettings.batchLotTrackingEnabled && <TabsTrigger value="expiry">Expiry</TabsTrigger>}
+            </TabsList>
+          }
+        />
 
         <TabsContent value="inventory">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-4">
