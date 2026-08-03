@@ -55,10 +55,10 @@ export function StickyActionHeader({ title, description, actions, helpTerm, tool
             isScrolled ? 'py-2.5' : 'py-5',
           )}
         >
-          <div className="min-w-0">
+          <div className="flex min-w-0 flex-col gap-1 overflow-visible">
             <h1
               className={cn(
-                'flex items-center gap-1.5 font-semibold tracking-tight transition-[font-size] duration-200 ease-out',
+                'flex items-center gap-1.5 font-semibold leading-normal tracking-tight transition-[font-size] duration-200 ease-out',
                 isScrolled ? 'text-lg' : 'text-2xl',
               )}
             >
@@ -70,8 +70,13 @@ export function StickyActionHeader({ title, description, actions, helpTerm, tool
                 className="grid transition-[grid-template-rows] duration-200 ease-out"
                 style={{ gridTemplateRows: isScrolled ? '0fr' : '1fr' }}
               >
+                {/* overflow-hidden here is the collapse animation's own clipping
+                    mechanism (it's what lets the 1fr->0fr row visually shrink to
+                    nothing when scrolled) — distinct from the outer title
+                    container above, which stays overflow-visible so the
+                    subtitle's own text is never clipped while at rest. */}
                 <div className="overflow-hidden">
-                  <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+                  <p className="text-sm leading-normal text-muted-foreground">{description}</p>
                 </div>
               </div>
             )}
