@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Plus, Link2, Users as UsersIcon, Building2, Image as ImageIcon, X } from 'lucide-react'
+import { Plus, Link2, Users as UsersIcon, Building2, Image as ImageIcon, X, AlertTriangle } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -108,6 +108,7 @@ export function WorkspaceTab() {
     createWorkspace,
     switchWorkspace,
   } = useAuth()
+  const { wipeWorkspaceData } = useData()
 
   const [addOpen, setAddOpen] = useState(false)
   const [workspaceName, setWorkspaceName] = useState(currentWorkspace?.name ?? '')
@@ -119,6 +120,9 @@ export function WorkspaceTab() {
   const [newWorkspaceOpen, setNewWorkspaceOpen] = useState(false)
   const [newWorkspaceName, setNewWorkspaceName] = useState('')
   const [creatingWorkspace, setCreatingWorkspace] = useState(false)
+  const [wipeOpen, setWipeOpen] = useState(false)
+  const [wipeConfirmText, setWipeConfirmText] = useState('')
+  const [wiping, setWiping] = useState(false)
 
   const handleSaveName = useCallback(async () => {
     if (!workspaceName.trim()) {
@@ -157,6 +161,20 @@ export function WorkspaceTab() {
     toast.success('Workspace created', { description: "You'll set a PIN for it now." })
     setNewWorkspaceName('')
     setNewWorkspaceOpen(false)
+  }
+
+  const handleWipeData = async () => {
+    setWiping(true)
+    try {
+      await wipeWorkspaceData()
+      toast.success('Workspace data wiped', { description: 'Sales, patients, cases, products, and everything else business-related has been cleared.' })
+      setWipeConfirmText('')
+      setWipeOpen(false)
+    } catch (err) {
+      toast.error('Could not wipe workspace data', { description: err instanceof Error ? err.message : undefined })
+    } finally {
+      setWiping(false)
+    }
   }
 
   return (
@@ -329,6 +347,23 @@ export function WorkspaceTab() {
         </CardContent>
       </Card>
 
+      <Card className="border-danger/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-1.5 text-danger-700 dark:text-danger-500">
+            <AlertTriangle className="h-4 w-4" /> Danger Zone
+          </CardTitle>
+          <CardDescription>Permanently clear this workspace's business data — products, vendors, patients, cases, sales, loans, and purchase orders</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="destructive" onClick={() => setWipeOpen(true)}>
+            Wipe / Reset Data
+          </Button>
+          <p className="mt-2 text-xs text-muted-foreground">
+            The workspace itself, your team, and your settings are kept — only business records are cleared. This cannot be undone.
+          </p>
+        </CardContent>
+      </Card>
+
       <AddMemberDialog open={addOpen} onOpenChange={setAddOpen} />
 
       <Dialog open={newWorkspaceOpen} onOpenChange={setNewWorkspaceOpen}>
@@ -347,6 +382,38 @@ export function WorkspaceTab() {
             </Button>
             <Button onClick={handleCreateWorkspace} loading={creatingWorkspace}>
               Create & Switch
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={wipeOpen}
+        onOpenChange={(v) => {
+          if (!v) setWipeConfirmText('')
+          setWipeOpen(v)
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-danger-700 dark:text-danger-500">Wipe workspace data?</DialogTitle>
+            <DialogDescription>
+              This permanently deletes every product, vendor, patient, case, sale, loan, and purchase order in <strong>{currentWorkspace.name}</strong>. Your team,
+              workspace settings, and activity log are kept. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="wipe-confirm">
+              Type <strong>{currentWorkspace.name}</strong> to confirm
+            </Label>
+            <Input id="wipe-confirm" value={wipeConfirmText} onChange={(e) => setWipeConfirmText(e.target.value)} autoComplete="off" />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWipeOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" disabled={wipeConfirmText !== currentWorkspace.name} loading={wiping} onClick={handleWipeData}>
+              Wipe Data
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -34,6 +34,7 @@ import {
   fetchLoans, createLoanRpc, returnLoanLinesRpc,
   fetchClinicSettings, updateClinicSettingsRow,
   nextSaleNumber, nextLoanNumber, nextCaseNumber, nextPoNumber,
+  wipeWorkspaceDataRpc,
 } from '@/lib/supabase/queries'
 
 /**
@@ -124,6 +125,9 @@ interface DataContextValue {
   updateClinicSettings: (patch: Partial<ClinicSettings>) => Promise<void>
   addDoctor: (input: { name: string; active?: boolean }) => Promise<Doctor>
   setDoctorActive: (id: string, active: boolean) => Promise<void>
+
+  /** Settings > Danger Zone — permanently deletes every sale/patient/case/PO/loan/product/vendor/lab/doctor row for the active workspace (server-enforced to workspace managers only). The workspace itself, its members, and its settings are untouched. */
+  wipeWorkspaceData: () => Promise<void>
 }
 
 const DataContext = createContext<DataContextValue | null>(null)
@@ -576,6 +580,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setDoctors((prev) => prev.map((d) => (d.id === id ? { ...d, active } : d)))
   }, [])
 
+  const wipeWorkspaceData = useCallback(async () => {
+    const wsId = requireWorkspace()
+    await wipeWorkspaceDataRpc(wsId)
+    await Promise.all([
+      refetchProducts(), refetchMovements(), refetchPurchaseOrders(), refetchVendors(),
+      refetchPatients(), refetchCases(), refetchLabs(), refetchSales(), refetchLoans(), refetchBatches(), refetchDoctors(),
+    ])
+  }, [requireWorkspace, refetchProducts, refetchMovements, refetchPurchaseOrders, refetchVendors, refetchPatients, refetchCases, refetchLabs, refetchSales, refetchLoans, refetchBatches, refetchDoctors])
+
   const value = useMemo<DataContextValue>(
     () => ({
       products,
@@ -616,6 +629,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       updateClinicSettings,
       addDoctor,
       setDoctorActive,
+      wipeWorkspaceData,
     }),
     [
       products,
@@ -656,6 +670,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       updateClinicSettings,
       addDoctor,
       setDoctorActive,
+      wipeWorkspaceData,
     ],
   )
 

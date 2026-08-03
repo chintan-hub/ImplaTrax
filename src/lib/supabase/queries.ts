@@ -596,6 +596,17 @@ export async function updateClinicSettingsRow(workspaceId: string, patch: Partia
 }
 
 // ---------------------------------------------------------------------------
+// Danger Zone — workspace data wipe (migration 0013). Manager-only, enforced
+// both here (workspace_managers check on the caller's own membership status
+// before the RPC) and again inside the RPC itself (SECURITY DEFINER, so it
+// re-validates independently rather than trusting this check alone).
+// ---------------------------------------------------------------------------
+
+export async function wipeWorkspaceDataRpc(workspaceId: string): Promise<void> {
+  unwrap(await client().rpc('wipe_workspace_data', { p_workspace_id: workspaceId }))
+}
+
+// ---------------------------------------------------------------------------
 // Numbering helpers — mirrors src/lib/idGenerator.ts's sequence formats, but
 // derives the next number from a live count/lookup instead of an in-memory
 // counter. Good enough for this app's realistic usage (a handful of staff

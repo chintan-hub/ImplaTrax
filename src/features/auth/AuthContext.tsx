@@ -5,6 +5,7 @@ import { accountRoleToDb, accountRoleFromDb } from '@/lib/supabase/mappers'
 import { hashPin, generateSalt } from './crypto'
 import { isPlatformAuthenticatorAvailable, registerPasskey, verifyPasskey } from './webauthn'
 import { getDeviceId, getDevicePin, setDevicePin, getLastWorkspaceId, setLastWorkspaceId, clearDeviceStore } from './devicePairing'
+import { seedDemoWorkspace } from '@/lib/supabase/demoSeed'
 import { WORKSPACE_MANAGER_ROLES, DEFAULT_SECURITY_PREFS } from './accountTypes'
 import { setCurrentActor } from '@/store/currentActor'
 import type { AccountRole, AuditEntry, SecurityPrefs } from './accountTypes'
@@ -65,6 +66,8 @@ interface AuthContextValue {
   loading: boolean
 
   completeOnboarding: (input: OnboardingInput) => Promise<{ workspaceName: string; name: string; contact: string }>
+  /** Creates an isolated, throwaway workspace pre-seeded with realistic demo data and signs straight into it — for "try it now" without the onboarding wizard. The generated login credentials are never shown, so this workspace can't be revisited once the session ends. */
+  startDemoWorkspace: () => Promise<ActionResult>
   logInWithPassword: (email: string, password: string) => Promise<LogInResult>
   verifyPin: (pin: string) => Promise<boolean>
   verifyBiometrics: () => Promise<boolean>
@@ -301,6 +304,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [],
   )
+
+  const startDemoWorkspace = useCallback(async (): Promise<ActionResult> => {
+    try {
+      const demoId = crypto.randomUUID().slice(0, 8)
+      const email = `demo-${demoId}@implatrax-demo.local`
+      const password = crypto.randomUUID()
+      const { data: signUpData, error: signUpError } = await client().auth.signUp({ email, password })
+      if (signUpError) throw new Error(signUpError.message)
+      if (!signUpData.session) throw new Error('Could not start a demo session — please try again.')
+      setSession(signUpData.session)
+
+      const workspaceId = unwrapRpc<string>(await client().rpc('create_workspace', { p_workspace_name: 'Demo Workspace', p_member_name: 'Demo User', p_contact_email: email }))
+      unwrapRpc(await client().rpc('complete_onboarding', { p_workspace_id: workspaceId, p_clinic_name: 'Demo Dental Clinic', p_country: 'United States', p_currency: 'USD' }))
+
+      await seedDemoWorkspace(workspaceId)
+
+      const memberRow = unwrapRpc<{
+        id: string; name: string; contact_email: string | null; account_role: string; status: string
+        created_at: string; last_login_at: string | null; last_active_at: string | null
+      }>(
+        await client().from('workspace_members').select('id, name, contact_email, account_role, status, created_at, last_login_at, last_active_at').eq('workspace_id', workspaceId).eq('auth_user_id', signUpData.session.user.id).single(),
+      )
+      const me = memberFromRow(memberRow)
+
+      const salt = generateSalt()
+      const pin = String(Math.floor(Math.random() * 10000)).padStart(4, '0')
+      const pinHash = await hashPin(pin, salt)
+      setDevicePin(me.id, { pinHash, pinSalt: salt, mustChangePin: false, webauthnCredentialId: null })
+      setLastWorkspaceId(workspaceId)
+
+      setCurrentWorkspaceState({ id: workspaceId, name: 'Demo Workspace', createdAt: new Date().toISOString() })
+      setWorkspaces((prev) => [...prev, { id: workspaceId, name: 'Demo Workspace', createdAt: new Date().toISOString() }])
+      setCurrentMember(me)
+      setWorkspaceMembers([me])
+      setMustChangePin(false)
+      setStatus('unlocked')
+      return { ok: true, id: workspaceId }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Could not start the demo workspace.' }
+    }
+  }, [])
 
   const verifyPin = useCallback(
     async (pin: string) => {
@@ -604,6 +648,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       lockedUntil,
       loading,
       completeOnboarding,
+      startDemoWorkspace,
       logInWithPassword,
       verifyPin,
       verifyBiometrics,
@@ -631,7 +676,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }),
     [
       status, currentMember, currentWorkspace, workspaceMembers, activeWorkspaceMembers, workspaces, auditLog, security,
-      platformAuthAvailable, mustChangePin, failedPinAttempts, lockedUntil, loading, completeOnboarding, logInWithPassword,
+      platformAuthAvailable, mustChangePin, failedPinAttempts, lockedUntil, loading, completeOnboarding, startDemoWorkspace, logInWithPassword,
       verifyPin, verifyBiometrics, completeForcedPinChange, unlock, lock, logout, resetDevice, changePin, enableBiometrics,
       disableBiometrics, updateProfile, setAutoLockMinutes, setSessionTimeoutMinutes, setDesktopNotifications, addMember,
       disableMember, reactivateMember, changeMemberRole, removeMember, resetMemberPin, createWorkspace, switchWorkspace, renameWorkspace,
