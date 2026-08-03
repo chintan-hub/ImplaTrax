@@ -577,7 +577,7 @@ export async function returnLoanLinesRpc(loanId: string, returns: { lineId: stri
   unwrap(
     await client().rpc('return_loan_lines', {
       p_loan_id: loanId,
-      p_returns: returns.map((r) => ({ line_id: r.lineId, quantity_returned: r.quantityReturned, quantity_lost: r.quantityLost, lost_reason: r.lostReason ?? null })),
+      p_returns: returns.map((r) => ({ loan_line_id: r.lineId, quantity_returned: r.quantityReturned, quantity_lost: r.quantityLost, lost_reason: r.lostReason ?? null })),
     }),
   )
 }

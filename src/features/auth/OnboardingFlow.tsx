@@ -180,7 +180,10 @@ export function OnboardingFlow() {
       setStartingDemo(false)
       return
     }
-    toast.success('Demo workspace ready', { description: 'Pre-loaded with sample products, patients, and cases to explore.' })
+    toast.success('Demo workspace ready', {
+      description: `Pre-loaded with sample products, patients, and cases to explore. Your device PIN is ${result.pin} if you need to unlock again.`,
+      duration: 15000,
+    })
   }
 
   return (

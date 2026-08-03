@@ -10,7 +10,7 @@
 import type { Manufacturer } from '@/types'
 import * as mock from '@/mocks'
 import {
-  insertVendor, insertProduct, insertDoctor, insertPatient, insertLab, insertCase,
+  insertVendor, bulkInsertProducts, insertDoctor, insertPatient, insertLab, insertCase,
   adjustStockRpc, addImplantToCaseRpc, createSaleRpc, createLoanRpc, returnLoanLinesRpc, fetchLoans,
   createPurchaseOrderRpc, submitPurchaseOrderRpc, receivePurchaseOrderRpc, fetchPurchaseOrders,
   nextCaseNumber, nextSaleNumber, nextLoanNumber, nextPoNumber,
@@ -39,18 +39,21 @@ export async function seedDemoWorkspace(workspaceId: string): Promise<void> {
   )
   const vendorIdForManufacturer = (m: Manufacturer) => vendors.find((v) => v.manufacturers.includes(m))?.id ?? vendors[0].id
 
+  // A single batch insert (not N parallel insertProduct calls) — sku/barcode
+  // both derive from a live per-workspace count, which N concurrent calls
+  // would all read before any of them completed, handing out the same
+  // sequence number to every product and colliding on the unique sku index.
   const productSpecs = mock.products.slice(0, DEMO_PRODUCT_COUNT)
-  const products = await Promise.all(
-    productSpecs.map((p) =>
-      insertProduct(workspaceId, {
-        name: p.name, manufacturer: p.manufacturer, category: p.category, system: p.system,
-        diameterMm: p.diameterMm, lengthMm: p.lengthMm, platform: p.platform,
-        unitCost: p.unitCost, unitPrice: p.unitPrice, priceVisible: p.priceVisible,
-        quantityOnHand: 0, quantityReserved: 0, lowStockThreshold: p.lowStockThreshold,
-        batchTracked: p.batchTracked, vendorId: vendorIdForManufacturer(p.manufacturer),
-        imageColor: p.imageColor, description: p.description, status: p.status,
-      }),
-    ),
+  const products = await bulkInsertProducts(
+    workspaceId,
+    productSpecs.map((p) => ({
+      name: p.name, manufacturer: p.manufacturer, category: p.category, system: p.system,
+      diameterMm: p.diameterMm, lengthMm: p.lengthMm, platform: p.platform,
+      unitCost: p.unitCost, unitPrice: p.unitPrice, priceVisible: p.priceVisible,
+      quantityOnHand: 0, quantityReserved: 0, lowStockThreshold: p.lowStockThreshold,
+      batchTracked: p.batchTracked, vendorId: vendorIdForManufacturer(p.manufacturer),
+      imageColor: p.imageColor, description: p.description, status: p.status,
+    })),
   )
   await Promise.all(products.map((p, i) => adjustStockRpc(p.id, productSpecs[i].quantityOnHand || 25, 'Initial stock (demo seed)')))
 
@@ -61,14 +64,20 @@ export async function seedDemoWorkspace(workspaceId: string): Promise<void> {
       address: l.address, specialties: l.specialties, rating: l.rating, turnaroundDays: l.turnaroundDays,
     }),
   ))
-  const patients = await Promise.all(
-    mock.patients.slice(0, DEMO_PATIENT_COUNT).map((p, i) =>
-      insertPatient(workspaceId, {
+  // Sequential, not Promise.all — patient_code has the same live-count-based
+  // sequence race as products did, and there's no bulk-insert helper for
+  // patients to sidestep it with (only a handful of rows, so the extra
+  // round trips are cheap).
+  const patients = []
+  for (let i = 0; i < Math.min(DEMO_PATIENT_COUNT, mock.patients.length); i++) {
+    const p = mock.patients[i]
+    patients.push(
+      await insertPatient(workspaceId, {
         firstName: p.firstName, lastName: p.lastName, dob: p.dob, sex: p.sex,
         phone: p.phone, email: p.email, primaryDoctor: `Dr. ${doctors[i % doctors.length].name}`, notes: p.notes,
       }),
-    ),
-  )
+    )
+  }
 
   // A few open/completed cases, each with one implant placed — placing an
   // implant deducts stock and records a linked sale automatically (same

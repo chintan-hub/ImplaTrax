@@ -66,8 +66,16 @@ interface AuthContextValue {
   loading: boolean
 
   completeOnboarding: (input: OnboardingInput) => Promise<{ workspaceName: string; name: string; contact: string }>
-  /** Creates an isolated, throwaway workspace pre-seeded with realistic demo data and signs straight into it — for "try it now" without the onboarding wizard. The generated login credentials are never shown, so this workspace can't be revisited once the session ends. */
-  startDemoWorkspace: () => Promise<ActionResult>
+  /**
+   * Creates an isolated, throwaway workspace pre-seeded with realistic demo
+   * data and signs straight into it — for "try it now" without the
+   * onboarding wizard. The generated login credentials are never shown, so
+   * this workspace can't be revisited once the session ends; the returned
+   * `pin` is the one thing worth surfacing, since a page reload re-locks the
+   * device same as any other workspace and this is the only PIN that can
+   * unlock it again.
+   */
+  startDemoWorkspace: () => Promise<{ ok: true; pin: string } | { ok: false; error: string }>
   logInWithPassword: (email: string, password: string) => Promise<LogInResult>
   verifyPin: (pin: string) => Promise<boolean>
   verifyBiometrics: () => Promise<boolean>
@@ -305,7 +313,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   )
 
-  const startDemoWorkspace = useCallback(async (): Promise<ActionResult> => {
+  const startDemoWorkspace = useCallback(async (): Promise<{ ok: true; pin: string } | { ok: false; error: string }> => {
     try {
       const demoId = crypto.randomUUID().slice(0, 8)
       const email = `demo-${demoId}@implatrax-demo.local`
@@ -340,7 +348,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setWorkspaceMembers([me])
       setMustChangePin(false)
       setStatus('unlocked')
-      return { ok: true, id: workspaceId }
+      return { ok: true, pin }
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : 'Could not start the demo workspace.' }
     }
