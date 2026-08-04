@@ -48,7 +48,7 @@ export const AUTH_BACKDROP_CLASS =
  * distinct surface rather than blending into the page.
  */
 export const AUTH_CARD_CLASS =
-  'relative w-full max-w-[21.5rem] rounded-[28px] border border-white/70 bg-gradient-to-b from-white/75 to-white/45 px-6 py-5 backdrop-blur-2xl sm:px-8 sm:py-9 ' +
+  'relative w-full max-w-[21.5rem] rounded-[28px] border border-white/70 bg-gradient-to-b from-white/75 to-white/45 px-6 py-5 backdrop-blur-2xl sm:px-8 sm:py-6 ' +
   'shadow-[inset_0_1px_0_rgba(255,255,255,0.7),inset_0_0_0_1px_rgba(255,255,255,0.15),0_1px_2px_rgba(15,23,42,0.04),0_28px_60px_-20px_rgba(15,23,42,0.28)] ' +
   'dark:border-white/[0.12] dark:bg-gradient-to-b dark:from-white/[0.08] dark:to-white/[0.025] ' +
   'dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),inset_0_0_0_1px_rgba(255,255,255,0.04),0_1px_2px_rgba(0,0,0,0.5),0_50px_100px_-20px_rgba(0,0,0,0.85),0_0_80px_-22px_hsl(var(--primary)/0.4)]'
@@ -139,8 +139,8 @@ export const AUTH_INPUT_CLASS =
  * home-indicator/gesture-bar cutout.
  */
 export const AUTH_CONTENT_WRAPPER_CLASS =
-  'relative flex h-full w-full flex-1 flex-col items-center gap-4 overflow-y-auto px-5 pt-2 sm:gap-11 sm:px-6 sm:pt-12 md:w-[68%] md:justify-center lg:w-[60%] ' +
-  'pb-[max(0.625rem,env(safe-area-inset-bottom))] sm:pb-12'
+  'relative flex h-full w-full flex-1 flex-col items-center gap-4 overflow-y-auto px-5 pt-2 sm:gap-6 sm:px-6 sm:pt-6 md:w-[68%] md:justify-center lg:w-[60%] ' +
+  'pb-[max(0.625rem,env(safe-area-inset-bottom))] sm:pb-6'
 
 /** Mobile-only-shrunk showcase panel sizing — full sizing restored from `sm:` up (see AUTH_SHOWCASE_BG_CLASS usage). No longer `sticky`: the page itself doesn't scroll, so a plain `h-full` keeps it filling its side of the fixed-height shell. */
 export const AUTH_SHOWCASE_PANEL_CLASS =
