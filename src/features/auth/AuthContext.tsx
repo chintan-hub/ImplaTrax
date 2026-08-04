@@ -6,6 +6,7 @@ import { hashPin, generateSalt } from './crypto'
 import { isPlatformAuthenticatorAvailable, registerPasskey, verifyPasskey } from './webauthn'
 import { getDeviceId, getDevicePin, setDevicePin, getLastWorkspaceId, setLastWorkspaceId, clearDeviceStore } from './devicePairing'
 import { seedDemoWorkspace } from '@/lib/supabase/demoSeed'
+import { describeAuthError, isEmailAlreadyRegisteredError, isObfuscatedExistingUserSignUp } from './authErrors'
 import { WORKSPACE_MANAGER_ROLES, DEFAULT_SECURITY_PREFS } from './accountTypes'
 import { setCurrentActor } from '@/store/currentActor'
 import type { AccountRole, AuditEntry, SecurityPrefs } from './accountTypes'
@@ -19,9 +20,18 @@ export interface OnboardingInput {
   password?: string
   pin: string
   enableBiometrics: boolean
+  companyName?: string
+  country?: string
+  currency?: string
+  logoDataUrl?: string
 }
 
 export type LogInResult = { ok: true; needsNewPin: boolean } | { ok: false; error: string } | { ok: 'pending-confirmation' }
+
+/** `emailExists` lets the UI offer "Sign in instead" specifically — every other failure is just a message to show and let the user retry. */
+export type CompleteOnboardingResult =
+  | { ok: true; workspaceName: string; name: string; contact: string }
+  | { ok: false; error: string; emailExists?: boolean }
 
 export interface AuthIdentity {
   name: string
@@ -65,7 +75,7 @@ interface AuthContextValue {
   lockedUntil: string | null
   loading: boolean
 
-  completeOnboarding: (input: OnboardingInput) => Promise<{ workspaceName: string; name: string; contact: string }>
+  completeOnboarding: (input: OnboardingInput) => Promise<CompleteOnboardingResult>
   /**
    * Creates an isolated, throwaway workspace pre-seeded with realistic demo
    * data and signs straight into it — for "try it now" without the
@@ -281,38 +291,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const completeOnboarding = useCallback(
-    async (input: OnboardingInput) => {
-      const { data: signUpData, error: signUpError } = await client().auth.signUp({ email: input.contact.trim(), password: input.password ?? '' })
-      if (signUpError) throw new Error(signUpError.message)
-      if (!signUpData.session) {
-        throw new Error('Check your email to confirm your account, then log in. (Supabase project has email confirmation enabled — disable it under Authentication settings for instant onboarding.)')
+    async (input: OnboardingInput): Promise<CompleteOnboardingResult> => {
+      try {
+        const email = input.contact.trim()
+        const { data: signUpData, error: signUpError } = await client().auth.signUp({ email, password: input.password ?? '' })
+        if (signUpError) {
+          if (isEmailAlreadyRegisteredError(signUpError)) {
+            return { ok: false, error: 'An account with this email already exists. Please sign in instead.', emailExists: true }
+          }
+          return { ok: false, error: describeAuthError(signUpError) }
+        }
+        // Confirm-email-enabled projects never return a real error for a
+        // duplicate signup (to avoid leaking which emails are registered) —
+        // instead they return this obfuscated user/no-session shape.
+        if (isObfuscatedExistingUserSignUp(signUpData)) {
+          return { ok: false, error: 'An account with this email already exists. Please sign in instead.', emailExists: true }
+        }
+        if (!signUpData.session) {
+          return { ok: false, error: 'Check your email to confirm your account, then log in. (Supabase project has email confirmation enabled — disable it under Authentication settings for instant onboarding.)' }
+        }
+        setSession(signUpData.session)
+
+        const workspaceId = unwrapRpc<string>(await client().rpc('create_workspace', { p_workspace_name: input.workspaceName.trim(), p_member_name: input.name.trim(), p_contact_email: email }))
+        unwrapRpc(
+          await client().rpc('complete_onboarding', {
+            p_workspace_id: workspaceId,
+            p_clinic_name: input.companyName?.trim() || input.workspaceName.trim(),
+            p_country: input.country ?? '',
+            p_currency: input.currency ?? 'INR',
+            p_logo_url: input.logoDataUrl || null,
+          }),
+        )
+
+        const memberRow = unwrapRpc<{
+          id: string; name: string; contact_email: string | null; account_role: string; status: string
+          created_at: string; last_login_at: string | null; last_active_at: string | null
+        }>(
+          await client().from('workspace_members').select('id, name, contact_email, account_role, status, created_at, last_login_at, last_active_at').eq('workspace_id', workspaceId).eq('auth_user_id', signUpData.session.user.id).single(),
+        )
+        const me = memberFromRow(memberRow)
+
+        const salt = generateSalt()
+        const pinHash = await hashPin(input.pin, salt)
+        const webauthnCredentialId = input.enableBiometrics ? await registerPasskey(input.name, input.contact) : null
+        setDevicePin(me.id, { pinHash, pinSalt: salt, mustChangePin: false, webauthnCredentialId })
+        setLastWorkspaceId(workspaceId)
+
+        setCurrentWorkspaceState({ id: workspaceId, name: input.workspaceName.trim(), createdAt: new Date().toISOString() })
+        setWorkspaces((prev) => [...prev, { id: workspaceId, name: input.workspaceName.trim(), createdAt: new Date().toISOString() }])
+        setCurrentMember(me)
+        setWorkspaceMembers([me])
+        setMustChangePin(false)
+        setStatus('unlocked')
+        return { ok: true, workspaceName: input.workspaceName, name: input.name, contact: input.contact }
+      } catch (err) {
+        return { ok: false, error: describeAuthError(err) }
       }
-      setSession(signUpData.session)
-
-      const workspaceId = unwrapRpc<string>(await client().rpc('create_workspace', { p_workspace_name: input.workspaceName.trim(), p_member_name: input.name.trim(), p_contact_email: input.contact.trim() }))
-      unwrapRpc(await client().rpc('complete_onboarding', { p_workspace_id: workspaceId, p_clinic_name: input.workspaceName.trim(), p_country: '', p_currency: 'INR' }))
-
-      const memberRow = unwrapRpc<{
-        id: string; name: string; contact_email: string | null; account_role: string; status: string
-        created_at: string; last_login_at: string | null; last_active_at: string | null
-      }>(
-        await client().from('workspace_members').select('id, name, contact_email, account_role, status, created_at, last_login_at, last_active_at').eq('workspace_id', workspaceId).eq('auth_user_id', signUpData.session.user.id).single(),
-      )
-      const me = memberFromRow(memberRow)
-
-      const salt = generateSalt()
-      const pinHash = await hashPin(input.pin, salt)
-      const webauthnCredentialId = input.enableBiometrics ? await registerPasskey(input.name, input.contact) : null
-      setDevicePin(me.id, { pinHash, pinSalt: salt, mustChangePin: false, webauthnCredentialId })
-      setLastWorkspaceId(workspaceId)
-
-      setCurrentWorkspaceState({ id: workspaceId, name: input.workspaceName.trim(), createdAt: new Date().toISOString() })
-      setWorkspaces((prev) => [...prev, { id: workspaceId, name: input.workspaceName.trim(), createdAt: new Date().toISOString() }])
-      setCurrentMember(me)
-      setWorkspaceMembers([me])
-      setMustChangePin(false)
-      setStatus('unlocked')
-      return { workspaceName: input.workspaceName, name: input.name, contact: input.contact }
     },
     [],
   )
@@ -354,7 +388,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStatus('unlocked')
       return { ok: true, pin }
     } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : 'Could not start the demo workspace.' }
+      return { ok: false, error: describeAuthError(err) }
     }
   }, [])
 
@@ -496,32 +530,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logInWithPassword = useCallback(async (email: string, password: string): Promise<LogInResult> => {
     const trimmed = email.trim().toLowerCase()
     if (!trimmed || !password) return { ok: false, error: 'Enter your email and password.' }
-    const { data, error } = await client().auth.signInWithPassword({ email: trimmed, password })
-    if (error) return { ok: false, error: error.message === 'Invalid login credentials' ? 'Incorrect email or password.' : error.message }
-    if (!data.session) return { ok: 'pending-confirmation' }
-    setSession(data.session)
-    await hydrateFromSession(data.session)
-    const member = getDevicePin
-    void member
-    // hydrateFromSession already set currentMember/status; report whether this device needs a fresh PIN.
-    const me = await client().from('workspace_members').select('id').eq('auth_user_id', data.session.user.id).eq('status', 'active').limit(1).maybeSingle()
-    const needsNewPin = me.data ? !getDevicePin(me.data.id)?.pinHash : true
-    return { ok: true, needsNewPin }
+    try {
+      const { data, error } = await client().auth.signInWithPassword({ email: trimmed, password })
+      if (error) return { ok: false, error: describeAuthError(error) }
+      if (!data.session) return { ok: 'pending-confirmation' }
+      setSession(data.session)
+      await hydrateFromSession(data.session)
+      // hydrateFromSession already set currentMember/status; report whether this device needs a fresh PIN.
+      const me = await client().from('workspace_members').select('id').eq('auth_user_id', data.session.user.id).eq('status', 'active').limit(1).maybeSingle()
+      const needsNewPin = me.data ? !getDevicePin(me.data.id)?.pinHash : true
+      return { ok: true, needsNewPin }
+    } catch (err) {
+      return { ok: false, error: describeAuthError(err) }
+    }
   }, [hydrateFromSession])
 
   const requestPasswordReset = useCallback(async (email: string): Promise<ActionResult> => {
     const trimmed = email.trim().toLowerCase()
     if (!trimmed) return { ok: false, error: 'Enter your email address.' }
-    const { error } = await client().auth.resetPasswordForEmail(trimmed, { redirectTo: `${window.location.origin}/reset-password` })
-    if (error) return { ok: false, error: error.message }
-    return { ok: true }
+    try {
+      const { error } = await client().auth.resetPasswordForEmail(trimmed, { redirectTo: `${window.location.origin}/reset-password` })
+      if (error) return { ok: false, error: describeAuthError(error) }
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: describeAuthError(err) }
+    }
   }, [])
 
   const updatePassword = useCallback(async (newPassword: string): Promise<ActionResult> => {
     if (newPassword.length < 8) return { ok: false, error: 'Password must be at least 8 characters.' }
-    const { error } = await client().auth.updateUser({ password: newPassword })
-    if (error) return { ok: false, error: error.message }
-    return { ok: true }
+    try {
+      const { error } = await client().auth.updateUser({ password: newPassword })
+      if (error) return { ok: false, error: describeAuthError(error) }
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: describeAuthError(err) }
+    }
   }, [])
 
   const addMember = useCallback(

@@ -10,7 +10,6 @@ import { Switch } from '@/components/ui/switch'
 import { Combobox } from '@/components/ui/combobox'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { useAuth } from './AuthContext'
-import { useData } from '@/store/DataContext'
 import { AuthShowcasePanel } from './AuthShowcasePanel'
 import { AuthBrandBlock } from './AuthBrandBlock'
 import { PinPad } from './PinPad'
@@ -76,7 +75,6 @@ function clearDraft() {
 
 export function OnboardingFlow() {
   const { completeOnboarding, startDemoWorkspace } = useAuth()
-  const { updateClinicSettings } = useData()
   const [startingDemo, setStartingDemo] = useState(false)
   const initialDraft = useRef(loadDraft()).current
   // A draft with any data means the wizard was interrupted mid-way — land
@@ -103,6 +101,7 @@ export function OnboardingFlow() {
   const [enableBiometrics, setEnableBiometrics] = useState(false)
   const [biometricsSupported, setBiometricsSupported] = useState(false)
   const [finishing, setFinishing] = useState(false)
+  const [finishError, setFinishError] = useState<{ message: string; emailExists: boolean } | null>(null)
 
   const passwordsMatch = password.length > 0 && password === confirmPassword
   const accountValid = workspaceName.trim().length > 0 && name.trim().length > 0 && /\S+@\S+\.\S+/.test(email.trim()) && password.length >= 8 && passwordsMatch
@@ -169,14 +168,32 @@ export function OnboardingFlow() {
 
   const handleFinish = async () => {
     setFinishing(true)
-    try {
-      await completeOnboarding({ workspaceName: workspaceName.trim(), name: name.trim(), contact: email.trim(), password, pin: createdPin, enableBiometrics })
-      await updateClinicSettings({ clinicName: companyName.trim() || workspaceName.trim(), country, currency, logoDataUrl })
-      clearDraft()
-    } catch {
-      toast.error('Something went wrong finishing setup', { description: 'Please try again.' })
+    setFinishError(null)
+    const result = await completeOnboarding({
+      workspaceName: workspaceName.trim(),
+      name: name.trim(),
+      contact: email.trim(),
+      password,
+      pin: createdPin,
+      enableBiometrics,
+      companyName: companyName.trim(),
+      country,
+      currency,
+      logoDataUrl,
+    })
+    if (!result.ok) {
       setFinishing(false)
+      setFinishError({ message: result.error, emailExists: Boolean(result.emailExists) })
+      return
     }
+    clearDraft()
+  }
+
+  /** Bounces an "this email already has a workspace" Finish failure straight to the sign-in form, pre-filled, instead of leaving the user stuck on a wizard they can't complete. */
+  const goToSignIn = () => {
+    setFinishError(null)
+    setStep('welcome')
+    setShowLogIn(true)
   }
 
   const handleCountryChange = (value: string) => {
@@ -250,7 +267,7 @@ export function OnboardingFlow() {
             {step === 'welcome' && showLogIn && (
               <motion.div key="login" {...STEP_TRANSITION} className="flex flex-col items-center gap-4 sm:gap-6">
                 <AuthScreenHeader title="Log In" subtitle="Sign in with the email and password from your workspace." />
-                <LogInWithEmailForm onSuccess={() => {}} />
+                <LogInWithEmailForm initialEmail={email} onSuccess={() => {}} />
                 <button
                   type="button"
                   onClick={() => setShowLogIn(false)}
@@ -436,6 +453,20 @@ export function OnboardingFlow() {
                       <p className="text-xs text-muted-foreground">Unlock with Face ID, Touch ID, or Windows Hello.</p>
                     </div>
                     <Switch checked={enableBiometrics} onCheckedChange={setEnableBiometrics} aria-label="Enable biometrics" />
+                  </div>
+                )}
+                {finishError && (
+                  <div className="flex w-full flex-col items-center gap-1 text-center">
+                    <p className="text-sm text-danger-600">{finishError.message}</p>
+                    {finishError.emailExists && (
+                      <button
+                        type="button"
+                        onClick={goToSignIn}
+                        className="rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                      >
+                        Sign In Instead
+                      </button>
+                    )}
                   </div>
                 )}
                 <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} loading={finishing} onClick={handleFinish}>
