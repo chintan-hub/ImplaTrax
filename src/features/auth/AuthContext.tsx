@@ -77,6 +77,10 @@ interface AuthContextValue {
    */
   startDemoWorkspace: () => Promise<{ ok: true; pin: string } | { ok: false; error: string }>
   logInWithPassword: (email: string, password: string) => Promise<LogInResult>
+  /** Sends a Supabase Auth password-recovery email; the link lands the user back on /reset-password with a temporary recovery session. */
+  requestPasswordReset: (email: string) => Promise<ActionResult>
+  /** Sets a new password on the caller's current session — valid both for a normal signed-in session and the temporary recovery session /reset-password establishes. */
+  updatePassword: (newPassword: string) => Promise<ActionResult>
   verifyPin: (pin: string) => Promise<boolean>
   verifyBiometrics: () => Promise<boolean>
   completeForcedPinChange: (newPin: string) => Promise<void>
@@ -286,7 +290,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(signUpData.session)
 
       const workspaceId = unwrapRpc<string>(await client().rpc('create_workspace', { p_workspace_name: input.workspaceName.trim(), p_member_name: input.name.trim(), p_contact_email: input.contact.trim() }))
-      unwrapRpc(await client().rpc('complete_onboarding', { p_workspace_id: workspaceId, p_clinic_name: input.workspaceName.trim(), p_country: '', p_currency: 'USD' }))
+      unwrapRpc(await client().rpc('complete_onboarding', { p_workspace_id: workspaceId, p_clinic_name: input.workspaceName.trim(), p_country: '', p_currency: 'INR' }))
 
       const memberRow = unwrapRpc<{
         id: string; name: string; contact_email: string | null; account_role: string; status: string
@@ -505,6 +509,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { ok: true, needsNewPin }
   }, [hydrateFromSession])
 
+  const requestPasswordReset = useCallback(async (email: string): Promise<ActionResult> => {
+    const trimmed = email.trim().toLowerCase()
+    if (!trimmed) return { ok: false, error: 'Enter your email address.' }
+    const { error } = await client().auth.resetPasswordForEmail(trimmed, { redirectTo: `${window.location.origin}/reset-password` })
+    if (error) return { ok: false, error: error.message }
+    return { ok: true }
+  }, [])
+
+  const updatePassword = useCallback(async (newPassword: string): Promise<ActionResult> => {
+    if (newPassword.length < 8) return { ok: false, error: 'Password must be at least 8 characters.' }
+    const { error } = await client().auth.updateUser({ password: newPassword })
+    if (error) return { ok: false, error: error.message }
+    return { ok: true }
+  }, [])
+
   const addMember = useCallback(
     async (input: { name: string; contact: string; role: AccountRole }): Promise<ActionResult> => {
       if (!currentMember || !WORKSPACE_MANAGER_ROLES.includes(currentMember.role)) return { ok: false, error: 'You do not have permission to add team members.' }
@@ -658,6 +677,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       completeOnboarding,
       startDemoWorkspace,
       logInWithPassword,
+      requestPasswordReset,
+      updatePassword,
       verifyPin,
       verifyBiometrics,
       completeForcedPinChange,
@@ -685,6 +706,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [
       status, currentMember, currentWorkspace, workspaceMembers, activeWorkspaceMembers, workspaces, auditLog, security,
       platformAuthAvailable, mustChangePin, failedPinAttempts, lockedUntil, loading, completeOnboarding, startDemoWorkspace, logInWithPassword,
+      requestPasswordReset, updatePassword,
       verifyPin, verifyBiometrics, completeForcedPinChange, unlock, lock, logout, resetDevice, changePin, enableBiometrics,
       disableBiometrics, updateProfile, setAutoLockMinutes, setSessionTimeoutMinutes, setDesktopNotifications, addMember,
       disableMember, reactivateMember, changeMemberRole, removeMember, resetMemberPin, createWorkspace, switchWorkspace, renameWorkspace,

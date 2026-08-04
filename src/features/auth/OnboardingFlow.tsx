@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { toast } from 'sonner'
-import { Image as ImageIcon, X } from 'lucide-react'
+import { ArrowLeft, Image as ImageIcon, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/ui/password-input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Combobox } from '@/components/ui/combobox'
@@ -45,7 +46,7 @@ interface Draft {
   logoDataUrl: string
 }
 
-const EMPTY_DRAFT: Draft = { workspaceName: '', name: '', email: '', companyName: '', country: '', currency: 'USD', logoDataUrl: '' }
+const EMPTY_DRAFT: Draft = { workspaceName: '', name: '', email: '', companyName: '', country: '', currency: 'INR', logoDataUrl: '' }
 
 function loadDraft(): Draft {
   try {
@@ -88,6 +89,7 @@ export function OnboardingFlow() {
   const [name, setName] = useState(initialDraft.name)
   const [email, setEmail] = useState(initialDraft.email)
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
 
   const [companyName, setCompanyName] = useState(initialDraft.companyName)
   const [country, setCountry] = useState(initialDraft.country)
@@ -102,7 +104,8 @@ export function OnboardingFlow() {
   const [biometricsSupported, setBiometricsSupported] = useState(false)
   const [finishing, setFinishing] = useState(false)
 
-  const accountValid = workspaceName.trim().length > 0 && name.trim().length > 0 && /\S+@\S+\.\S+/.test(email.trim()) && password.length >= 8
+  const passwordsMatch = password.length > 0 && password === confirmPassword
+  const accountValid = workspaceName.trim().length > 0 && name.trim().length > 0 && /\S+@\S+\.\S+/.test(email.trim()) && password.length >= 8 && passwordsMatch
   const [pinConfirmed, setPinConfirmed] = useState(false)
 
   // Resumable if interrupted: everything except the password (never worth
@@ -114,12 +117,16 @@ export function OnboardingFlow() {
   }, [workspaceName, name, email, companyName, country, currency, logoDataUrl])
 
   // Each step can differ in height from the last (e.g. "account" is much
-  // taller than "welcome") — reset scroll to the top on every step change
-  // so the new step's first control always opens already in view, instead
-  // of wherever the previous step happened to leave the scroll position.
+  // taller than "welcome") — reset scroll to the top of the content pane on
+  // every step change so the new step's first control always opens already
+  // in view, instead of wherever the previous step happened to leave the
+  // scroll position. The page itself no longer scrolls (h-screen
+  // overflow-hidden on the root), so this targets the pane directly rather
+  // than window.
   const firstMount = useRef(true)
+  const paneRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: firstMount.current ? 'auto' : 'smooth' })
+    paneRef.current?.scrollTo({ top: 0, behavior: firstMount.current ? 'auto' : 'smooth' })
     firstMount.current = false
   }, [step, showLogIn, pinPhase, pinConfirmed])
 
@@ -172,6 +179,11 @@ export function OnboardingFlow() {
     }
   }
 
+  const handleCountryChange = (value: string) => {
+    setCountry(value)
+    if (value === 'India') setCurrency('INR')
+  }
+
   const handleTryDemo = async () => {
     setStartingDemo(true)
     const result = await startDemoWorkspace()
@@ -187,10 +199,10 @@ export function OnboardingFlow() {
   }
 
   return (
-    <div className="relative flex min-h-dvh w-full flex-col md:flex-row print:hidden">
+    <div className="relative flex h-screen w-screen flex-col overflow-hidden md:flex-row print:hidden">
       <AuthShowcasePanel className={AUTH_SHOWCASE_PANEL_CLASS} />
 
-      <div className={`${AUTH_CONTENT_WRAPPER_CLASS} ${AUTH_BACKDROP_CLASS}`}>
+      <div ref={paneRef} className={`${AUTH_CONTENT_WRAPPER_CLASS} ${AUTH_BACKDROP_CLASS}`}>
         <AuthBrandBlock />
 
         <motion.div {...AUTH_CARD_MOTION} className={`overflow-hidden ${AUTH_CARD_CLASS}`}>
@@ -234,7 +246,18 @@ export function OnboardingFlow() {
 
             {step === 'account' && (
               <motion.div key="account" {...STEP_TRANSITION} className="flex flex-col items-center gap-6 sm:gap-11">
-                <AuthScreenHeader title="Set Up Your Workspace" subtitle="Tell us a little about your practice." />
+                <div className="flex w-full flex-col gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setStep('welcome')}
+                    className="-ml-2 -mb-1 gap-1.5 self-start text-muted-foreground hover:text-foreground"
+                  >
+                    <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back
+                  </Button>
+                  <AuthScreenHeader title="Set Up Your Workspace" subtitle="Tell us a little about your practice." />
+                </div>
                 <div className="flex w-full flex-col gap-3 sm:gap-4">
                   <div className="flex flex-col gap-1.5 sm:gap-2">
                     <Label htmlFor="workspaceName">Workspace Name</Label>
@@ -265,15 +288,25 @@ export function OnboardingFlow() {
                   </div>
                   <div className="flex flex-col gap-1.5 sm:gap-2">
                     <Label htmlFor="password">Password</Label>
-                    <Input
+                    <PasswordInput
                       id="password"
-                      type="password"
                       autoComplete="new-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className={AUTH_INPUT_CLASS}
                     />
                     <p className="text-xs text-muted-foreground">At least 8 characters. This is your account password — separate from the 4-digit PIN you'll set up next.</p>
+                  </div>
+                  <div className="flex flex-col gap-1.5 sm:gap-2">
+                    <Label htmlFor="confirmPassword">Confirm Password</Label>
+                    <PasswordInput
+                      id="confirmPassword"
+                      autoComplete="new-password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className={AUTH_INPUT_CLASS}
+                    />
+                    {confirmPassword.length > 0 && !passwordsMatch && <p className="text-xs text-danger-600">Passwords do not match.</p>}
                   </div>
                 </div>
                 <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} disabled={!accountValid} onClick={() => setStep('company')}>
@@ -328,7 +361,7 @@ export function OnboardingFlow() {
                     <Combobox
                       options={COUNTRIES.map((c) => ({ value: c, label: c }))}
                       value={country}
-                      onChange={setCountry}
+                      onChange={handleCountryChange}
                       placeholder="Select country"
                       searchPlaceholder="Search countries..."
                       emptyText="No countries found."

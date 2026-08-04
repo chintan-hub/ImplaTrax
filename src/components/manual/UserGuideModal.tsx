@@ -17,7 +17,7 @@ export function UserGuideModal({ open, onOpenChange }: { open: boolean; onOpenCh
         <DialogHeader className="flex-row items-center justify-between gap-3 space-y-0 pr-6">
           <div>
             <DialogTitle>User Manual</DialogTitle>
-            <DialogDescription>The complete ImplaTrax user guide</DialogDescription>
+            <DialogDescription>The complete ImplaTrax User Manual</DialogDescription>
           </div>
           <a
             href={USER_GUIDE_PATH}
@@ -28,7 +28,7 @@ export function UserGuideModal({ open, onOpenChange }: { open: boolean; onOpenCh
           </a>
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border">
-          <iframe src={USER_GUIDE_PATH} title="ImplaTrax User Guide" className="h-full w-full" />
+          <iframe src={USER_GUIDE_PATH} title="ImplaTrax User Manual" className="h-full w-full" />
         </div>
       </DialogContent>
     </Dialog>

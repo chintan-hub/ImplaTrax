@@ -32,7 +32,7 @@ export function AboutTab() {
           <CardTitle className="flex items-center gap-1.5">
             <BookOpen className="h-4 w-4" /> User Manual
           </CardTitle>
-          <CardDescription>The complete, searchable ImplaTrax user guide — every module, workflow, and business rule, in one PDF</CardDescription>
+          <CardDescription>The complete, searchable ImplaTrax User Manual — every module, workflow, and business rule, in one PDF</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setGuideOpen(true)}>

@@ -7,19 +7,18 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)
 
 /**
- * Null until VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY are set. The app
- * currently runs entirely on localStorage (see src/store/DataContext.tsx)
- * and nothing imports this client yet — it's the landing point for the
- * next phase of the Supabase migration (see supabase/migrations and the
- * migration report), which rewrites DataContext/AuthContext to read and
- * write through it once real project credentials exist.
+ * Null until VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY are set — every read
+ * and write in the app (DataContext, AuthContext) goes through this client.
+ * `detectSessionInUrl` is on so the password-recovery link's access token in
+ * the URL hash (landing on /reset-password) establishes a session on its
+ * own, without the app having to parse it manually.
  */
 export const supabase = isSupabaseConfigured
   ? createClient<Database>(supabaseUrl as string, supabaseAnonKey as string, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: false,
+        detectSessionInUrl: true,
       },
     })
   : null

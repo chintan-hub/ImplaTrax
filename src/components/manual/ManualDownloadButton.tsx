@@ -21,7 +21,7 @@ export function ManualDownloadButton({ children, ...buttonProps }: Omit<ButtonPr
     if (requested && !instance.loading && instance.url) {
       const link = document.createElement('a')
       link.href = instance.url
-      link.download = 'ImplaTrax-User-Guide.pdf'
+      link.download = 'ImplaTrax-User-Manual.pdf'
       link.click()
       setRequested(false)
     }
@@ -36,7 +36,7 @@ export function ManualDownloadButton({ children, ...buttonProps }: Omit<ButtonPr
     <Button onClick={handleClick} loading={requested && instance.loading} disabled={requested && instance.loading} {...buttonProps}>
       {children ?? (
         <>
-          <FileDown className="h-4 w-4" /> Download User Guide (PDF)
+          <FileDown className="h-4 w-4" /> Download User Manual (PDF)
         </>
       )}
     </Button>

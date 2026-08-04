@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/ui/password-input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { useAuth } from './AuthContext'
@@ -13,13 +14,17 @@ import { AUTH_INPUT_CLASS, CTA_BUTTON_CLASS } from './authTheme'
  * fallback, so the two never drift out of sync.
  */
 export function LogInWithEmailForm({ onSuccess }: { onSuccess: (needsNewPin: boolean) => void }) {
-  const { logInWithPassword } = useAuth()
+  const { logInWithPassword, requestPasswordReset } = useAuth()
   const [email, setEmail] = useState(() => getRememberedEmail())
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(() => Boolean(getRememberedEmail()))
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [forgotOpen, setForgotOpen] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetSending, setResetSending] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
+  const [resetError, setResetError] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,6 +44,29 @@ export function LogInWithEmailForm({ onSuccess }: { onSuccess: (needsNewPin: boo
     onSuccess(result.needsNewPin)
   }
 
+  const openForgotPassword = () => {
+    setResetEmail(email.trim())
+    setResetSent(false)
+    setResetError('')
+    setForgotOpen(true)
+  }
+
+  const handleSendReset = async () => {
+    if (!resetEmail.trim()) {
+      setResetError('Enter your email address.')
+      return
+    }
+    setResetSending(true)
+    setResetError('')
+    const result = await requestPasswordReset(resetEmail.trim())
+    setResetSending(false)
+    if (!result.ok) {
+      setResetError(result.error)
+      return
+    }
+    setResetSent(true)
+  }
+
   return (
     <form onSubmit={handleSubmit} className="flex w-full flex-col gap-3 sm:gap-4">
       <div className="flex flex-col gap-1.5 sm:gap-2">
@@ -56,9 +84,8 @@ export function LogInWithEmailForm({ onSuccess }: { onSuccess: (needsNewPin: boo
       </div>
       <div className="flex flex-col gap-1.5 sm:gap-2">
         <Label htmlFor="login-password">Password</Label>
-        <Input
+        <PasswordInput
           id="login-password"
-          type="password"
           autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -78,7 +105,7 @@ export function LogInWithEmailForm({ onSuccess }: { onSuccess: (needsNewPin: boo
           />
           Remember me
         </label>
-        <button type="button" onClick={() => setForgotOpen(true)} className="text-muted-foreground transition-colors hover:text-foreground">
+        <button type="button" onClick={openForgotPassword} className="text-muted-foreground transition-colors hover:text-foreground">
           Forgot password?
         </button>
       </div>
@@ -90,14 +117,41 @@ export function LogInWithEmailForm({ onSuccess }: { onSuccess: (needsNewPin: boo
       <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Forgot your password?</DialogTitle>
+            <DialogTitle>Reset your password</DialogTitle>
             <DialogDescription>
-              Password reset by email requires cloud sync, which arrives with the Supabase integration. Until then, a workspace
-              owner can regain access from "Forgot PIN" on the PIN screen, or a teammate can be re-added by an admin.
+              {resetSent
+                ? "Check your email for a link to set a new password."
+                : "Enter your account email and we'll send you a link to set a new password."}
             </DialogDescription>
           </DialogHeader>
+          {!resetSent && (
+            <div className="space-y-1.5">
+              <Label htmlFor="reset-email">Email</Label>
+              <Input
+                id="reset-email"
+                type="email"
+                autoComplete="email"
+                autoFocus
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
+                placeholder="you@example.com"
+              />
+              {resetError && <p className="text-sm text-danger-600">{resetError}</p>}
+            </div>
+          )}
           <DialogFooter>
-            <Button onClick={() => setForgotOpen(false)}>Got it</Button>
+            {resetSent ? (
+              <Button onClick={() => setForgotOpen(false)}>Got it</Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setForgotOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSendReset} loading={resetSending} disabled={!resetEmail.trim()}>
+                  Send Reset Link
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

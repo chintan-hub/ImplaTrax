@@ -97,7 +97,11 @@ export function ProductFormDialog({ open, onOpenChange, product }: { open: boole
     setSubmitting(true)
     await simulateLatency()
     try {
-      submitProduct(values)
+      // Awaited so a rejection from the Supabase insert/update itself (RLS
+      // denial, network failure, etc.) lands in this catch too — not just a
+      // synchronous validation throw — and the dialog only closes /
+      // success-toasts once the row has actually been written.
+      await submitProduct(values)
       onOpenChange(false)
     } catch (err) {
       toast.error(isEdit ? 'Could not update product' : 'Could not create product', { description: err instanceof Error ? err.message : undefined })
@@ -106,13 +110,13 @@ export function ProductFormDialog({ open, onOpenChange, product }: { open: boole
     }
   }
 
-  const submitProduct = (values: FormValues) => {
+  const submitProduct = async (values: FormValues) => {
     if (isEdit && product) {
       // quantityOnHand is deliberately excluded here — stock only ever
       // changes through a business action (Manual Adjustment, Sale, Loan,
       // Receiving), never a direct edit (PROJECT.md §3, "no magic stock
       // changes"). Editing a product cannot bypass that.
-      updateProduct(product.id, {
+      await updateProduct(product.id, {
         name: values.name,
         manufacturer: values.manufacturer,
         category: values.category,
@@ -130,8 +134,15 @@ export function ProductFormDialog({ open, onOpenChange, product }: { open: boole
       })
       toast.success('Product updated', { description: `${values.name} was saved.` })
     } else {
+      // A brand-new workspace starts with zero vendors (only the Demo
+      // Workspace is pre-seeded with them) — without this guard, `vendor`
+      // is `undefined` here and `vendor.id` below throws a raw, unhelpful
+      // "Cannot read properties of undefined (reading 'id')".
       const vendor = vendors.find((v) => v.manufacturers.includes(values.manufacturer)) ?? vendors[0]
-      addProduct({
+      if (!vendor) {
+        throw new Error('No vendor is set up yet — add a vendor under Vendors before creating a product.')
+      }
+      await addProduct({
         name: values.name,
         manufacturer: values.manufacturer,
         category: values.category,

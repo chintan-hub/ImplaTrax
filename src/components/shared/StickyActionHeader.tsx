@@ -29,6 +29,12 @@ interface StickyActionHeaderProps {
  * than between the header and the toolbar, for the same reason — stats
  * aren't part of the sticky unit, so they scroll away normally instead of
  * fighting the header for the same sticky slot.
+ *
+ * The sticky wrapper carries `group` + `data-scrolled` so content passed
+ * into `toolbar` (e.g. a page's TabsList) can shrink in step with the title
+ * row purely via CSS — see the `group-data-[scrolled=true]:*` variants on
+ * TabsList/TabsTrigger in `components/ui/tabs.tsx` — without this component
+ * needing to know what's inside `toolbar`.
  */
 export function StickyActionHeader({ title, description, actions, helpTerm, toolbar, toolbarClassName }: StickyActionHeaderProps) {
   const { sentinelRef, isScrolled } = useStickyHeader()
@@ -37,8 +43,9 @@ export function StickyActionHeader({ title, description, actions, helpTerm, tool
     <>
       <div ref={sentinelRef} aria-hidden="true" className="h-px" />
       <div
+        data-scrolled={isScrolled}
         className={cn(
-          'sticky top-0 z-20 -mx-4 mb-6 border-b px-4 transition-colors duration-200 ease-out md:-mx-8 md:px-8',
+          'group sticky top-0 z-20 -mx-4 mb-6 border-b px-4 transition-colors duration-200 ease-out md:-mx-8 md:px-8',
           isScrolled ? 'border-border/80 bg-background/85 shadow-sm backdrop-blur-md' : 'border-transparent bg-background/0',
         )}
       >
@@ -48,10 +55,10 @@ export function StickyActionHeader({ title, description, actions, helpTerm, tool
             isScrolled ? 'py-2.5' : 'py-5',
           )}
         >
-          <div className="min-w-0">
+          <div className="flex min-w-0 flex-col gap-1 overflow-visible">
             <h1
               className={cn(
-                'flex items-center gap-1.5 font-semibold tracking-tight transition-[font-size] duration-200 ease-out',
+                'flex items-center gap-1.5 font-semibold leading-normal tracking-tight transition-[font-size] duration-200 ease-out',
                 isScrolled ? 'text-lg' : 'text-2xl',
               )}
             >
@@ -63,8 +70,13 @@ export function StickyActionHeader({ title, description, actions, helpTerm, tool
                 className="grid transition-[grid-template-rows] duration-200 ease-out"
                 style={{ gridTemplateRows: isScrolled ? '0fr' : '1fr' }}
               >
+                {/* overflow-hidden here is the collapse animation's own clipping
+                    mechanism (it's what lets the 1fr->0fr row visually shrink to
+                    nothing when scrolled) — distinct from the outer title
+                    container above, which stays overflow-visible so the
+                    subtitle's own text is never clipped while at rest. */}
                 <div className="overflow-hidden">
-                  <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+                  <p className="text-sm leading-normal text-muted-foreground">{description}</p>
                 </div>
               </div>
             )}
@@ -81,7 +93,13 @@ export function StickyActionHeader({ title, description, actions, helpTerm, tool
           )}
         </div>
         {toolbar && (
-          <div className={cn('flex flex-col gap-3 border-t border-border/70 pb-3 pt-3 sm:flex-row sm:items-center', toolbarClassName)}>
+          <div
+            className={cn(
+              'flex flex-col gap-3 border-t border-border/70 transition-[padding] duration-300 ease-out sm:flex-row sm:items-center',
+              isScrolled ? 'py-1.5' : 'pb-3 pt-3',
+              toolbarClassName,
+            )}
+          >
             {toolbar}
           </div>
         )}

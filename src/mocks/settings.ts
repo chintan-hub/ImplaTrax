@@ -30,7 +30,7 @@ export const emptyClinicSettings: ClinicSettings = {
   email: '',
   country: '',
   logoDataUrl: '',
-  currency: 'USD',
+  currency: 'INR',
   priceVisibilityDefault: true,
   barcodeFormat: 'CODE128',
   lowStockGlobalDefault: 10,

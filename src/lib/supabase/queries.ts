@@ -40,6 +40,20 @@ function unwrap<T>({ data, error }: { data: T | null; error: { message: string }
   return data as T
 }
 
+/**
+ * Stricter counterpart to `unwrap` for `.insert(...).select().single()` (and
+ * similar) call sites where a null `data` with no `error` would otherwise
+ * slip through as a valid row — e.g. RLS silently returning zero rows rather
+ * than an explicit error. Never use this for `.update()`/`.delete()`/RPC
+ * calls made without `.select()`: those return `data: null` on a normal
+ * success, and this would wrongly reject them.
+ */
+function unwrapRow<T>(response: { data: T | null; error: { message: string } | null }): T {
+  const row = unwrap(response)
+  if (row == null) throw new Error('No data was returned from the database.')
+  return row
+}
+
 async function countRows(query: PromiseLike<{ count: number | null; error: { message: string } | null }>): Promise<number> {
   const { count, error } = await query
   if (error) throw new Error(error.message)
@@ -127,7 +141,8 @@ async function buildProductRow(workspaceId: string, input: Omit<Product, 'id' | 
 
 export async function insertProduct(workspaceId: string, input: Omit<Product, 'id' | 'sku' | 'barcode' | 'qrPayload' | 'createdAt' | 'updatedAt'>): Promise<Product> {
   const count = await countRows(client().from('products').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId))
-  const row = unwrap<Row<'products'>>(await client().from('products').insert(await buildProductRow(workspaceId, input, count + 1)).select('*').single())
+  const response = await client().from('products').insert(await buildProductRow(workspaceId, input, count + 1)).select('*').single()
+  const row = unwrapRow<Row<'products'>>(response)
   return productFromDb(row, input.manufacturer)
 }
 

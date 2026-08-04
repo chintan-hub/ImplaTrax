@@ -17,7 +17,13 @@ export function AuthScreenHeader({ title, subtitle, className }: AuthScreenHeade
   return (
     <div className={cn('flex flex-col items-center gap-2 text-center sm:gap-3', className)}>
       <h1 className="text-[1.75rem] font-bold leading-[1.1] tracking-[-0.02em] text-foreground sm:text-[2.25rem]">{title}</h1>
-      <p className="max-w-[15rem] text-[13px] leading-relaxed text-muted-foreground/70 dark:text-muted-foreground/85">{subtitle}</p>
+      {/* min-height reserves room for the longest subtitle any step shows (up
+          to 3 wrapped lines at this width) so whatever renders below — the
+          PIN keypad, above all — never shifts position as the subtitle's
+          own line count changes between steps/states. */}
+      <div className="flex min-h-[3.25rem] max-w-[15rem] items-start justify-center sm:min-h-[3.75rem]">
+        <p className="text-[13px] leading-relaxed text-muted-foreground/70 dark:text-muted-foreground/85">{subtitle}</p>
+      </div>
     </div>
   )
 }
