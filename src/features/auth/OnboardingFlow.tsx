@@ -252,13 +252,21 @@ export function OnboardingFlow() {
                     Try Demo Instead
                   </Button>
                   <p className="text-center text-xs text-muted-foreground">Instantly explore a workspace pre-loaded with sample data — nothing here affects a real account.</p>
+                </div>
+                {/* Its own bordered block (not just another item in the gap-3
+                    stack above) so it reads as a distinct, later decision —
+                    "I already did this" — rather than a third option
+                    alongside Create/Demo. Full-width button with real
+                    padding, not an inline text link, so the whole row is the
+                    click target and it can't be mistaken for fine print. */}
+                <div className="w-full border-t border-border/60 pt-3 dark:border-white/10">
                   <button
                     type="button"
                     onClick={() => setShowLogIn(true)}
                     disabled={startingDemo}
-                    className="rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    className="flex w-full items-center justify-center rounded-xl px-4 py-3 text-[15px] font-semibold text-primary transition-colors hover:bg-primary/5 hover:text-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background active:bg-primary/10 active:text-primary-active disabled:pointer-events-none disabled:opacity-50 dark:hover:bg-primary/10"
                   >
-                    Already have a workspace? Log in
+                    Already have an account? Sign in
                   </button>
                 </div>
               </motion.div>
