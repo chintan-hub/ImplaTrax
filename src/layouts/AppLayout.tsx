@@ -4,7 +4,6 @@ import { Sidebar } from '@/components/layout/Sidebar'
 import { Topbar } from '@/components/layout/Topbar'
 import { GlobalSearch } from '@/components/layout/GlobalSearch'
 import { TourHelpButton } from '@/components/layout/TourHelpButton'
-import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { TourProvider } from '@/features/tour/TourContext'
 import { TourOverlay } from '@/features/tour/TourOverlay'
@@ -53,7 +52,6 @@ export function AppLayout() {
         <TourHelpButton />
         <TourOverlay />
         <WelcomeTourPrompt />
-        <Toaster position="bottom-right" />
       </TourProvider>
     </TooltipProvider>
   )

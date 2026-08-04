@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
 import { ThemeProvider } from '@/components/theme/ThemeProvider'
+import { Toaster } from '@/components/ui/sonner'
 import { DataProvider } from '@/store/DataContext'
 import { AuthProvider } from '@/features/auth/AuthContext'
 import { AuthGate } from '@/features/auth/AuthGate'
@@ -34,6 +35,10 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
+        {/* Mounted here (not inside AppLayout) so toast feedback — including
+            auth/onboarding failures — is visible before a user ever reaches
+            the authenticated app shell, not just after. */}
+        <Toaster position="bottom-right" />
         <AuthProvider>
           <Routes>
             {/* Reachable via a Supabase password-recovery email link regardless

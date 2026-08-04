@@ -13,9 +13,9 @@ import { AUTH_INPUT_CLASS, CTA_BUTTON_CLASS } from './authTheme'
  * onboarding welcome step and LoginScreen's "Log in with email instead"
  * fallback, so the two never drift out of sync.
  */
-export function LogInWithEmailForm({ onSuccess }: { onSuccess: (needsNewPin: boolean) => void }) {
+export function LogInWithEmailForm({ initialEmail, onSuccess }: { initialEmail?: string; onSuccess: (needsNewPin: boolean) => void }) {
   const { logInWithPassword, requestPasswordReset } = useAuth()
-  const [email, setEmail] = useState(() => getRememberedEmail())
+  const [email, setEmail] = useState(() => initialEmail?.trim() || getRememberedEmail())
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(() => Boolean(getRememberedEmail()))
   const [error, setError] = useState('')
