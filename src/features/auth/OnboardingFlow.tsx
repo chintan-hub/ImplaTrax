@@ -205,7 +205,24 @@ export function OnboardingFlow() {
       <div ref={paneRef} className={`${AUTH_CONTENT_WRAPPER_CLASS} ${AUTH_BACKDROP_CLASS}`}>
         <AuthBrandBlock />
 
-        <motion.div {...AUTH_CARD_MOTION} className={`overflow-hidden ${AUTH_CARD_CLASS}`}>
+        {/*
+          shrink-0 is the actual fix for the "Set Up Your Workspace" step
+          clipping below the fold on common desktop viewports. This card is
+          a flex item inside AUTH_CONTENT_WRAPPER_CLASS's height-constrained
+          (h-full), centered (justify-center) flex column. Per the CSS
+          Flexbox spec, a flex item's automatic min-height (which normally
+          protects it from shrinking below its content's natural size)
+          resolves to 0 instead once the item has overflow != visible — and
+          this card does, right here, for animation clipping. Without
+          shrink-0, the flexbox algorithm was free to compress the card
+          below its content height whenever content + header didn't fit one
+          viewport, silently clipping the excess (via the card's own
+          overflow-hidden) instead of the wrapper's overflow-y-auto ever
+          seeing an overflow to scroll. shrink-0 restores the card's natural
+          content height as its floor, so the wrapper reliably overflows
+          — and scrolls — exactly when it should.
+        */}
+        <motion.div {...AUTH_CARD_MOTION} className={`shrink-0 overflow-hidden ${AUTH_CARD_CLASS}`}>
           <AnimatePresence mode="wait">
             {step === 'welcome' && !showLogIn && (
               <motion.div key="welcome" {...STEP_TRANSITION} className="flex flex-col items-center gap-6 sm:gap-11">
