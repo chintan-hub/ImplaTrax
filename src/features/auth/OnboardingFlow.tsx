@@ -225,7 +225,7 @@ export function OnboardingFlow() {
         <motion.div {...AUTH_CARD_MOTION} className={`shrink-0 overflow-hidden ${AUTH_CARD_CLASS}`}>
           <AnimatePresence mode="wait">
             {step === 'welcome' && !showLogIn && (
-              <motion.div key="welcome" {...STEP_TRANSITION} className="flex flex-col items-center gap-6 sm:gap-11">
+              <motion.div key="welcome" {...STEP_TRANSITION} className="flex flex-col items-center gap-4 sm:gap-6">
                 <AuthScreenHeader title="Welcome to ImplaTrax" subtitle="Let's get your workspace set up." />
                 <div className="flex w-full flex-col gap-3">
                   <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} onClick={() => setStep('account')} disabled={startingDemo}>
@@ -248,7 +248,7 @@ export function OnboardingFlow() {
             )}
 
             {step === 'welcome' && showLogIn && (
-              <motion.div key="login" {...STEP_TRANSITION} className="flex flex-col items-center gap-6 sm:gap-11">
+              <motion.div key="login" {...STEP_TRANSITION} className="flex flex-col items-center gap-4 sm:gap-6">
                 <AuthScreenHeader title="Log In" subtitle="Sign in with the email and password from your workspace." />
                 <LogInWithEmailForm onSuccess={() => {}} />
                 <button
@@ -262,7 +262,7 @@ export function OnboardingFlow() {
             )}
 
             {step === 'account' && (
-              <motion.div key="account" {...STEP_TRANSITION} className="flex flex-col items-center gap-6 sm:gap-11">
+              <motion.div key="account" {...STEP_TRANSITION} className="flex flex-col items-center gap-4 sm:gap-6">
                 <div className="flex w-full flex-col gap-2">
                   <Button
                     type="button"
@@ -275,8 +275,8 @@ export function OnboardingFlow() {
                   </Button>
                   <AuthScreenHeader title="Set Up Your Workspace" subtitle="Tell us a little about your practice." />
                 </div>
-                <div className="flex w-full flex-col gap-3 sm:gap-4">
-                  <div className="flex flex-col gap-1.5 sm:gap-2">
+                <div className="flex w-full flex-col gap-2.5 sm:gap-3">
+                  <div className="flex flex-col gap-1.5">
                     <Label htmlFor="workspaceName">Workspace Name</Label>
                     <Input
                       id="workspaceName"
@@ -287,44 +287,53 @@ export function OnboardingFlow() {
                       className={AUTH_INPUT_CLASS}
                     />
                   </div>
-                  <div className="flex flex-col gap-1.5 sm:gap-2">
-                    <Label htmlFor="yourName">Your Name</Label>
-                    <Input id="yourName" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" className={AUTH_INPUT_CLASS} />
+                  <div className="grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="yourName">Your Name</Label>
+                      <Input id="yourName" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" className={AUTH_INPUT_CLASS} />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        autoComplete="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        className={AUTH_INPUT_CLASS}
+                      />
+                    </div>
                   </div>
-                  <div className="flex flex-col gap-1.5 sm:gap-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      autoComplete="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
-                      className={AUTH_INPUT_CLASS}
-                    />
+                  <div className="grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="password">Password</Label>
+                      <PasswordInput
+                        id="password"
+                        autoComplete="new-password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className={AUTH_INPUT_CLASS}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="confirmPassword">Confirm Password</Label>
+                      <PasswordInput
+                        id="confirmPassword"
+                        autoComplete="new-password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className={AUTH_INPUT_CLASS}
+                      />
+                    </div>
                   </div>
-                  <div className="flex flex-col gap-1.5 sm:gap-2">
-                    <Label htmlFor="password">Password</Label>
-                    <PasswordInput
-                      id="password"
-                      autoComplete="new-password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className={AUTH_INPUT_CLASS}
-                    />
-                    <p className="text-xs text-muted-foreground">At least 8 characters. This is your account password — separate from the 4-digit PIN you'll set up next.</p>
-                  </div>
-                  <div className="flex flex-col gap-1.5 sm:gap-2">
-                    <Label htmlFor="confirmPassword">Confirm Password</Label>
-                    <PasswordInput
-                      id="confirmPassword"
-                      autoComplete="new-password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className={AUTH_INPUT_CLASS}
-                    />
-                    {confirmPassword.length > 0 && !passwordsMatch && <p className="text-xs text-danger-600">Passwords do not match.</p>}
-                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {confirmPassword.length > 0 && !passwordsMatch ? (
+                      <span className="text-danger-600">Passwords do not match.</span>
+                    ) : (
+                      'At least 8 characters — separate from the 4-digit PIN you\'ll set up next.'
+                    )}
+                  </p>
                 </div>
                 <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} disabled={!accountValid} onClick={() => setStep('company')}>
                   Continue
@@ -333,10 +342,10 @@ export function OnboardingFlow() {
             )}
 
             {step === 'company' && (
-              <motion.div key="company" {...STEP_TRANSITION} className="flex flex-col items-center gap-6 sm:gap-11">
+              <motion.div key="company" {...STEP_TRANSITION} className="flex flex-col items-center gap-4 sm:gap-6">
                 <AuthScreenHeader title="About Your Practice" subtitle="Optional — you can change all of this later in Settings." />
-                <div className="flex w-full flex-col gap-3 sm:gap-4">
-                  <div className="flex flex-col gap-1.5 sm:gap-2">
+                <div className="flex w-full flex-col gap-2.5 sm:gap-3">
+                  <div className="flex flex-col gap-1.5">
                     <Label htmlFor="companyName">Company Name (optional)</Label>
                     <Input
                       id="companyName"
@@ -347,7 +356,7 @@ export function OnboardingFlow() {
                       className={AUTH_INPUT_CLASS}
                     />
                   </div>
-                  <div className="flex flex-col gap-1.5 sm:gap-2">
+                  <div className="flex flex-col gap-1.5">
                     <Label>Company Logo (optional)</Label>
                     <div className="flex items-center gap-3">
                       <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border/70 bg-background/60 dark:bg-black/25">
@@ -373,30 +382,32 @@ export function OnboardingFlow() {
                       )}
                     </div>
                   </div>
-                  <div className="flex flex-col gap-1.5 sm:gap-2">
-                    <Label>Country</Label>
-                    <Combobox
-                      options={COUNTRIES.map((c) => ({ value: c, label: c }))}
-                      value={country}
-                      onChange={handleCountryChange}
-                      placeholder="Select country"
-                      searchPlaceholder="Search countries..."
-                      emptyText="No countries found."
-                      triggerAriaLabel="Country"
-                      className={AUTH_INPUT_CLASS}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5 sm:gap-2">
-                    <Label>Currency</Label>
-                    <Select value={currency} onValueChange={setCurrency}>
-                      <SelectTrigger className={AUTH_INPUT_CLASS}><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="USD">USD ($)</SelectItem>
-                        <SelectItem value="EUR">EUR (€)</SelectItem>
-                        <SelectItem value="GBP">GBP (£)</SelectItem>
-                        <SelectItem value="INR">INR (₹)</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
+                    <div className="flex flex-col gap-1.5">
+                      <Label>Country</Label>
+                      <Combobox
+                        options={COUNTRIES.map((c) => ({ value: c, label: c }))}
+                        value={country}
+                        onChange={handleCountryChange}
+                        placeholder="Select country"
+                        searchPlaceholder="Search countries..."
+                        emptyText="No countries found."
+                        triggerAriaLabel="Country"
+                        className={AUTH_INPUT_CLASS}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label>Currency</Label>
+                      <Select value={currency} onValueChange={setCurrency}>
+                        <SelectTrigger className={AUTH_INPUT_CLASS}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="USD">USD ($)</SelectItem>
+                          <SelectItem value="EUR">EUR (€)</SelectItem>
+                          <SelectItem value="GBP">GBP (£)</SelectItem>
+                          <SelectItem value="INR">INR (₹)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
                 <Button size="lg" className={`w-full ${CTA_BUTTON_CLASS}`} onClick={() => setStep('pin')}>
@@ -406,7 +417,7 @@ export function OnboardingFlow() {
             )}
 
             {step === 'pin' && !pinConfirmed && (
-              <motion.div key="pin" {...STEP_TRANSITION} className="flex flex-col items-center gap-6 sm:gap-11">
+              <motion.div key="pin" {...STEP_TRANSITION} className="flex flex-col items-center gap-4 sm:gap-6">
                 <AuthScreenHeader
                   title={pinPhase === 'create' ? 'Create Your PIN' : 'Confirm Your PIN'}
                   subtitle={pinPhase === 'create' ? 'Choose a 4-digit PIN to secure your workspace on this device.' : 'Re-enter your PIN to confirm.'}
@@ -416,7 +427,7 @@ export function OnboardingFlow() {
             )}
 
             {step === 'pin' && pinConfirmed && (
-              <motion.div key="finish" {...STEP_TRANSITION} className="flex flex-col items-center gap-6 sm:gap-11">
+              <motion.div key="finish" {...STEP_TRANSITION} className="flex flex-col items-center gap-4 sm:gap-6">
                 <AuthScreenHeader title="You're All Set" subtitle="Your workspace is ready to use." />
                 {biometricsSupported && (
                   <div className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-card/60 px-4 py-3 dark:border-white/10">
