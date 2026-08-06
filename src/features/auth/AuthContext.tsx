@@ -362,7 +362,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(signUpData.session)
 
       const workspaceId = unwrapRpc<string>(await client().rpc('create_workspace', { p_workspace_name: 'Demo Workspace', p_member_name: 'Demo User', p_contact_email: email }))
-      unwrapRpc(await client().rpc('complete_onboarding', { p_workspace_id: workspaceId, p_clinic_name: 'Demo Dental Clinic', p_country: 'United States', p_currency: 'USD' }))
+      unwrapRpc(await client().rpc('complete_onboarding', { p_workspace_id: workspaceId, p_clinic_name: 'Demo Dental Clinic', p_country: 'United States', p_currency: 'INR' }))
 
       await seedDemoWorkspace(workspaceId)
 
@@ -375,7 +375,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const me = memberFromRow(memberRow)
 
       const salt = generateSalt()
-      const pin = String(Math.floor(Math.random() * 10000)).padStart(4, '0')
+      // Fixed, not random: every demo workspace uses the same well-known
+      // PIN so it can be shared/documented without needing to look it up.
+      const pin = '0000'
       const pinHash = await hashPin(pin, salt)
       setDevicePin(me.id, { pinHash, pinSalt: salt, mustChangePin: false, webauthnCredentialId: null })
       setLastWorkspaceId(workspaceId)
