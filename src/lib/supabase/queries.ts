@@ -11,7 +11,7 @@
 import { supabase } from './client'
 import type {
   Product, ProductBatch, InventoryMovement, Vendor, PurchaseOrder, Doctor, Patient, Case,
-  Lab, Sale, SaleLine, Loan, ClinicSettings, Manufacturer,
+  Lab, Sale, SaleLine, Loan, ClinicSettings, Manufacturer, ManufacturerRecord,
 } from '@/types'
 import type { Database } from './database.types'
 import {
@@ -65,16 +65,21 @@ function pad(n: number, width: number) {
 }
 
 // ---------------------------------------------------------------------------
-// Manufacturers — global, immutable reference data (migration 0003). Fetched
-// once per page load and cached in module scope; both directions (name <->
-// id) are needed constantly by product/vendor mapping.
+// Manufacturers — the platform's global catalog (migration 0003, workspace_id
+// null) plus each workspace's own additions (migration 0015, workspace_id =
+// that workspace) — RLS only ever returns the rows a given session may see,
+// so no explicit workspace filter is needed in these queries. Fetched once
+// per workspace and cached in module scope; both directions (name <-> id)
+// are needed constantly by product/vendor mapping. Invalidated on insert so
+// a manufacturer added this session is immediately resolvable without a
+// full reload.
 // ---------------------------------------------------------------------------
-let manufacturerCache: { id: string; name: Manufacturer }[] | null = null
+let manufacturerCache: { id: string; name: Manufacturer; workspace_id: string | null }[] | null = null
 
 async function getManufacturers() {
   if (manufacturerCache) return manufacturerCache
-  const rows = unwrap(await client().from('manufacturers').select('id, name').order('name'))
-  manufacturerCache = rows as { id: string; name: Manufacturer }[]
+  const rows = unwrap(await client().from('manufacturers').select('id, name, workspace_id').order('name'))
+  manufacturerCache = rows as { id: string; name: Manufacturer; workspace_id: string | null }[]
   return manufacturerCache
 }
 
@@ -83,6 +88,21 @@ async function manufacturerIdByName(name: Manufacturer): Promise<string> {
   const found = list.find((m) => m.name === name)
   if (!found) throw new Error(`Unknown manufacturer: ${name}`)
   return found.id
+}
+
+export async function fetchManufacturers(): Promise<ManufacturerRecord[]> {
+  manufacturerCache = null
+  const rows = await getManufacturers()
+  return rows.map((r) => ({ id: r.id, name: r.name, isGlobal: r.workspace_id === null }))
+}
+
+/** Always inserts with the caller's own workspace_id — there is no path here (or anywhere in the app) that can write workspace_id: null; the RLS insert policy from migration 0015 would reject it even if there were. */
+export async function insertManufacturer(workspaceId: string, name: string): Promise<ManufacturerRecord> {
+  const row = unwrap<Row<'manufacturers'>>(
+    await client().from('manufacturers').insert({ workspace_id: workspaceId, name }).select('id, name, workspace_id').single(),
+  )
+  manufacturerCache = null
+  return { id: row.id, name: row.name, isGlobal: row.workspace_id === null }
 }
 
 // ---------------------------------------------------------------------------

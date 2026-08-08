@@ -71,7 +71,7 @@ export interface Database {
         'id' | 'account_role' | 'business_role' | 'invited_by' | 'token' | 'status' | 'created_at'
         | 'expires_at' | 'accepted_by' | 'accepted_at'
       >
-      manufacturers: Table<{ id: string; name: string; created_at: string }, 'id' | 'created_at'>
+      manufacturers: Table<{ id: string; name: string; workspace_id: string | null; created_at: string }, 'id' | 'workspace_id' | 'created_at'>
       vendors: Table<
         {
           id: string; workspace_id: string; name: string; contact_name: string; email: string; phone: string

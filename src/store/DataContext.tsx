@@ -15,6 +15,7 @@ import type {
   SaleLine,
   Loan,
   ClinicSettings,
+  ManufacturerRecord,
 } from '@/types'
 import * as mock from '@/mocks'
 import { useAuth } from '@/features/auth/AuthContext'
@@ -27,6 +28,7 @@ import {
   fetchVendors, insertVendor, updateVendorRow,
   fetchPurchaseOrders, createPurchaseOrderRpc, submitPurchaseOrderRpc, cancelPurchaseOrderRpc, attachPoPhotoRpc, receivePurchaseOrderRpc,
   fetchDoctors, insertDoctor, updateDoctorActive,
+  fetchManufacturers, insertManufacturer,
   fetchPatients, insertPatient, updatePatientRow,
   fetchCases, insertCase, advanceCaseStatusRow, addImplantToCaseRpc,
   fetchLabs, insertLab, updateLabRow,
@@ -86,6 +88,7 @@ interface DataContextValue {
   clinicSettings: ClinicSettings
   batches: ProductBatch[]
   doctors: Doctor[]
+  manufacturers: ManufacturerRecord[]
   /** True while the initial per-workspace fetch is in flight — every list above is empty until this settles. */
   loading: boolean
 
@@ -125,6 +128,8 @@ interface DataContextValue {
   updateClinicSettings: (patch: Partial<ClinicSettings>) => Promise<void>
   addDoctor: (input: { name: string; active?: boolean }) => Promise<Doctor>
   setDoctorActive: (id: string, active: boolean) => Promise<void>
+  /** Always saved with the caller's own workspace_id (migration 0015) — there is no way to create or modify a global (built-in) manufacturer from the app. */
+  addManufacturer: (name: string) => Promise<ManufacturerRecord>
 
   /** Settings > Danger Zone — permanently deletes every sale/patient/case/PO/loan/product/vendor/lab/doctor row for the active workspace (server-enforced to workspace managers only). The workspace itself, its members, and its settings are untouched. */
   wipeWorkspaceData: () => Promise<void>
@@ -149,6 +154,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [clinicSettings, setClinicSettings] = useState<ClinicSettings>(mock.emptyClinicSettings)
   const [batches, setBatches] = useState<ProductBatch[]>([])
   const [doctors, setDoctors] = useState<Doctor[]>([])
+  const [manufacturers, setManufacturers] = useState<ManufacturerRecord[]>([])
   const [loading, setLoading] = useState(true)
 
   const refetchProducts = useCallback(async () => {
@@ -223,6 +229,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setDoctors(rows)
     return rows
   }, [workspaceId])
+  const refetchManufacturers = useCallback(async () => {
+    if (!workspaceId) return [] as ManufacturerRecord[]
+    const rows = await fetchManufacturers()
+    setManufacturers(rows)
+    return rows
+  }, [workspaceId])
 
   // Loads every workspace-scoped table once per active workspace — there is
   // no backend push/subscription yet, so every mutating action below
@@ -243,6 +255,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setClinicSettings(mock.emptyClinicSettings)
       setBatches([])
       setDoctors([])
+      setManufacturers([])
       setLoading(false)
       return
     }
@@ -250,7 +263,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     Promise.all([
       refetchProducts(), refetchMovements(), refetchPurchaseOrders(), refetchVendors(),
       refetchPatients(), refetchCases(), refetchLabs(), refetchSales(), refetchLoans(),
-      refetchClinicSettings(), refetchBatches(), refetchDoctors(),
+      refetchClinicSettings(), refetchBatches(), refetchDoctors(), refetchManufacturers(),
     ]).finally(() => {
       if (!cancelled) setLoading(false)
     })
@@ -580,14 +593,24 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setDoctors((prev) => prev.map((d) => (d.id === id ? { ...d, active } : d)))
   }, [])
 
+  const addManufacturer = useCallback(
+    async (name: string) => {
+      const wsId = requireWorkspace()
+      const manufacturer = await insertManufacturer(wsId, name.trim())
+      setManufacturers((prev) => [...prev, manufacturer].sort((a, b) => a.name.localeCompare(b.name)))
+      return manufacturer
+    },
+    [requireWorkspace],
+  )
+
   const wipeWorkspaceData = useCallback(async () => {
     const wsId = requireWorkspace()
     await wipeWorkspaceDataRpc(wsId)
     await Promise.all([
       refetchProducts(), refetchMovements(), refetchPurchaseOrders(), refetchVendors(),
-      refetchPatients(), refetchCases(), refetchLabs(), refetchSales(), refetchLoans(), refetchBatches(), refetchDoctors(),
+      refetchPatients(), refetchCases(), refetchLabs(), refetchSales(), refetchLoans(), refetchBatches(), refetchDoctors(), refetchManufacturers(),
     ])
-  }, [requireWorkspace, refetchProducts, refetchMovements, refetchPurchaseOrders, refetchVendors, refetchPatients, refetchCases, refetchLabs, refetchSales, refetchLoans, refetchBatches, refetchDoctors])
+  }, [requireWorkspace, refetchProducts, refetchMovements, refetchPurchaseOrders, refetchVendors, refetchPatients, refetchCases, refetchLabs, refetchSales, refetchLoans, refetchBatches, refetchDoctors, refetchManufacturers])
 
   const value = useMemo<DataContextValue>(
     () => ({
@@ -603,6 +626,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       clinicSettings,
       batches,
       doctors,
+      manufacturers,
       loading,
       adjustStock,
       addProduct,
@@ -629,6 +653,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       updateClinicSettings,
       addDoctor,
       setDoctorActive,
+      addManufacturer,
       wipeWorkspaceData,
     }),
     [
@@ -644,6 +669,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       clinicSettings,
       batches,
       doctors,
+      manufacturers,
       loading,
       adjustStock,
       addProduct,
@@ -670,6 +696,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       updateClinicSettings,
       addDoctor,
       setDoctorActive,
+      addManufacturer,
       wipeWorkspaceData,
     ],
   )

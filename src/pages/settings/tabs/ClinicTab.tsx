@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
-import { Sun, Moon, Laptop, Stethoscope, Plus } from 'lucide-react'
+import { Sun, Moon, Laptop, Stethoscope, Factory, Plus } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -121,6 +121,83 @@ function DoctorsCard() {
   )
 }
 
+function ManufacturersCard() {
+  const { manufacturers, addManufacturer } = useData()
+  const { currentMember } = useAuth()
+  const canManage = Boolean(currentMember && WORKSPACE_MANAGER_ROLES.includes(currentMember.role))
+  const [newName, setNewName] = useState('')
+  const sorted = [...manufacturers].sort((a, b) => a.name.localeCompare(b.name))
+
+  const handleAdd = async () => {
+    const name = newName.trim()
+    if (!name) {
+      toast.error('Enter a manufacturer name.')
+      return
+    }
+    if (manufacturers.some((m) => m.name.toLowerCase() === name.toLowerCase())) {
+      toast.error('A manufacturer with that name already exists.')
+      return
+    }
+    try {
+      await addManufacturer(name)
+      toast.success(`${name} added`, { description: 'Now available when creating or editing a product.' })
+      setNewName('')
+    } catch (err) {
+      toast.error('Could not add manufacturer', { description: err instanceof Error ? err.message : undefined })
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-1.5">
+          <Factory className="h-4 w-4" /> Manufacturers
+        </CardTitle>
+        <CardDescription>Manufacturers available when creating or editing a product, in addition to the built-in catalog</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {canManage && (
+          <div className="mb-4 flex gap-2">
+            <Input
+              placeholder="Manufacturer name"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+            />
+            <Button onClick={handleAdd} className="shrink-0">
+              <Plus className="h-4 w-4" /> Add Manufacturer
+            </Button>
+          </div>
+        )}
+        {sorted.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No manufacturers yet.</p>
+        ) : (
+          <div className="rounded-xl border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Manufacturer</TableHead>
+                  <TableHead>Source</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sorted.map((m) => (
+                  <TableRow key={m.id}>
+                    <TableCell className="font-medium">{m.name}</TableCell>
+                    <TableCell>
+                      <Badge variant={m.isGlobal ? 'outline' : 'secondary'}>{m.isGlobal ? 'Built-in' : 'Custom'}</Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 export function ClinicTab() {
   const { clinicSettings, updateClinicSettings } = useData()
   const { theme, setTheme } = useTheme()
@@ -187,6 +264,8 @@ export function ClinicTab() {
       </Card>
 
       <DoctorsCard />
+
+      <ManufacturersCard />
 
       <Card>
         <CardHeader>
