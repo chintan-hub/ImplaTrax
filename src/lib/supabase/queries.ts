@@ -9,6 +9,7 @@
  * same message shape BusinessRuleError already used locally.
  */
 import { supabase } from './client'
+import { titleCaseName } from '@/lib/utils'
 import type {
   Product, ProductBatch, InventoryMovement, Vendor, PurchaseOrder, Doctor, Patient, Case,
   Lab, Sale, SaleLine, Loan, ClinicSettings, Manufacturer, ManufacturerRecord,
@@ -99,7 +100,7 @@ export async function fetchManufacturers(): Promise<ManufacturerRecord[]> {
 /** Always inserts with the caller's own workspace_id — there is no path here (or anywhere in the app) that can write workspace_id: null; the RLS insert policy from migration 0015 would reject it even if there were. */
 export async function insertManufacturer(workspaceId: string, name: string): Promise<ManufacturerRecord> {
   const row = unwrap<Row<'manufacturers'>>(
-    await client().from('manufacturers').insert({ workspace_id: workspaceId, name }).select('id, name, workspace_id').single(),
+    await client().from('manufacturers').insert({ workspace_id: workspaceId, name: titleCaseName(name) }).select('id, name, workspace_id').single(),
   )
   manufacturerCache = null
   return { id: row.id, name: row.name, isGlobal: row.workspace_id === null }
@@ -253,8 +254,8 @@ export async function insertVendor(workspaceId: string, input: Omit<Vendor, 'id'
       .from('vendors')
       .insert({
         workspace_id: workspaceId,
-        name: input.name,
-        contact_name: input.contactName,
+        name: titleCaseName(input.name),
+        contact_name: titleCaseName(input.contactName),
         email: input.email,
         phone: input.phone,
         address: input.address,
@@ -272,8 +273,8 @@ export async function insertVendor(workspaceId: string, input: Omit<Vendor, 'id'
 
 export async function updateVendorRow(id: string, patch: Partial<Vendor>): Promise<void> {
   const dbPatch: UpdatePatch<'vendors'> = {}
-  if (patch.name !== undefined) dbPatch.name = patch.name
-  if (patch.contactName !== undefined) dbPatch.contact_name = patch.contactName
+  if (patch.name !== undefined) dbPatch.name = titleCaseName(patch.name)
+  if (patch.contactName !== undefined) dbPatch.contact_name = titleCaseName(patch.contactName)
   if (patch.email !== undefined) dbPatch.email = patch.email
   if (patch.phone !== undefined) dbPatch.phone = patch.phone
   if (patch.address !== undefined) dbPatch.address = patch.address
@@ -368,7 +369,9 @@ export async function fetchDoctors(workspaceId: string): Promise<Doctor[]> {
 }
 
 export async function insertDoctor(workspaceId: string, name: string, active = true): Promise<Doctor> {
-  const row = unwrap<Row<'doctors'>>(await client().from('doctors').insert({ workspace_id: workspaceId, name, active }).select('*').single())
+  const row = unwrap<Row<'doctors'>>(
+    await client().from('doctors').insert({ workspace_id: workspaceId, name: titleCaseName(name), active }).select('*').single(),
+  )
   return doctorFromDb(row)
 }
 
@@ -394,8 +397,8 @@ export async function insertPatient(workspaceId: string, input: Omit<Patient, 'i
       .insert({
         workspace_id: workspaceId,
         patient_code: patientCode,
-        first_name: input.firstName,
-        last_name: input.lastName,
+        first_name: titleCaseName(input.firstName),
+        last_name: titleCaseName(input.lastName),
         dob: input.dob,
         sex: input.sex,
         phone: input.phone,
@@ -411,8 +414,8 @@ export async function insertPatient(workspaceId: string, input: Omit<Patient, 'i
 
 export async function updatePatientRow(id: string, patch: Partial<Patient>): Promise<void> {
   const dbPatch: UpdatePatch<'patients'> = {}
-  if (patch.firstName !== undefined) dbPatch.first_name = patch.firstName
-  if (patch.lastName !== undefined) dbPatch.last_name = patch.lastName
+  if (patch.firstName !== undefined) dbPatch.first_name = titleCaseName(patch.firstName)
+  if (patch.lastName !== undefined) dbPatch.last_name = titleCaseName(patch.lastName)
   if (patch.dob !== undefined) dbPatch.dob = patch.dob
   if (patch.sex !== undefined) dbPatch.sex = patch.sex
   if (patch.phone !== undefined) dbPatch.phone = patch.phone
@@ -513,8 +516,8 @@ export async function insertLab(workspaceId: string, input: Omit<Lab, 'id' | 'cr
       .from('labs')
       .insert({
         workspace_id: workspaceId,
-        name: input.name,
-        contact_name: input.contactName,
+        name: titleCaseName(input.name),
+        contact_name: titleCaseName(input.contactName),
         email: input.email,
         phone: input.phone,
         address: input.address,
@@ -530,8 +533,8 @@ export async function insertLab(workspaceId: string, input: Omit<Lab, 'id' | 'cr
 
 export async function updateLabRow(id: string, patch: Partial<Lab>): Promise<void> {
   const dbPatch: UpdatePatch<'labs'> = {}
-  if (patch.name !== undefined) dbPatch.name = patch.name
-  if (patch.contactName !== undefined) dbPatch.contact_name = patch.contactName
+  if (patch.name !== undefined) dbPatch.name = titleCaseName(patch.name)
+  if (patch.contactName !== undefined) dbPatch.contact_name = titleCaseName(patch.contactName)
   if (patch.email !== undefined) dbPatch.email = patch.email
   if (patch.phone !== undefined) dbPatch.phone = patch.phone
   if (patch.address !== undefined) dbPatch.address = patch.address

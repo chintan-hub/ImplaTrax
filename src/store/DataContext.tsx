@@ -18,6 +18,7 @@ import type {
   ManufacturerRecord,
 } from '@/types'
 import * as mock from '@/mocks'
+import { titleCaseName } from '@/lib/utils'
 import { useAuth } from '@/features/auth/AuthContext'
 import { canSubmitPO, canReceivePO, canCancelPO } from '@/lib/poWorkflow'
 import { canAdvanceCaseStatus } from '@/lib/caseWorkflow'
@@ -472,8 +473,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   )
 
   const updatePatient = useCallback(async (id: string, patch: Partial<Patient>) => {
-    await updatePatientRow(id, patch)
-    setPatients((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)))
+    // Normalized here (not just inside updatePatientRow) so the optimistic
+    // local merge below reflects the same title-cased value actually saved
+    // to the DB, instead of the raw typed text until the next refetch.
+    const normalized: Partial<Patient> = { ...patch }
+    if (patch.firstName !== undefined) normalized.firstName = titleCaseName(patch.firstName)
+    if (patch.lastName !== undefined) normalized.lastName = titleCaseName(patch.lastName)
+    await updatePatientRow(id, normalized)
+    setPatients((prev) => prev.map((p) => (p.id === id ? { ...p, ...normalized } : p)))
   }, [])
 
   // The inverse of createSale: restores every line's quantity to stock and
@@ -546,8 +553,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   )
 
   const updateLab = useCallback(async (id: string, patch: Partial<Lab>) => {
-    await updateLabRow(id, patch)
-    setLabs((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)))
+    const normalized: Partial<Lab> = { ...patch }
+    if (patch.name !== undefined) normalized.name = titleCaseName(patch.name)
+    if (patch.contactName !== undefined) normalized.contactName = titleCaseName(patch.contactName)
+    await updateLabRow(id, normalized)
+    setLabs((prev) => prev.map((l) => (l.id === id ? { ...l, ...normalized } : l)))
   }, [])
 
   const addVendor = useCallback(
@@ -561,8 +571,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   )
 
   const updateVendor = useCallback(async (id: string, patch: Partial<Vendor>) => {
-    await updateVendorRow(id, patch)
-    setVendors((prev) => prev.map((v) => (v.id === id ? { ...v, ...patch } : v)))
+    const normalized: Partial<Vendor> = { ...patch }
+    if (patch.name !== undefined) normalized.name = titleCaseName(patch.name)
+    if (patch.contactName !== undefined) normalized.contactName = titleCaseName(patch.contactName)
+    await updateVendorRow(id, normalized)
+    setVendors((prev) => prev.map((v) => (v.id === id ? { ...v, ...normalized } : v)))
   }, [])
 
   const updateClinicSettings = useCallback(

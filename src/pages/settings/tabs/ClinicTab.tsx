@@ -26,7 +26,7 @@ function DoctorsCard() {
   const [newName, setNewName] = useState('')
   const sorted = [...doctors].sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name))
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     const name = newName.trim()
     if (!name) {
       toast.error('Enter a doctor name.')
@@ -36,8 +36,8 @@ function DoctorsCard() {
       toast.error('A doctor with that name already exists.')
       return
     }
-    addDoctor({ name })
-    toast.success(`Dr. ${name} added`)
+    const doctor = await addDoctor({ name })
+    toast.success(`Dr. ${doctor.name} added`)
     setNewName('')
   }
 
@@ -139,8 +139,8 @@ function ManufacturersCard() {
       return
     }
     try {
-      await addManufacturer(name)
-      toast.success(`${name} added`, { description: 'Now available when creating or editing a product.' })
+      const manufacturer = await addManufacturer(name)
+      toast.success(`${manufacturer.name} added`, { description: 'Now available when creating or editing a product.' })
       setNewName('')
     } catch (err) {
       toast.error('Could not add manufacturer', { description: err instanceof Error ? err.message : undefined })
