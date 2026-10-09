@@ -58,6 +58,24 @@ export function formatDateTime(value: string | Date) {
   }).format(d)
 }
 
+/**
+ * Normalizes a person's or entity's proper name to title case before it's
+ * saved — e.g. "dr. marcus chen" -> "Dr. Marcus Chen", "nobel biocare" ->
+ * "Nobel Biocare". Only the first letter of each word (and of each
+ * hyphenated segment, so "anne-marie" -> "Anne-Marie") is forced uppercase;
+ * everything else in the word is left exactly as typed, so existing
+ * capitalization, punctuation, and initials (e.g. "O'Brien", "J.R. Smith",
+ * "3M") survive unchanged. This is the single place that logic lives — call
+ * it wherever a name field is persisted rather than re-implementing it.
+ */
+export function titleCaseName(value: string): string {
+  return value
+    .trim()
+    .split(' ')
+    .map((word) => word.split('-').map((part) => (part ? part[0].toUpperCase() + part.slice(1) : part)).join('-'))
+    .join(' ')
+}
+
 export function initials(name: string) {
   return name
     .split(' ')

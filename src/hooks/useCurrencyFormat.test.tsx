@@ -24,6 +24,7 @@ vi.mock('@/lib/supabase/queries', async (importOriginal) => {
     fetchClinicSettings: vi.fn().mockResolvedValue(emptyClinicSettings),
     fetchProductBatches: vi.fn().mockResolvedValue([]),
     fetchDoctors: vi.fn().mockResolvedValue([]),
+    fetchManufacturers: vi.fn().mockResolvedValue([]),
     updateClinicSettingsRow: vi.fn().mockResolvedValue(undefined),
   }
 })

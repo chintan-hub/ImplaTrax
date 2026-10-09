@@ -14,12 +14,15 @@ import { TermHint } from '@/components/ui/help-tooltip'
 import { useData } from '@/store/DataContext'
 import { MICROCOPY } from '@/content/helpText'
 import { simulateLatency } from '@/lib/utils'
-import { MANUFACTURERS, PRODUCT_CATEGORIES } from '@/types'
-import type { Manufacturer, ProductCategory, Product } from '@/types'
+import { PRODUCT_CATEGORIES } from '@/types'
+import type { ProductCategory, Product } from '@/types'
 
 const schema = z.object({
   name: z.string().min(3, 'Name is required'),
-  manufacturer: z.enum(MANUFACTURERS as [Manufacturer, ...Manufacturer[]]),
+  // Not z.enum(MANUFACTURERS) any more — the picklist below is the built-in
+  // catalog plus whatever this workspace has added in Settings (dynamic, not
+  // a fixed set), so any non-empty value the Select actually offered is valid.
+  manufacturer: z.string().min(1, 'Manufacturer is required'),
   category: z.enum(PRODUCT_CATEGORIES as [ProductCategory, ...ProductCategory[]]),
   system: z.string().min(1, 'System is required'),
   diameterMm: z.coerce.number().optional(),
@@ -72,7 +75,7 @@ function editDefaults(product: Product): FormValues {
 }
 
 export function ProductFormDialog({ open, onOpenChange, product }: { open: boolean; onOpenChange: (v: boolean) => void; product?: Product }) {
-  const { addProduct, updateProduct, vendors, clinicSettings } = useData()
+  const { addProduct, updateProduct, vendors, clinicSettings, manufacturers } = useData()
   const isEdit = !!product
   const [submitting, setSubmitting] = useState(false)
   const {
@@ -194,7 +197,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: { open: boole
                 <Select value={field.value} onValueChange={field.onChange}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {MANUFACTURERS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    {manufacturers.map((m) => <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               )}

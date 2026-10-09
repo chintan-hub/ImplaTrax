@@ -8,16 +8,23 @@ export type ID = string
 // Products
 // ---------------------------------------------------------------------------
 
-export type Manufacturer =
-  | 'Straumann'
-  | 'Nobel Biocare'
-  | 'Osstem'
-  | 'NeoBiotech'
-  | 'Dentium'
-  | 'MIS'
+/**
+ * A manufacturer name as stored on Product/Vendor — a plain string, not a
+ * fixed union. The platform ships with a built-in catalog (MANUFACTURERS
+ * below), but each workspace can add its own on top of it (Settings >
+ * Clinic > Manufacturers), so this can no longer be a closed literal type.
+ */
+export type Manufacturer = string
 
-/** Single source of truth for the Manufacturer picklist — a fixed, real-world catalog of implant brands, not per-clinic data, so it stays a static list rather than a persisted table (PROJECT.md §3, Master Data Audit). */
+/** The platform's built-in catalog of implant brands, seeded once for every workspace (migration 0003) — still useful as sensible defaults, but no longer the only manufacturers a workspace can use; see ManufacturerRecord for the full, per-workspace list. */
 export const MANUFACTURERS: Manufacturer[] = ['Straumann', 'Nobel Biocare', 'Osstem', 'NeoBiotech', 'Dentium', 'MIS']
+
+/** A manufacturer row as returned by the manufacturer list (built-in catalog + this workspace's own additions) — `isGlobal` rows are the platform catalog, never created or modified from the UI. */
+export interface ManufacturerRecord {
+  id: ID
+  name: string
+  isGlobal: boolean
+}
 
 export type ProductCategory =
   | 'Implant Fixture'
